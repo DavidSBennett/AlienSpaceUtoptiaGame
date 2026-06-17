@@ -1,3 +1,40 @@
+Skip to content
+DavidSBennett
+thehistorians.org
+Repository navigation
+Code
+Issues
+Pull requests
+Actions
+Projects
+Security and quality
+Insights
+Settings
+Files
+Go to file
+t
+T
+.github/workflows
+deploy.yml
+backend
+database
+frontend
+.gitignore
+README.md
+the-historians-repo.zip
+thehistorians.org/.github/workflows
+/deploy.yml
+DavidSBennett
+DavidSBennett
+Building the base files.
+1fc0b5b
+ · 
+30 minutes ago
+
+Code
+
+Blame
+51 lines (45 loc) · 1.46 KB
 name: Build & Deploy to GreenGeeks
 
 on:
