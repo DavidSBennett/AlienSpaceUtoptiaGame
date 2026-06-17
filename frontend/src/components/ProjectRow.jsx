@@ -343,8 +343,8 @@ function PublishColumn({ project, onPublish, articleMin = 2, freePublishing = fa
       </span>
       <div className="mt-2 pt-2 border-t border-gold-500/20 font-mono text-[10px] text-cream-200/70 space-y-0.5">
         <div>Real evidence: {preview.realEvidenceCount}</div>
-        {preview.citationEvidence > 0 && (
-          <div>Citation evidence: +{preview.citationEvidence} (half of cited count)</div>
+        {preview.citationBonus > 0 && (
+          <div>Citations: +{preview.citationBonus} prestige</div>
         )}
         {preview.bonusSum > 0 && (
           <div>Card bonuses: +{preview.bonusSum}</div>

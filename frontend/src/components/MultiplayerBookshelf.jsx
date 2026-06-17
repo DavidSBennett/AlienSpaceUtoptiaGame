@@ -120,11 +120,10 @@ function PublicationSpine({ work, color, onClick }) {
   const widthClass = isBook ? 'w-11' : 'w-[22px]';
   const bgClass = isBook ? color.spineBg : color.accentBg;
   const evidenceCount = work.evidence_count ?? 0;
-  // Citation evidence contribution: floor(N/2). If you drag this onto
-  // a project as a citation, this is how many effective evidence cards
-  // it counts as toward base prestige and article/book classification.
-  // Doubling check ignores citations, and citations don't bring bonus_sum.
-  const effectiveEvidence = Math.floor(evidenceCount / 2);
+  // Citing this work adds a flat prestige bonus equal to its recorded
+  // citation_value (half the work's conclusion prestige contribution), and
+  // gives the cited author a citation token.
+  const citationPrestige = work.citation_value ?? 0;
   const tooltip = (
     <>
       <strong className="block font-display text-sm text-gold-300 mb-1">
@@ -135,11 +134,11 @@ function PublicationSpine({ work, color, onClick }) {
       </span>
       <span className="block mt-2">
         <strong className="text-verdigris-400">If you cite this:</strong>{' '}
-        contributes <strong>+{effectiveEvidence}</strong> effective evidence
-        {effectiveEvidence === 0 && ' (too small to score from)'}.
+        +<strong>{citationPrestige}</strong> prestige to your article
+        {citationPrestige === 0 && ' (its conclusion scored too little to pass on)'}.
       </span>
       <span className="block mt-1 text-cream-200/60 text-[11px]">
-        Drag onto a project to cite. Tags must match your conclusion.
+        Drag onto a project to cite. Tags must match your conclusion. The author gains a citation.
       </span>
     </>
   );

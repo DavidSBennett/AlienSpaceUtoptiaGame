@@ -45,14 +45,14 @@ export default function MultiplayerUpgradeChooser({
     {
       key: 'notebookCapacity',
       title: 'Notebook Capacity',
-      lead: 'How many cards you can hold in the Research Notebook.',
-      table: ['Hold 7 cards', 'Hold 11 cards', 'Hold 15 cards', 'Hold 25 cards'],
+      lead: 'Your hand limit — how many cards you can hold in the Research Notebook.',
+      table: ['Hold 7 cards', 'Hold 9 cards', 'Hold 11 cards', 'Hold 15 cards'],
     },
     {
       key: 'influence',
       title: 'Influence',
-      lead: 'Bonus prestige added to every successful publication. The final upgrade is per-card.',
-      table: ['No bonus', '+1 prestige per publish', '+2 prestige per publish', '+3 prestige per card'],
+      lead: 'A prestige bonus added to every evidence card in a publication, so it grows with article size.',
+      table: ['No bonus', '+1 prestige per card', '+2 prestige per card', '+4 prestige per card'],
     },
     {
       key: 'workspaces',
@@ -63,26 +63,22 @@ export default function MultiplayerUpgradeChooser({
     {
       key: 'reputation',
       title: 'Reputation',
-      lead: 'Lowers the evidence required to publish articles and books.',
-      table: ['Article ≥ 3 · Book ≥ 6', 'Article ≥ 2 · Book ≥ 6', 'Article ≥ 2 · Book ≥ 5', 'Article ≥ 1 · Book ≥ 3'],
+      lead: 'Your payoff at a conference: citation tokens earned and fresh cards added to the pool.',
+      table: ['1 citation · 1 fresh card', '2 citations · 2 fresh', '3 citations · 3 fresh', '6 citations · 4 fresh'],
     },
     {
-      // Renown rewards the CITED author. Each time another player cites one of
-      // your published works, your citations_received_count ticks up; at end of
-      // game that count × this multiplier is added to your final prestige.
+      // Renown rewards the holder of citation tokens. At end of game your total
+      // citation tokens (earned by being cited and by attending conferences)
+      // pay out × this multiplier into your final prestige.
       key: 'renown',
       title: 'Renown',
-      lead: 'At game end, each citation your published works received pays out at this multiplier.',
-      table: ['×1 per citation', '×2 per citation', '×3 per citation', '×6 per citation'],
+      lead: 'At game end, your total citation tokens pay out at this multiplier.',
+      table: ['×1 per citation', '×2 per citation', '×3 per citation', '×5 per citation'],
     },
   ];
 
   const flavor = {
-    'publish':        'Your publication was approved. Choose where to invest your scholarly growth.',
-    'review-approve': 'Your review approved an accepted publication — choose where to invest your scholarly growth.',
-    'review-reject':  'Your rejection verdict stood. Choose where to invest your scholarly growth — you also gain a draw bonus.',
-    'review-revise':  'Your revise-and-resubmit proposal counts as a review. Choose where to invest your scholarly growth.',
-    'reject-writer':  'Your manuscript was rejected, but you learn from the feedback. Choose where to invest your scholarly growth.',
+    'biennial': 'Two years of steady work have matured your practice. Choose where to invest your scholarly growth.',
   }[reason] || 'You earned an advancement. Choose where to invest your scholarly growth.';
 
   const allMaxed = STATS.every((s) => (statLevels[s.key] || 1) >= 4);

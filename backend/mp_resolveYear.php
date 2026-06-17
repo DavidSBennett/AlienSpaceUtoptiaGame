@@ -49,6 +49,11 @@
 
 require_once __DIR__ . '/mp_dbConfig.php';
 
+// Fixed publish thresholds (reputation no longer lowers them). A publication
+// is a "book" at >= MP_BOOK_MIN real evidence cards, else an "article".
+if (!defined('MP_BOOK_MIN'))    define('MP_BOOK_MIN', 6);
+if (!defined('MP_ARTICLE_MIN')) define('MP_ARTICLE_MIN', 2);
+
 /**
  * Top-level entry point — see file header for behavior.
  *
@@ -429,6 +434,25 @@ function mp_finish_round_tail($mysqli, $gameId, $game) {
     // Per-player stage progression (positive transitions).
     mp_apply_stage_progression($mysqli, $gameId, $newYear);
 
+    // ── Automatic upgrade drip ──────────────────────────────────────────
+    // Every player gets one stat upgrade every other year, no matter what
+    // they did. This is the ONLY source of upgrades (publishing/reviewing
+    // grant none) and is independent of publications, reviews, and player
+    // count. Granted when the just-finished year is odd (years 1,3,5,…).
+    $finishedYear = (int) $game['current_year'];
+    if ($finishedYear % 2 === 1) {
+      $stmt = $mysqli->prepare("
+        UPDATE mp_game_players
+        SET pending_upgrade = pending_upgrade + 1,
+            pending_upgrade_reason = 'biennial'
+        WHERE game_id = ? AND game_over_reason IS NULL AND is_ghost = 0
+      ");
+      $stmt->bind_param('i', $gameId);
+      $stmt->execute();
+      $stmt->close();
+      mp_log_event($mysqli, $gameId, null, 'upgrade_drip', ['after_year' => $finishedYear]);
+    }
+
     mp_log_event($mysqli, $gameId, null, 'year_advanced', ['new_year' => $newYear]);
   }
 
@@ -463,20 +487,20 @@ function mp_has_reviewable_submission($mysqli, $gameId) {
 
 
 /**
- * Draw N cards for the given player from the shared archive. If the archive
- * empties mid-draw, reshuffle all players' discards back in. N = research
- * stat (capped by notebook room).
+ * Draw N cards for the given player from the shared archive (N = research
+ * stat; L4 draws a full notebook). Capped by notebook room. If the archive
+ * empties mid-draw, reshuffle all players' discards back in.
  */
 function mp_resolve_draw($mysqli, $gameId, $player) {
   $pid = (int) $player['player_id'];
   $researchLevel = (int) $player['research_level'];
   $notebookLevel = (int) $player['notebook_level'];
 
-  // Lookup tables mirrored from useGameState.js — keep these in sync.
+  // Lookup tables mirrored from frontend/src/lib/mpStats.js — keep in sync.
   $researchTable    = [3, 5, 7, 'capacity'];
-  $notebookCapTable = [7, 11, 15, 25];
-  $capacity = $notebookCapTable[$notebookLevel - 1];
-  $drawRaw  = $researchTable[$researchLevel - 1];
+  $notebookCapTable = [7, 9, 11, 15];
+  $capacity = $notebookCapTable[max(0, min(3, $notebookLevel - 1))];
+  $drawRaw  = $researchTable[max(0, min(3, $researchLevel - 1))];
   $drawCount = $drawRaw === 'capacity' ? $capacity : $drawRaw;
 
   // Current hand size
@@ -703,16 +727,13 @@ function mp_resolve_publish($mysqli, $gameId, $player, $data) {
   // But the original-evidence-only minimum stays 1 — citation-only submissions
   // are not allowed.
 
-  // Read the active citations for this project slot. We pull each
-  // cited work's evidence_count alongside the citation row — that's
-  // what feeds the new citation-as-evidence rule (each cited work
-  // contributes floor(N/2) effective evidence to this submission).
+  // Read the active citations for this project slot. We just need the work
+  // ids — the citation's prestige bonus is read from each work's recorded
+  // citation_value at approval time (mp_apply_approval).
   $citedWorkIds = [];
-  $citedEvidenceCounts = [];
   $cstmt = $mysqli->prepare("
-    SELECT c.cited_work_id, w.evidence_count
+    SELECT c.cited_work_id
     FROM mp_citations c
-    JOIN mp_published_works w ON w.work_id = c.cited_work_id
     WHERE c.player_id = ? AND c.slot_index = ?
     ORDER BY c.added_at ASC
   ");
@@ -721,24 +742,13 @@ function mp_resolve_publish($mysqli, $gameId, $player, $data) {
   $cres = $cstmt->get_result();
   while ($cr = $cres->fetch_assoc()) {
     $citedWorkIds[] = (int) $cr['cited_work_id'];
-    $citedEvidenceCounts[] = (int) $cr['evidence_count'];
   }
   $cstmt->close();
 
-  // Citations contribute floor(N/2) effective evidence each, where N
-  // is the cited work's evidence_count. A 6-card cited book = 3
-  // effective evidence; a 1-card cited article = 0.
-  $citationEvidence = 0;
-  foreach ($citedEvidenceCounts as $n) {
-    $citationEvidence += (int) floor($n / 2);
-  }
-  $effectiveEvidence = count($evIds) + $citationEvidence;
-
-  // Article vs book — checked against EFFECTIVE evidence so a 2-card
-  // article citing a heavy book can cross the book threshold.
-  $repLevel = (int) $player['reputation_level'];
-  $bookMin  = mp_reputation_book_min($repLevel);
-  $kind = ($effectiveEvidence >= $bookMin) ? 'book' : 'article';
+  // Article vs book — based on the REAL evidence count only. Citations no
+  // longer count as evidence; they add a flat prestige bonus instead. The
+  // book threshold is a fixed constant (reputation no longer lowers it).
+  $kind = (count($evIds) >= MP_BOOK_MIN) ? 'book' : 'article';
 
   $year = mp_current_year($mysqli, $gameId);
 
@@ -1035,7 +1045,7 @@ function mp_return_cards_to_player($mysqli, $gameId, $playerId, $cardIds, $year)
   $lvl = (int) ($stmt->get_result()->fetch_assoc()['notebook_level'] ?? 1);
   $stmt->close();
 
-  $notebookTable = [7, 11, 15, 25];
+  $notebookTable = [7, 9, 11, 15];
   $capacity = $notebookTable[max(0, min(3, $lvl - 1))];
 
   $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM mp_player_hands WHERE player_id = ?");
@@ -1131,16 +1141,7 @@ function mp_apply_auto_rejection($mysqli, $gameId, $sid, $writerPid, $reason, $c
   $stmt->execute();
   $stmt->close();
 
-  // Writer-upgrade (learn-from-feedback)
-  $stmt = $mysqli->prepare("
-    UPDATE mp_game_players
-    SET pending_upgrade = pending_upgrade + 1,
-        pending_upgrade_reason = 'reject-writer'
-    WHERE player_id = ?
-  ");
-  $stmt->bind_param('i', $writerPid);
-  $stmt->execute();
-  $stmt->close();
+  // (No writer upgrade — upgrades are a fixed biennial drip now.)
 
   mp_log_event($mysqli, $gameId, $writerPid, 'publication_auto_rejected', [
     'submission_id' => $sid,
@@ -1166,7 +1167,7 @@ function mp_apply_auto_rejection($mysqli, $gameId, $sid, $writerPid, $reason, $c
 function mp_apply_approval($mysqli, $gameId, $sid, $writerPid, $kind, $evIds, $citedWorkIds, $concId, $currentYear) {
   $writer = mp_fetch_player($mysqli, $writerPid);
   $infLevel = (int) $writer['influence_level'];
-  $infTable = [0, 1, 2, 3];
+  $infTable = [0, 1, 2, 4];   // per-card influence bonus by level
 
   // Fetch evidence cards with full fields (needed for prestige's
   // shared-context check AND for title relevance scoring).
@@ -1184,51 +1185,41 @@ function mp_apply_approval($mysqli, $gameId, $sid, $writerPid, $kind, $evIds, $c
     $stmt->close();
   }
 
-  // Pull evidence_count for each cited work. The snapshot was stored
-  // on the submission as cited_work_ids JSON; mp_published_works
-  // retains the authoritative evidence_count column.
-  $citedEvidenceCounts = [];
+  // Citation bonus — each cited work contributes its recorded citation_value
+  // (half the conclusion's prestige contribution from when that work was
+  // published) as a FLAT prestige bonus. Citations no longer count as evidence.
+  $citationBonus = 0;
   if (count($citedWorkIds) > 0) {
     $placeholders = implode(',', array_fill(0, count($citedWorkIds), '?'));
     $types = str_repeat('i', count($citedWorkIds));
-    $sql = "SELECT evidence_count FROM mp_published_works WHERE work_id IN ($placeholders)";
+    $sql = "SELECT citation_value FROM mp_published_works WHERE work_id IN ($placeholders)";
     $stmt = $mysqli->prepare($sql);
     $stmt->bind_param($types, ...$citedWorkIds);
     $stmt->execute();
     $res = $stmt->get_result();
-    while ($r = $res->fetch_assoc()) $citedEvidenceCounts[] = (int) $r['evidence_count'];
+    while ($r = $res->fetch_assoc()) $citationBonus += (int) $r['citation_value'];
     $stmt->close();
   }
 
-  // Effective evidence used by two places downstream:
-  //  1. Influence L4 — multiplier scales by effective evidence count,
-  //     so a publication with citations gets more per-card influence.
-  //  2. mp_compute_prestige (passed the citedEvidenceCounts array
-  //     directly, derives the same number internally).
-  $citationEvidence = 0;
-  foreach ($citedEvidenceCounts as $n) {
-    $citationEvidence += (int) floor($n / 2);
-  }
-  $effectiveEvidenceCount = count($evIds) + $citationEvidence;
-
-  // Influence bonus — L4 is per-card against EFFECTIVE evidence; L1-3
-  // are flat. This means citing heavy works at influence L4 stacks
-  // hard, which is the design intent ("citations count as evidence").
-  $infBonus = $infLevel >= 4
-    ? 3 * $effectiveEvidenceCount
-    : $infTable[$infLevel - 1];
+  // Influence is a PER-CARD bonus added to every real evidence card
+  // (table 0/1/2/4 by level). Citations aren't cards, so they don't scale it.
+  $realEvidenceCount = count($evIds);
+  $infBonus = $infTable[max(0, min(3, $infLevel - 1))] * $realEvidenceCount;
 
   // Fetch the conclusion card up front so its bonus can feed the scorer.
-  // The conclusion tile now carries a bonus, applied like an evidence bonus.
   $conc = mp_fetch_card_row($mysqli, $concId);
   $concBonus = ($conc && isset($conc['bonus'])) ? (int) $conc['bonus'] : 0;
 
-  // Full computePrestige — handles base (real + citation evidence) +
-  // doubling (real-evidence-only) + bonus_sum (real-evidence-only) +
-  // the conclusion's own bonus. Renown applies at GAME END not
-  // per-publication; see mp_apply_renown_bonuses().
-  $prestigeResult = mp_compute_prestige($evidenceCards, $infBonus, $citedEvidenceCounts, $concBonus);
-  $prestige = (int) $prestigeResult['total'];
+  // Base prestige (real evidence + bonuses + per-card influence, doubled if
+  // context coheres), then add the flat citation bonus on top (not doubled).
+  $prestigeResult = mp_compute_prestige($evidenceCards, $infBonus, [], $concBonus);
+  $prestige = (int) $prestigeResult['total'] + $citationBonus;
+
+  // Record THIS work's citation_value for anyone who later cites it: half the
+  // conclusion's prestige contribution (its bonus, doubled if the publication
+  // doubled).
+  $conclusionContribution = $concBonus * ($prestigeResult['doubled'] ? 2 : 1);
+  $citationValue = (int) floor($conclusionContribution / 2);
 
   // 2. Look up conclusion title + tag, and pick a publication title using
   //    the full single-player-equivalent scorer.
@@ -1267,20 +1258,16 @@ function mp_apply_approval($mysqli, $gameId, $sid, $writerPid, $kind, $evIds, $c
     $stmt->close();
   }
 
-  // 5. Update writer's stats. The pending_upgrade column is treated
-  //    as a COUNTER (not a boolean) so that if a player earns multiple
-  //    upgrades in the same year resolution (publish AND a review
-  //    approval, say), they get one modal per upgrade rather than
-  //    losing the extras.
+  // 5. Update writer's stats. Publishing grants prestige only — upgrades are
+  //    now a fixed biennial drip (see mp_finish_round_tail), not earned by
+  //    publishing or reviewing.
   $articleInc = ($kind === 'article') ? 1 : 0;
   $bookInc    = ($kind === 'book') ? 1 : 0;
   $stmt = $mysqli->prepare("
     UPDATE mp_game_players
     SET prestige = prestige + ?,
         articles_published = articles_published + ?,
-        books_published = books_published + ?,
-        pending_upgrade = pending_upgrade + 1,
-        pending_upgrade_reason = 'publish'
+        books_published = books_published + ?
     WHERE player_id = ?
   ");
   $stmt->bind_param('iiii', $prestige, $articleInc, $bookInc, $writerPid);
@@ -1344,15 +1331,14 @@ function mp_apply_approval($mysqli, $gameId, $sid, $writerPid, $kind, $evIds, $c
     INSERT IGNORE INTO mp_published_works
       (game_id, submission_id, writer_player_id, publication_title,
        conclusion_card_id, conclusion_tag, kind, evidence_count,
-       evidence_snapshot, prestige_granted, year_published)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       evidence_snapshot, prestige_granted, citation_value, year_published)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ");
   $snapJson = json_encode($snapshot);
-  // Total counted evidence INCLUDES citations (per design — citations
-  // count toward kind threshold and toward the published-work display).
-  $evCount  = count($evIds) + count($citedWorkIds);
-  $stmt->bind_param('iiisissisii', $gameId, $sid, $writerPid, $pubTitle,
-    $concId, $concTag, $kind, $evCount, $snapJson, $prestige, $currentYear);
+  // Real evidence count only — citations are no longer counted as evidence.
+  $evCount  = count($evIds);
+  $stmt->bind_param('iiisissisiii', $gameId, $sid, $writerPid, $pubTitle,
+    $concId, $concTag, $kind, $evCount, $snapJson, $prestige, $citationValue, $currentYear);
   $stmt->execute();
   $newWorkId = $mysqli->insert_id;
   $stmt->close();
@@ -1396,19 +1382,7 @@ function mp_apply_approval($mysqli, $gameId, $sid, $writerPid, $kind, $evIds, $c
     $stmt->close();
   }
 
-  // 7. Reward each approving reviewer: free stat upgrade choice.
-  //    (Tokens are Phase B; here we just flag the upgrade.) Increment
-  //    rather than set so multiple stacked upgrades aren't lost.
-  $stmt = $mysqli->prepare("
-    UPDATE mp_game_players p
-    JOIN mp_reviews r ON r.reviewer_player_id = p.player_id
-    SET p.pending_upgrade = p.pending_upgrade + 1,
-        p.pending_upgrade_reason = 'review-approve'
-    WHERE r.submission_id = ? AND r.verdict = 'approve'
-  ");
-  $stmt->bind_param('i', $sid);
-  $stmt->execute();
-  $stmt->close();
+  // (Reviewers no longer earn upgrades — upgrades are a fixed biennial drip.)
 
   mp_log_event($mysqli, $gameId, $writerPid, 'publication_approved', [
     'submission_id' => $sid,
@@ -1472,31 +1446,8 @@ function mp_apply_rejection($mysqli, $gameId, $sid, $writerPid, $evIds, $current
   // bound to mp_submissions.evidence_card_ids until the writer reclaims
   // them via the result modal.
 
-  // Writer also gets an upgrade — they learned from the feedback even
-  // though their argument didn't carry. Incremented (not set) so it
-  // stacks with any other upgrades earned the same year.
-  $stmt = $mysqli->prepare("
-    UPDATE mp_game_players
-    SET pending_upgrade = pending_upgrade + 1,
-        pending_upgrade_reason = 'reject-writer'
-    WHERE player_id = ?
-  ");
-  $stmt->bind_param('i', $writerPid);
-  $stmt->execute();
-  $stmt->close();
-
-  // Reviewers who rejected get the upgrade flag. Increment rather than
-  // set so multiple stacked upgrades aren't lost.
-  $stmt = $mysqli->prepare("
-    UPDATE mp_game_players p
-    JOIN mp_reviews r ON r.reviewer_player_id = p.player_id
-    SET p.pending_upgrade = p.pending_upgrade + 1,
-        p.pending_upgrade_reason = 'review-reject'
-    WHERE r.submission_id = ? AND r.verdict = 'reject'
-  ");
-  $stmt->bind_param('i', $sid);
-  $stmt->execute();
-  $stmt->close();
+  // (Neither the writer nor the rejecting reviewers earn upgrades anymore —
+  //  upgrades are a fixed biennial drip, see mp_finish_round_tail.)
 
   mp_log_event($mysqli, $gameId, $writerPid, 'publication_rejected', [
     'submission_id' => $sid,
@@ -2007,7 +1958,7 @@ function mp_compute_prestige($evidenceCards, $influenceBonus, $citedEvidenceCoun
  * already commit atomically — the call slot is inside that transaction.
  */
 function mp_apply_renown_bonuses($mysqli, $gameId) {
-  $renownTable = [1, 2, 3, 6];
+  $renownTable = [1, 2, 3, 5];
 
   $stmt = $mysqli->prepare("
     SELECT player_id, player_name, renown_level,

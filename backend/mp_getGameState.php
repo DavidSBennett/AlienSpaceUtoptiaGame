@@ -367,7 +367,7 @@ function mp_build_you($mysqli, $playerId) {
     $cstmt = $mysqli->prepare("
       SELECT c.citation_id, c.cited_work_id, c.added_at,
              w.publication_title, w.conclusion_tag, w.year_published, w.kind AS work_kind,
-             w.evidence_count AS cited_evidence_count,
+             w.evidence_count AS cited_evidence_count, w.citation_value,
              w.writer_player_id, p.player_name AS writer_name, p.seat_index AS writer_seat
       FROM mp_citations c
       JOIN mp_published_works w ON w.work_id = c.cited_work_id
@@ -387,11 +387,11 @@ function mp_build_you($mysqli, $playerId) {
         'conclusion_tag'   => $cr['conclusion_tag'],
         'year_published'   => (int) $cr['year_published'],
         'work_kind'        => $cr['work_kind'],
-        // The cited work's evidence count (real evidence at time of
-        // its own publication) and the effective-evidence contribution
-        // it brings to this submission: floor(N/2).
+        // The cited work's evidence count, and the FLAT prestige bonus this
+        // citation brings to the citing manuscript (its recorded citation_value
+        // = half the cited work's conclusion prestige contribution).
         'cited_evidence_count'        => $citedEv,
-        'effective_evidence_contrib'  => (int) floor($citedEv / 2),
+        'prestige_contrib'            => (int) $cr['citation_value'],
         'writer_player_id' => (int) $cr['writer_player_id'],
         'writer_name'      => $cr['writer_name'],
         'writer_seat'      => (int) $cr['writer_seat'],
@@ -1039,6 +1039,7 @@ function mp_build_published_works($mysqli, $gameId) {
       'evidence_count'    => (int) $row['evidence_count'],
       'evidence_snapshot' => $snapshot,
       'prestige_granted'  => (int) $row['prestige_granted'],
+      'citation_value'    => (int) ($row['citation_value'] ?? 0),
       'year_published'    => (int) $row['year_published'],
     ];
   }

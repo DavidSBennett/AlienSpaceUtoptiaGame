@@ -36,7 +36,8 @@ import ProjectRow from '../components/ProjectRow.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import TagsToggle from '../components/TagsToggle.jsx';
 import SignificanceToggle from '../components/SignificanceToggle.jsx';
-import { STAT_TABLES, TOTAL_YEARS, reputationThresholds } from '../hooks/useGameState.js';
+import { TOTAL_YEARS } from '../hooks/useGameState.js';
+import { MP_STAT_TABLES, MP_ARTICLE_MIN } from '../lib/mpStats.js';
 
 // Multiplayer-specific components
 import OpponentBar from '../components/OpponentBar.jsx';
@@ -321,13 +322,12 @@ export default function MultiplayerGame() {
   const you = state.you;
   const game = state.game;
 
-  // Derived values from stat levels (mirror useGameState.js)
-  const capacity = STAT_TABLES.notebookCapacity[(you.stat_levels.notebookCapacity || 1) - 1];
-  const workspaces = STAT_TABLES.workspaces[(you.stat_levels.workspaces || 1) - 1];
-  const rawDraw = STAT_TABLES.research[(you.stat_levels.research || 1) - 1];
+  // Derived values from stat levels (mirror backend/mp_resolveYear.php).
+  const capacity = MP_STAT_TABLES.notebookCapacity[Math.max(0, Math.min(3, (you.stat_levels.notebookCapacity || 1) - 1))];
+  const workspaces = MP_STAT_TABLES.workspaces[Math.max(0, Math.min(3, (you.stat_levels.workspaces || 1) - 1))];
+  const rawDraw = MP_STAT_TABLES.research[Math.max(0, Math.min(3, (you.stat_levels.research || 1) - 1))];
   const drawCount = rawDraw === 'capacity' ? capacity : rawDraw;
-  const repThresh = reputationThresholds(you.stat_levels.reputation || 1);
-  const articleMin = repThresh.articleMin;
+  const articleMin = MP_ARTICLE_MIN;
   const freePublishing = (you.stat_levels.workspaces || 1) >= 4;
   // Game length depends on the mode (short=10, medium=18, long=25).
   const totalYears = game.total_years || TOTAL_YEARS;

@@ -1,21 +1,13 @@
 /**
- * StatsStrip — a strip of six stat tiles to sit between the bookshelf
- * and the hand. Each tile shows the full stat name on the top line and
- * the current level on the bottom line, and hovers a rich tooltip
- * explaining what the stat does.
+ * StatsStrip — a strip of stat tiles between the bookshelf and the hand.
+ * Each tile shows the stat name and current level, with a rich tooltip.
  *
- * Renown tile also surfaces the live "you've been cited X times" count
- * and the pending end-of-game payout — both fed from the player's
- * citations_received_count.
+ * Renown tile surfaces the live citation count and the pending end-of-game
+ * payout (total citation tokens × renown multiplier).
  *
- * Stats are read-only here. The actual upgrade flow remains the modal
- * (MultiplayerUpgradeChooser), which pops when the server marks the
- * player with pending_upgrade after a publication.
- *
- * Tiles at their maximum level (4) are dimmed so the player can see at
- * a glance which stats can still be improved.
+ * Tiles at their maximum level (4) are dimmed.
  */
-import { STAT_TABLES } from '../hooks/useGameState.js';
+import { MP_STAT_TABLES } from '../lib/mpStats.js';
 import Tooltip from './Tooltip.jsx';
 
 const STAT_LABELS = {
@@ -27,17 +19,9 @@ const STAT_LABELS = {
   renown:           'Renown',
 };
 
-const STAT_ORDER = [
-  'research',
-  'notebookCapacity',
-  'influence',
-  'workspaces',
-  'reputation',
-  'renown',
-];
+const STAT_ORDER = ['research', 'notebookCapacity', 'influence', 'workspaces', 'reputation', 'renown'];
 
-// Tooltip body builders. Each gets the current level so it can show
-// the player's effect AND the next-level effect, anchoring strategy.
+// Tooltip body builders.
 const STAT_TOOLTIPS = {
   research: (level) => (
     <>
@@ -51,18 +35,18 @@ const STAT_TOOLTIPS = {
   notebookCapacity: (level) => (
     <>
       <strong className="block font-display text-sm text-gold-300 mb-1">Notebook</strong>
-      <span>How many cards you can hold at once.</span>
+      <span>Your hand limit — how many cards you can hold at once.</span>
       <span className="block mt-1 text-cream-200/70">
-        Levels: 7 → 11 → 15 → 25. Currently L{level}.
+        Levels: 7 → 9 → 11 → 15. Currently L{level}.
       </span>
     </>
   ),
   influence: (level) => (
     <>
       <strong className="block font-display text-sm text-gold-300 mb-1">Influence</strong>
-      <span>Prestige bonus added to each publication's base score.</span>
+      <span>A prestige bonus added to <em>every</em> evidence card in a publication, so it grows with article size.</span>
       <span className="block mt-1 text-cream-200/70">
-        Levels: +0 → +1 → +2 → +3 per evidence card (incl. citations). Currently L{level}.
+        Levels: +0 → +1 → +2 → +4 per card. Currently L{level}.
       </span>
     </>
   ),
@@ -78,25 +62,25 @@ const STAT_TOOLTIPS = {
   reputation: (level) => (
     <>
       <strong className="block font-display text-sm text-gold-300 mb-1">Reputation</strong>
-      <span>Lowers the minimum evidence needed to publish an article or book.</span>
+      <span>Your payoff at a conference: citation tokens earned and fresh cards added to the pool.</span>
       <span className="block mt-1 text-cream-200/70">
-        L1: article ≥3, book ≥6 · L2: article ≥2 · L3: book ≥5 · L4: article ≥1, book ≥3. Currently L{level}.
+        Citations: 1 → 2 → 3 → 6 · Fresh cards: 1 → 2 → 3 → 4. Currently L{level}.
       </span>
     </>
   ),
   renown: (level, citationsReceived = 0) => {
-    const table = STAT_TABLES.renown;
+    const table = MP_STAT_TABLES.renown;
     const mult = table[level - 1] ?? 1;
     const pending = citationsReceived * mult;
     return (
       <>
         <strong className="block font-display text-sm text-gold-300 mb-1">Renown</strong>
-        <span>At end of game, each time your work was cited pays out × this multiplier.</span>
+        <span>At end of game, your total citation tokens pay out × this multiplier.</span>
         <span className="block mt-1 text-cream-200/70">
-          Levels: ×1 → ×2 → ×3 → ×6. Currently L{level} (×{mult}).
+          Levels: ×1 → ×2 → ×3 → ×5. Currently L{level} (×{mult}).
         </span>
         <span className="block mt-2 text-verdigris-400 font-mono text-[10px]">
-          You've been cited {citationsReceived} {citationsReceived === 1 ? 'time' : 'times'}.
+          You hold {citationsReceived} citation {citationsReceived === 1 ? 'token' : 'tokens'}.
           {' '}Pending payout: +{pending} prestige.
         </span>
       </>
@@ -109,10 +93,8 @@ export default function StatsStrip({ statLevels, citationsReceived = 0 }) {
     <div className="flex items-stretch justify-center gap-2 px-6 py-2 border-y border-gold-500/20 bg-teal-950/40">
       {STAT_ORDER.map((key) => {
         const level = statLevels?.[key] ?? 1;
-        const table = STAT_TABLES[key];
+        const table = MP_STAT_TABLES[key];
         const isMax = Array.isArray(table) && level >= table.length;
-        // Renown tile is special: it shows the citation count + pending payout
-        // both in its tooltip AND as a small footer line under the level number.
         const showRenownFooter = key === 'renown';
         const tooltip = key === 'renown'
           ? STAT_TOOLTIPS.renown(level, citationsReceived)
@@ -125,7 +107,7 @@ export default function StatsStrip({ statLevels, citationsReceived = 0 }) {
               isMax={isMax}
               footer={
                 showRenownFooter && citationsReceived > 0
-                  ? `cited ${citationsReceived}×`
+                  ? `${citationsReceived} cite${citationsReceived === 1 ? '' : 's'}`
                   : null
               }
             />

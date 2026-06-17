@@ -194,11 +194,14 @@ export function computePrestigeMpPreview(evidence, citations, influenceLvl, conc
   const citList = Array.isArray(citations) ? citations : [];
 
   const realCount = evList.length;
-  const citationEvidence = citList.reduce((sum, c) => {
-    const n = Number(c?.cited_evidence_count ?? 0);
-    return sum + Math.floor(Math.max(0, n) / 2);
+
+  // Each citation adds a flat prestige bonus = its recorded prestige_contrib
+  // (half the cited work's conclusion prestige contribution). Citations are
+  // no longer counted as evidence.
+  const citationBonus = citList.reduce((sum, c) => {
+    const n = Number(c?.prestige_contrib ?? 0);
+    return sum + (Number.isFinite(n) ? n : 0);
   }, 0);
-  const effectiveEvidence = realCount + citationEvidence;
 
   const bonusSum = evList.reduce((sum, c) => {
     const n = Number(c?.bonus);
@@ -208,12 +211,10 @@ export function computePrestigeMpPreview(evidence, citations, influenceLvl, conc
   const cb = Number(conclusionBonus);
   const concBonus = Number.isFinite(cb) ? cb : 0;
 
-  // Influence: L1-3 flat; L4 per-card against EFFECTIVE evidence.
-  const INF_TABLE = [0, 1, 2, 3];
+  // Influence is a per-card bonus on real evidence (0/1/2/4 by level).
+  const INF_TABLE = [0, 1, 2, 4];
   const lvl = Math.max(1, Math.min(4, Number(influenceLvl) || 1));
-  const influenceBonus = lvl >= 4
-    ? 3 * effectiveEvidence
-    : INF_TABLE[lvl - 1];
+  const influenceBonus = INF_TABLE[lvl - 1] * realCount;
 
   // Doubling check — REAL evidence only.
   const contextFields = ['location', 'author', 'date', 'source_type', 'citation'];
@@ -228,13 +229,14 @@ export function computePrestigeMpPreview(evidence, citations, influenceLvl, conc
   }
   const doubled = contextField !== null;
 
-  const base = effectiveEvidence + bonusSum + concBonus + influenceBonus;
-  const total = doubled ? base * 2 : base;
+  // Base (real evidence + bonuses + per-card influence) doubles if context
+  // coheres; the flat citation bonus is added on top (not doubled).
+  const base = realCount + bonusSum + concBonus + influenceBonus;
+  const total = (doubled ? base * 2 : base) + citationBonus;
 
   return {
     realEvidenceCount: realCount,
-    citationEvidence,
-    effectiveEvidence,
+    citationBonus,
     bonusSum,
     conclusionBonus: concBonus,
     influenceBonus,
