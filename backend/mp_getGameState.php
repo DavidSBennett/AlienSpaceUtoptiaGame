@@ -93,16 +93,22 @@ $playerId = (int) $player['player_id'];
 // This is a no-op if not all players have committed yet, or if the game is
 // not 'active'. Runs on every poll so the first poll after the last
 // commitment triggers the year-end resolution.
+// Each of these opens a `FOR UPDATE` transaction on the game row, so we run
+// ONLY the one matching the current phase — running all three every poll
+// caused lock contention (intermittent 500s / "lost connection") with several
+// players polling at once. A phase transition is picked up by the next poll.
 if ($game['status'] === 'active') {
-  // Action phase: resolve the year if everyone has committed. This may flip
-  // the game into the review phase.
-  mp_maybe_resolve_year($mysqli, $gameId);
-  // Review phase: advance the barrier if all live players are ready for the
-  // current manuscript (also re-checked here so a concede mid-phase can't
-  // wedge the barrier).
-  mp_maybe_advance_review($mysqli, $gameId);
-  // Conference phase: finish it once every attendee has drafted (or dropped).
-  mp_maybe_finish_conference($mysqli, $gameId);
+  $curPhase = $game['phase'] ?? 'action';
+  if ($curPhase === 'action') {
+    // Resolve the year once everyone has committed (may flip into review).
+    mp_maybe_resolve_year($mysqli, $gameId);
+  } elseif ($curPhase === 'review') {
+    // Advance the review barrier (also recovers from a concede mid-phase).
+    mp_maybe_advance_review($mysqli, $gameId);
+  } elseif ($curPhase === 'conference') {
+    // Finish the conference once every attendee has drafted (or dropped).
+    mp_maybe_finish_conference($mysqli, $gameId);
+  }
 }
 
 // ----- ALWAYS re-fetch the current game row before building state. -----
