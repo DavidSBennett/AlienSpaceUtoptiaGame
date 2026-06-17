@@ -24,7 +24,7 @@ import { colorForSeat } from '../lib/playerColors.js';
 import DraggableCard from './DraggableCard.jsx';
 import Tooltip from './Tooltip.jsx';
 
-export default function MultiplayerBookshelf({ you, opponents, publishedWorks, onSpineClick }) {
+export default function MultiplayerBookshelf({ you, opponents, publishedWorks, onSpineClick, compact = false }) {
   const [collapsed, setCollapsed] = useState(false);
 
   // Group works by author. Ordered: you first, then opponents by seat.
@@ -36,6 +36,24 @@ export default function MultiplayerBookshelf({ you, opponents, publishedWorks, o
   }));
 
   const totalCount = publishedWorks.length;
+
+  // Compact mode — bare, shrunk spines, no collapse header. Used in the
+  // library/conclusion band (the band supplies the surface + padding).
+  if (compact) {
+    return (
+      <div className="w-full overflow-x-auto">
+        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-cream-100/80 mb-1">
+          Library · {totalCount}
+        </div>
+        <div className="flex items-end gap-3 min-w-max">
+          <PlayerSection compact label={`${you.player_name} (you)`} seat={you.seat_index} works={yourWorks} onSpineClick={onSpineClick} />
+          {oppWorks.map(({ player, works }) => (
+            <PlayerSection compact key={player.player_id} label={player.player_name} seat={player.seat_index} works={works} onSpineClick={onSpineClick} />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <section className="surface-binding border-t border-edge-on-dark">
@@ -86,18 +104,18 @@ export default function MultiplayerBookshelf({ you, opponents, publishedWorks, o
 }
 
 
-function PlayerSection({ label, seat, works, onSpineClick }) {
+function PlayerSection({ label, seat, works, onSpineClick, compact = false }) {
   const col = colorForSeat(seat);
   return (
     <div className="flex-shrink-0">
-      <div className={`font-mono text-[10px] uppercase tracking-[0.15em] mb-1 ${col.accent}`}>
+      <div className={`font-mono text-[10px] uppercase tracking-[0.15em] mb-1 truncate max-w-[10rem] ${col.accent}`}>
         {label}
         {works.length > 0 && <span className="text-cream-200/60"> · {works.length}</span>}
       </div>
-      <div className={`flex items-end gap-0.5 min-h-[150px] p-1 border-b-2 ${col.spineEdge}`}>
+      <div className={`flex items-end gap-0.5 ${compact ? 'min-h-[5.5rem]' : 'min-h-[150px]'} p-1 border-b-2 ${col.spineEdge}`}>
         {works.length === 0 ? (
           <p className="font-serif italic text-cream-200/50 text-xs self-center px-2">
-            no publications
+            none
           </p>
         ) : (
           works.map((w) => (
@@ -105,6 +123,7 @@ function PlayerSection({ label, seat, works, onSpineClick }) {
               key={w.work_id}
               work={w}
               color={col}
+              compact={compact}
               onClick={() => onSpineClick(w)}
             />
           ))
@@ -115,9 +134,10 @@ function PlayerSection({ label, seat, works, onSpineClick }) {
 }
 
 
-function PublicationSpine({ work, color, onClick }) {
+function PublicationSpine({ work, color, onClick, compact = false }) {
   const isBook = work.kind === 'book';
-  const widthClass = isBook ? 'w-11' : 'w-[22px]';
+  const widthClass = compact ? (isBook ? 'w-8' : 'w-[16px]') : (isBook ? 'w-11' : 'w-[22px]');
+  const heightClass = compact ? 'h-20' : 'h-36';
   const bgClass = isBook ? color.spineBg : color.accentBg;
   const evidenceCount = work.evidence_count ?? 0;
   // Citing this work adds a flat prestige bonus equal to its recorded
@@ -162,7 +182,7 @@ function PublicationSpine({ work, color, onClick }) {
             onClick={onClick}
             {...dragHandleProps}
             className={`
-              relative ${widthClass} h-36 border-2 ${color.spineEdge} ${bgClass}
+              relative ${widthClass} ${heightClass} border-2 ${color.spineEdge} ${bgClass}
               transition-all duration-200 ease-desk hover:-translate-y-1 hover:shadow-card-hover
               flex items-center justify-center flex-shrink-0
               cursor-grab active:cursor-grabbing
@@ -171,12 +191,12 @@ function PublicationSpine({ work, color, onClick }) {
           >
             <span className="absolute inset-1 border border-gold-500/30 pointer-events-none" />
             <span
-              className={`font-display font-bold text-[10px] uppercase tracking-wider whitespace-nowrap overflow-hidden ${color.spineText}`}
+              className={`font-display font-bold ${compact ? 'text-[8px]' : 'text-[10px]'} uppercase tracking-wider whitespace-nowrap overflow-hidden ${color.spineText}`}
               style={{
                 writingMode: 'vertical-rl',
                 transform: 'rotate(180deg)',
                 textOverflow: 'ellipsis',
-                maxHeight: '130px',
+                maxHeight: compact ? '70px' : '130px',
               }}
             >
               {work.publication_title}

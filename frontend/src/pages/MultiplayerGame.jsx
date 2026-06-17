@@ -41,8 +41,6 @@ import { TOTAL_YEARS } from '../hooks/useGameState.js';
 import { MP_STAT_TABLES, MP_ARTICLE_MIN, renownMultiplier, projectedScore } from '../lib/mpStats.js';
 
 // Multiplayer-specific components
-import OpponentBar from '../components/OpponentBar.jsx';
-import SubmissionRails from '../components/SubmissionRails.jsx';
 import ReviewSubmissionDialog from '../components/ReviewSubmissionDialog.jsx';
 import ManuscriptViewDialog from '../components/ManuscriptViewDialog.jsx';
 import ReviseDecisionDialog from '../components/ReviseDecisionDialog.jsx';
@@ -334,13 +332,6 @@ export default function MultiplayerGame() {
   // Game length depends on the mode (short=10, medium=18, long=25).
   const totalYears = game.total_years || TOTAL_YEARS;
   const yearProgress = (game.current_year - 1) / totalYears;
-  const yourSeat = you.seat_index;
-  const yourColor = colorForSeat(yourSeat);
-
-  // Citations held + projected end-game score (prestige + citations × renown).
-  const youCitations = you.citations_received_count ?? 0;
-  const youRenownMult = renownMultiplier(you.stat_levels?.renown);
-  const youProjected = projectedScore(you.prestige, youCitations, you.stat_levels?.renown);
 
   // Project shape adapter — multiplayer state uses slot_index, ProjectRow
   // expects id. Map evidence cards & conclusion through their existing
@@ -353,9 +344,6 @@ export default function MultiplayerGame() {
     citations: p.citations || [],
   }));
 
-  // The "currently being reviewed by you" submission id (used to highlight
-  // inbox spines and to enforce that submitReview is for this submission)
-  const committedReviewSid = you.pending_action === 'review' ? you.pending_action_data?.submissionId : null;
 
   // ─────────────────────────────────────────────────────────
   // HANDLERS
@@ -819,61 +807,54 @@ export default function MultiplayerGame() {
           </header>
         )}
 
-        {/* ── 2. Timeline strip — three lines + progress bar ─────────────
-              Line 1: Historian Name (left) · Rank center · History/Concede right
-              Line 2: Goal text (centered, can wrap)
-              Line 3: ConnectionPill (left) · Year (center) · [filler] (right)
-              Then: a thin horizontal year-progress bar
+        {/* ── 2. Status strip ─────────────────────────────────────────────
+              Top: controls (live pill sits next to chat).
+              Below: a row of player columns (you, then opponents) — each with
+              name, rank, and Prestige / Citations / Anticipated boxes — and on
+              the right the main player's goal (large) with the year beneath it.
             ─────────────────────────────────────────────────────────── */}
         <section className="surface-binding border-b border-edge-on-dark px-6 py-2">
-          <div className="flex items-start justify-between gap-4">
-            {/* LEFT — Historian name with prominent prestige beneath it */}
-            <div className="flex flex-col items-start gap-1.5 shrink-0">
-              <span className="flex items-center gap-2 font-mono text-xs text-cream-200">
-                <span className={`w-2 h-4 ${yourColor.spineBg}`} aria-hidden="true" />
-                <span className="text-gold-400">Historian</span>
-                {you.player_name}
-              </span>
-              <div className="flex items-stretch gap-2">
-                <div className="inline-flex flex-col items-center justify-center border border-gold-500/40 px-5 py-1.5 leading-none">
-                  <span className="font-display font-bold text-4xl text-gold-200 tabular-nums">
-                    {you.prestige ?? 0}
-                  </span>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-gold-400/80 mt-1">
-                    Prestige
-                  </span>
-                </div>
-                <div
-                  className="inline-flex flex-col items-center justify-center border border-gold-500/25 px-4 py-1.5 leading-none"
-                  title="Citation tokens you've received so far"
-                >
-                  <span className="font-display font-bold text-2xl text-cream-100 tabular-nums">
-                    {youCitations}
-                  </span>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-200/70 mt-1">
-                    Citations
-                  </span>
-                </div>
-                <div
-                  className="inline-flex flex-col items-center justify-center border border-verdigris-500/40 px-4 py-1.5 leading-none"
-                  title={`Projected end-game score: prestige + citations × renown (×${youRenownMult})`}
-                >
-                  <span className="font-display font-bold text-2xl text-verdigris-300 tabular-nums">
-                    {youProjected}{' '}
-                    <span className="text-sm font-mono text-cream-200/60">(×{youRenownMult})</span>
-                  </span>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-verdigris-400/80 mt-1">
-                    Projected
-                  </span>
-                </div>
-              </div>
+          {/* Controls row — right aligned; live indicator next to chat */}
+          <div className="flex items-center justify-end gap-3 mb-2">
+            <ConnectionPill lastPollAt={lastPollAt} onRefresh={refresh} />
+            <ChatToggleButton
+              open={chatOpen}
+              unreadCount={
+                Math.max(0,
+                  (state.chat_messages || [])
+                    .filter((m) => m.message_id > lastSeenChatId
+                      && m.player_id !== you.player_id).length
+                )
+              }
+              onClick={() => {
+                setChatOpen(true);
+                const last = state.chat_messages?.[state.chat_messages.length - 1];
+                if (last) setLastSeenChatId(last.message_id);
+              }}
+            />
+            <SoundToggleButton muted={muted} onClick={handleToggleMute} />
+            <button
+              onClick={() => setHistoryOpen(true)}
+              data-tutorial="history-button"
+              className="font-mono text-[10px] uppercase tracking-wider text-cream-200 hover:text-gold-300 underline-offset-2 hover:underline"
+              title="View action history"
+            >
+              📜 History
+            </button>
+          </div>
+
+          {/* Players (left) + Goal/Year (right) */}
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex items-start gap-6 min-w-0 flex-wrap">
+              <PlayerStatCard player={you} isYou />
+              {[...state.opponents]
+                .sort((a, b) => a.seat_index - b.seat_index)
+                .map((op) => (
+                  <PlayerStatCard key={op.player_id} player={op} />
+                ))}
             </div>
 
-            {/* CENTER — Rank + Goal, centered on the page */}
-            <div className="flex-1 flex flex-col items-center gap-1 text-xs min-w-0 pt-0.5">
-              <span className="font-mono text-cream-200">
-                <span className="text-gold-400 mr-2">Rank:</span>{labelForStage(you.stage)}
-              </span>
+            <div className="shrink-0 max-w-md text-right">
               <GoalLine
                 state={state}
                 year={game.current_year}
@@ -881,43 +862,11 @@ export default function MultiplayerGame() {
                 articlesPublished={you.articles_published}
                 booksPublished={you.books_published}
                 totalYears={totalYears}
+                className="font-serif italic text-cream-50 text-lg text-right leading-snug"
               />
-            </div>
-
-            {/* RIGHT — controls (top) + live connection pill & year (below) */}
-            <div className="flex flex-col items-end gap-1.5 text-xs shrink-0">
-              <span className="flex items-center gap-3">
-                <ChatToggleButton
-                  open={chatOpen}
-                  unreadCount={
-                    Math.max(0,
-                      (state.chat_messages || [])
-                        .filter((m) => m.message_id > lastSeenChatId
-                          && m.player_id !== you.player_id).length
-                    )
-                  }
-                  onClick={() => {
-                    setChatOpen(true);
-                    const last = state.chat_messages?.[state.chat_messages.length - 1];
-                    if (last) setLastSeenChatId(last.message_id);
-                  }}
-                />
-                <SoundToggleButton muted={muted} onClick={handleToggleMute} />
-                <button
-                  onClick={() => setHistoryOpen(true)}
-                  data-tutorial="history-button"
-                  className="font-mono text-[10px] uppercase tracking-wider text-cream-200 hover:text-gold-300 underline-offset-2 hover:underline"
-                  title="View action history"
-                >
-                  📜 History
-                </button>
-              </span>
-              <span className="flex items-center gap-3">
-                <ConnectionPill lastPollAt={lastPollAt} onRefresh={refresh} />
-                <span className="font-mono text-cream-200">
-                  <span className="text-gold-400 mr-2">Year</span>{game.current_year}<span>/{totalYears}</span>
-                </span>
-              </span>
+              <div className="font-serif italic text-cream-200/80 text-lg text-right mt-1">
+                Year {game.current_year} / {totalYears}
+              </div>
             </div>
           </div>
         </section>
@@ -925,90 +874,62 @@ export default function MultiplayerGame() {
         {/* Year progress bar — thin, visible, with gate markers at y5 and y12 */}
         <YearProgressBar currentYear={game.current_year} totalYears={totalYears} />
 
-        {/* ── 3. Conclusion rail (reusing the pattern from single-player) ──
-            We hide any conclusion that's currently placed in one of YOUR
-            projects — duplicating the same conclusion across slots is
-            allowed by the server (each project has its own slot) but
-            visually confusing and almost always a mistake. Other players'
-            uses don't affect what's available to you: the shelf is your
-            local copy of the library.
-
-            If you want it back, right-click the project conclusion to
-            return it to the shelf, or just drag it into a different
-            project (which will free the original slot via replace). */}
+        {/* ── 3. Library (left) + Conclusions (right) on one band ──
+            The published-works library sits on the left and the conclusion
+            shelf is right-aligned beside it. We hide any conclusion currently
+            placed in one of YOUR projects (right-click a project's conclusion
+            to return it to the shelf). */}
         {(() => {
           const inUse = new Set(
             you.projects.map((p) => p.conclusion?.id).filter(Boolean)
           );
           const visibleShelf = conclusionShelf.filter((c) => !inUse.has(c.idCard));
           return (
-            <ConclusionRail
-              shelf={visibleShelf}
-              onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
-              showTags={effTags} showSignificance={effSignificance}
-            />
+            <div className="surface-binding border-b border-edge-on-dark px-6 py-2 flex items-stretch gap-6">
+              <div className="flex-1 min-w-0">
+                <MultiplayerBookshelf
+                  compact
+                  you={you}
+                  opponents={state.opponents}
+                  publishedWorks={state.published_works}
+                  onSpineClick={(work) => setOpenWork(work)}
+                />
+              </div>
+              <div className="flex-1 min-w-0 flex justify-end">
+                <ConclusionRail
+                  shelf={visibleShelf}
+                  onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
+                  showTags={effTags} showSignificance={effSignificance}
+                  align="right"
+                />
+              </div>
+            </div>
           );
         })()}
-        {/* ── 4. Main grid: left | projects | right ── */}
-        <div className="flex-1 grid grid-cols-12 gap-4 p-4 min-h-0">
 
-          {/* LEFT: opponents + your submissions + inbox */}
-          <aside className="col-span-3 flex flex-col gap-3 overflow-y-auto">
-            <div>
-              <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-400 mb-1.5 px-1">
-                Other Historians
-              </h3>
-              <OpponentBar opponents={state.opponents} currentYear={game.current_year} />
-            </div>
-            <SubmissionRails
-              yourSubmissions={state.your_submissions}
-              pendingSubmissions={state.pending_submissions}
-              opponents={state.opponents}
-              yourSeat={yourSeat}
-              onOpenYour={(sub) => {
-                // Find the full resolved submission (with reviews / consolation / bound_evidence)
-                const full = state.resolved_submissions_for_you.find(
-                  (r) => r.submission_id === sub.submission_id
-                );
-                if (full) { setOpenResult(full); return; }
-                const rev = (state.revise_decisions_for_you || []).find(
-                  (d) => d.submission_id === sub.submission_id
-                );
-                if (rev) { setReviseDecision(rev); return; }
-                // Still pending — open the read-only manuscript view so the
-                // writer can answer reviewers' questions about their work.
-                setViewingManuscript(sub);
-              }}
-              onOpenInbox={openReview}
-              committedReviewSubmissionId={committedReviewSid}
-              showInbox={false}
+        {/* ── 4. Project rows — full width (the opponent/inbox sidebar is gone;
+            opponents now live in the status strip and review is interstitial). */}
+        <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col gap-4 p-4 min-w-0 overflow-y-auto">
+          {projects.map((project, i) => (
+            <ProjectRow
+              key={project.id}
+              project={project}
+              locked={i >= workspaces}
+              collapsed={collapsedProjects.has(project.id)}
+              onToggleCollapse={() => toggleProjectCollapse(project.id)}
+              showTags={effTags} showSignificance={effSignificance}
+              onCardClick={(card) => setOpenCard({ card, source: 'project' })}
+              onPublish={(projectId) => startPublishFlow(projectId)}
+              onAttendConference={(projectId) => selectConference(projectId)}
+              onReturnToHand={returnFromProject}
+              onRemoveCitation={removeCitation}
+              useSpines
+              articleMin={articleMin}
+              freePublishing={freePublishing}
+              statLevels={you.stat_levels || {}}
             />
-          </aside>
-
-          {/* CENTER: project rows (widened — Library sidebar removed; the
-              bottom MultiplayerBookshelf shows the same data) */}
-          <main id="main-content" tabIndex={-1} className="col-span-9 flex flex-col gap-4 min-w-0 overflow-y-auto">
-            {projects.map((project, i) => (
-              <ProjectRow
-                key={project.id}
-                project={project}
-                locked={i >= workspaces}
-                collapsed={collapsedProjects.has(project.id)}
-                onToggleCollapse={() => toggleProjectCollapse(project.id)}
-                showTags={effTags} showSignificance={effSignificance}
-                onCardClick={(card) => setOpenCard({ card, source: 'project' })}
-                onPublish={(projectId) => startPublishFlow(projectId)}
-                onAttendConference={(projectId) => selectConference(projectId)}
-                onReturnToHand={returnFromProject}
-                onRemoveCitation={removeCitation}
-                useSpines
-                articleMin={articleMin}
-                freePublishing={freePublishing}
-                statLevels={you.stat_levels || {}}
-              />
-            ))}
-          </main>
-        </div>
+          ))}
+        </main>
 
         {error && (
           <div className="mx-4 mb-2 p-3 bg-oxblood-700/40 border border-oxblood-500 text-oxblood-300 font-serif text-sm">
@@ -1050,13 +971,7 @@ export default function MultiplayerGame() {
           citationsReceived={you.citations_received_count ?? 0}
         />
 
-        {/* ── 7. Multiplayer bookshelf ── */}
-        <MultiplayerBookshelf
-          you={you}
-          opponents={state.opponents}
-          publishedWorks={state.published_works}
-          onSpineClick={(work) => setOpenWork(work)}
-        />
+        {/* (The published-works library moved up beside the conclusion shelf.) */}
 
         {/* ── DIALOGS ── */}
 
@@ -1341,12 +1256,13 @@ function conclusionTier(card) {
   return 'top';
 }
 
-function ConclusionRail({ shelf, onConclusionClick, showTags, showSignificance }) {
+function ConclusionRail({ shelf, onConclusionClick, showTags, showSignificance, align = 'center' }) {
   const topTier = shelf.filter((c) => conclusionTier(c) === 'top');
   const subTier = shelf.filter((c) => conclusionTier(c) === 'sub');
+  const rightAligned = align === 'right';
 
   const renderRow = (cards, label) => (
-    <div className="flex items-stretch gap-2 min-w-max justify-center">
+    <div className={`flex items-stretch gap-2 min-w-max ${rightAligned ? 'justify-end' : 'justify-center'}`}>
       {/* Tier label — only visible when the player has the tags toggle
           on. The tier itself still functions as a partition; the label
           just names which codes live here (a/b vs s/p/e). When tags are
@@ -1387,17 +1303,26 @@ function ConclusionRail({ shelf, onConclusionClick, showTags, showSignificance }
     </div>
   );
 
+  const inner = (
+    <div className="overflow-x-auto w-full">
+      <div className={`flex flex-col gap-1.5 w-max ${rightAligned ? 'ml-auto' : 'mx-auto'}`}>
+        {topTier.length > 0 && renderRow(topTier, 'a · b')}
+        {topTier.length > 0 && subTier.length > 0 && (
+          <div className="border-t border-edge-on-dark/40" aria-hidden="true" />
+        )}
+        {subTier.length > 0 && renderRow(subTier, 's · p · e')}
+      </div>
+    </div>
+  );
+
+  // Right-aligned mode is used inside the shared library/conclusion band, which
+  // already provides the surface + padding, so render bare there.
+  if (rightAligned) {
+    return <div data-tutorial="conclusion-rail" className="w-full">{inner}</div>;
+  }
   return (
     <section data-tutorial="conclusion-rail" className="surface-binding border-b border-edge-on-dark px-6 py-2">
-      <div className="overflow-x-auto">
-        <div className="flex flex-col gap-1.5 w-max mx-auto">
-          {topTier.length > 0 && renderRow(topTier, 'a · b')}
-          {topTier.length > 0 && subTier.length > 0 && (
-            <div className="border-t border-edge-on-dark/40" aria-hidden="true" />
-          )}
-          {subTier.length > 0 && renderRow(subTier, 's · p · e')}
-        </div>
-      </div>
+      {inner}
     </section>
   );
 }
@@ -1793,6 +1718,58 @@ function labelForStage(stage) {
     'tenure-denied': 'Tenure Denied',
   };
   return labels[stage] || stage;
+}
+
+
+/**
+ * PlayerStatCard — one column in the status strip: name, rank, and the
+ * Prestige / Citations / Anticipated boxes. Used for the main player and each
+ * opponent.
+ */
+function PlayerStatCard({ player, isYou = false }) {
+  const col = colorForSeat(player.seat_index);
+  const citations = player.citations_received_count ?? 0;
+  const mult = renownMultiplier(player.stat_levels?.renown);
+  const projected = projectedScore(player.prestige, citations, player.stat_levels?.renown);
+  const dim = player.is_ghost || player.game_over_reason;
+
+  return (
+    <div className={`flex flex-col items-start gap-1 ${dim ? 'opacity-50' : ''}`}>
+      <span className="flex items-center gap-1.5 font-display text-base text-cream-50 leading-none">
+        <span className={`w-2 h-4 ${col.spineBg}`} aria-hidden="true" />
+        {player.player_name}
+        {isYou && <span className="text-gold-400 text-xs">(you)</span>}
+      </span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-gold-400">
+        {labelForStage(player.stage)}
+      </span>
+      <div className="flex items-stretch gap-1.5 mt-0.5">
+        <StatBox value={player.prestige ?? 0} label="Prestige" tone="gold" emphasize={isYou} />
+        <StatBox value={citations} label="Citations" tone="cream" emphasize={isYou} />
+        <StatBox value={projected} suffix={`×${mult}`} label="Anticipated" tone="verdigris" emphasize={isYou} />
+      </div>
+    </div>
+  );
+}
+
+/** A single labelled stat box used by PlayerStatCard. */
+function StatBox({ value, label, suffix, tone = 'gold', emphasize = false }) {
+  const toneClass = tone === 'verdigris'
+    ? 'text-verdigris-300 border-verdigris-500/40'
+    : tone === 'cream'
+    ? 'text-cream-100 border-gold-500/25'
+    : 'text-gold-200 border-gold-500/40';
+  return (
+    <div className={`inline-flex flex-col items-center justify-center border ${toneClass} px-3 py-1 leading-none`}>
+      <span className={`font-display font-bold tabular-nums ${emphasize ? 'text-2xl' : 'text-xl'}`}>
+        {value}
+        {suffix && <span className="text-[10px] font-mono text-cream-200/60 ml-0.5">{suffix}</span>}
+      </span>
+      <span className="font-mono text-[8px] uppercase tracking-[0.15em] text-cream-200/60 mt-1">
+        {label}
+      </span>
+    </div>
+  );
 }
 
 

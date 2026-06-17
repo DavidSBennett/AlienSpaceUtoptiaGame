@@ -12,11 +12,11 @@
  */
 import { awardsForPlayer } from '../lib/awards.js';
 
-export default function GoalLine({ state, year, stage, articlesPublished, booksPublished, totalYears = 25 }) {
+export default function GoalLine({ state, year, stage, articlesPublished, booksPublished, totalYears = 25, className }) {
   const goal = computeGoal({ state, year, stage, articlesPublished, booksPublished, totalYears });
 
   return (
-    <div className="font-serif italic text-cream-200/90 text-xs text-center px-6 leading-snug">
+    <div className={className ?? 'font-serif italic text-cream-200/90 text-xs text-center px-6 leading-snug'}>
       <span className="font-mono not-italic uppercase tracking-widest text-gold-400 text-[10px] mr-2">Goal:</span>
       {goal}
     </div>
