@@ -38,7 +38,7 @@ import SkipLink from '../components/SkipLink.jsx';
 import TagsToggle from '../components/TagsToggle.jsx';
 import SignificanceToggle from '../components/SignificanceToggle.jsx';
 import { TOTAL_YEARS } from '../hooks/useGameState.js';
-import { MP_STAT_TABLES, MP_ARTICLE_MIN } from '../lib/mpStats.js';
+import { MP_STAT_TABLES, MP_ARTICLE_MIN, renownMultiplier, projectedScore } from '../lib/mpStats.js';
 
 // Multiplayer-specific components
 import OpponentBar from '../components/OpponentBar.jsx';
@@ -336,6 +336,11 @@ export default function MultiplayerGame() {
   const yearProgress = (game.current_year - 1) / totalYears;
   const yourSeat = you.seat_index;
   const yourColor = colorForSeat(yourSeat);
+
+  // Citations held + projected end-game score (prestige + citations × renown).
+  const youCitations = you.citations_received_count ?? 0;
+  const youRenownMult = renownMultiplier(you.stat_levels?.renown);
+  const youProjected = projectedScore(you.prestige, youCitations, you.stat_levels?.renown);
 
   // Project shape adapter — multiplayer state uses slot_index, ProjectRow
   // expects id. Map evidence cards & conclusion through their existing
@@ -829,13 +834,38 @@ export default function MultiplayerGame() {
                 <span className="text-gold-400">Historian</span>
                 {you.player_name}
               </span>
-              <div className="inline-flex flex-col items-center border border-gold-500/40 px-5 py-1.5 leading-none">
-                <span className="font-display font-bold text-4xl text-gold-200 tabular-nums">
-                  {you.prestige ?? 0}
-                </span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-gold-400/80 mt-1">
-                  Prestige
-                </span>
+              <div className="flex items-stretch gap-2">
+                <div className="inline-flex flex-col items-center justify-center border border-gold-500/40 px-5 py-1.5 leading-none">
+                  <span className="font-display font-bold text-4xl text-gold-200 tabular-nums">
+                    {you.prestige ?? 0}
+                  </span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-gold-400/80 mt-1">
+                    Prestige
+                  </span>
+                </div>
+                <div
+                  className="inline-flex flex-col items-center justify-center border border-gold-500/25 px-4 py-1.5 leading-none"
+                  title="Citation tokens you've received so far"
+                >
+                  <span className="font-display font-bold text-2xl text-cream-100 tabular-nums">
+                    {youCitations}
+                  </span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-200/70 mt-1">
+                    Citations
+                  </span>
+                </div>
+                <div
+                  className="inline-flex flex-col items-center justify-center border border-verdigris-500/40 px-4 py-1.5 leading-none"
+                  title={`Projected end-game score: prestige + citations × renown (×${youRenownMult})`}
+                >
+                  <span className="font-display font-bold text-2xl text-verdigris-300 tabular-nums">
+                    {youProjected}{' '}
+                    <span className="text-sm font-mono text-cream-200/60">(×{youRenownMult})</span>
+                  </span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-verdigris-400/80 mt-1">
+                    Projected
+                  </span>
+                </div>
               </div>
             </div>
 

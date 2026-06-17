@@ -34,3 +34,16 @@ export const MP_ARTICLE_MIN = 2;  // minimum evidence to publish an article
 export function mpHandLimit(level) {
   return MP_STAT_TABLES.notebookCapacity[Math.max(0, Math.min(3, (level || 1) - 1))];
 }
+
+/** Renown multiplier (×1/2/3/5) for a renown level (1-4). */
+export function renownMultiplier(level) {
+  return MP_STAT_TABLES.renown[Math.max(0, Math.min(3, (level || 1) - 1))];
+}
+
+/**
+ * Projected end-of-game score: current prestige plus the renown payout on
+ * citation tokens held so far (citations × renown multiplier).
+ */
+export function projectedScore(prestige, citations, renownLevel) {
+  return (prestige || 0) + (citations || 0) * renownMultiplier(renownLevel);
+}

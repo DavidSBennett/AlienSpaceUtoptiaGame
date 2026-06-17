@@ -12,7 +12,7 @@
  *   currentYear — number (game year)
  */
 import { colorForPlayer } from '../lib/playerColors.js';
-import { STAT_TABLES } from '../hooks/useGameState.js';
+import { MP_STAT_TABLES, renownMultiplier, projectedScore } from '../lib/mpStats.js';
 
 export default function OpponentBar({ opponents, currentYear }) {
   if (!opponents || opponents.length === 0) {
@@ -27,13 +27,18 @@ export default function OpponentBar({ opponents, currentYear }) {
     <ul className="space-y-1.5">
       {opponents.map((op) => {
         const col = colorForPlayer(op);
-        const capacity = STAT_TABLES.notebookCapacity[(op.stat_levels.notebookCapacity || 1) - 1];
+        const capacity = MP_STAT_TABLES.notebookCapacity[(op.stat_levels.notebookCapacity || 1) - 1];
         const ghost = op.is_ghost;
         const gameOver = op.game_over_reason;
 
+        const citations = op.citations_received_count ?? 0;
+        const renownMult = renownMultiplier(op.stat_levels.renown);
+        const projected = projectedScore(op.prestige, citations, op.stat_levels.renown);
+
         const tooltip = [
           `${op.player_name} — seat ${op.seat_index + 1}`,
-          `Prestige ${op.prestige} · ${op.articles_published} articles · ${op.books_published} books`,
+          `Prestige ${op.prestige} · ${citations} citations · projected ${projected} (×${renownMult})`,
+          `${op.articles_published} articles · ${op.books_published} books`,
           `Hand ${op.hand_size} / ${capacity}`,
           `Stats: R${op.stat_levels.research} N${op.stat_levels.notebookCapacity} I${op.stat_levels.influence} W${op.stat_levels.workspaces} P${op.stat_levels.reputation}`,
         ].join('\n');
@@ -62,12 +67,20 @@ export default function OpponentBar({ opponents, currentYear }) {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <span
-                className="font-display font-bold text-xl text-gold-300 tabular-nums leading-none"
-                title={`Prestige ${op.prestige}`}
-              >
-                {op.prestige}
-              </span>
+              <div className="text-right leading-none">
+                <span
+                  className="font-display font-bold text-xl text-gold-300 tabular-nums"
+                  title={`Prestige ${op.prestige}`}
+                >
+                  {op.prestige}
+                </span>
+                <div
+                  className="font-mono text-[9px] text-cream-200/70 mt-0.5"
+                  title={`Citations ${citations} · projected ${projected} (×${renownMult})`}
+                >
+                  {citations}c · <span className="text-verdigris-300">{projected} (×{renownMult})</span>
+                </div>
+              </div>
               <span className="text-sm font-mono w-3 text-center">
                 {op.has_committed ? (
                   <span className="text-verdigris-400" title="Has ended their turn">✓</span>
