@@ -8,8 +8,9 @@
  *   1. Fetch all archive cards for the game's deck
  *   2. Shuffle them server-side and write to mp_game_archive with positions
  *   3. Initialize each player's 3 project slots (mp_projects)
- *   4. Set the year_started_at timestamp (the timer's anchor for year 1)
- *   5. Flip status to 'active' and bump state_version
+ *   4. Deal each player a starting hand of 3 cards off the top of the archive
+ *   5. Set the year_started_at timestamp (the timer's anchor for year 1)
+ *   6. Flip status to 'active' and bump state_version
  *
  * Request body:
  *   {
@@ -138,7 +139,8 @@ try {
   }
 
   // 2. Create 3 project slots for each player. Single bulk insert.
-  $stmt = $mysqli->prepare("SELECT player_id FROM mp_game_players WHERE game_id = ?");
+  //    Ordered by seat so the starting-hand deal below is deterministic.
+  $stmt = $mysqli->prepare("SELECT player_id FROM mp_game_players WHERE game_id = ? ORDER BY seat_index ASC");
   $stmt->bind_param('i', $gameId);
   $stmt->execute();
   $res = $stmt->get_result();
@@ -165,6 +167,43 @@ try {
     throw new Exception('Project slot init failed: ' . $stmt->error);
   }
   $stmt->close();
+
+  // 2b. Deal a starting hand. Each player begins grad school with a few
+  //     evidence cards already in their Research Notebook to represent the
+  //     interests that brought them to the field. Cards come off the top of
+  //     the freshly shuffled archive, dealt seat by seat, and are marked as
+  //     drawn in year 1 (so they reshuffle normally once the archive cycles).
+  //
+  //     $archiveCardIds is the shuffled order and its indices line up with
+  //     archive_position, so we can deal straight off the front of it.
+  $STARTING_HAND_SIZE = 3;
+  $dealPos = 0;
+  foreach ($playerIds as $pid) {
+    for ($k = 0; $k < $STARTING_HAND_SIZE && $dealPos < $n; $k++, $dealPos++) {
+      $cid = $archiveCardIds[$dealPos];
+
+      $stmt = $mysqli->prepare("
+        UPDATE mp_game_archive
+        SET drawn_by_player_id = ?, drawn_year = 1
+        WHERE game_id = ? AND idCard = ? AND drawn_by_player_id IS NULL
+      ");
+      $stmt->bind_param('iii', $pid, $gameId, $cid);
+      if (!$stmt->execute()) {
+        throw new Exception('Starting-hand archive update failed: ' . $stmt->error);
+      }
+      $stmt->close();
+
+      $stmt = $mysqli->prepare("
+        INSERT IGNORE INTO mp_player_hands (player_id, idCard, added_year)
+        VALUES (?, ?, 1)
+      ");
+      $stmt->bind_param('ii', $pid, $cid);
+      if (!$stmt->execute()) {
+        throw new Exception('Starting-hand deal failed: ' . $stmt->error);
+      }
+      $stmt->close();
+    }
+  }
 
   // 3. Flip the game to active and anchor the year timer.
   $stmt = $mysqli->prepare("

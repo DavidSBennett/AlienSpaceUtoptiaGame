@@ -22,6 +22,36 @@
  */
 
 export const TUTORIALS = [
+  // ─── Chevrons / collapse hints (shown FIRST) ──────────────────────
+  // This is the very first thing a new player sees: the board is dense,
+  // so we orient them to the collapse controls before anything else.
+  {
+    id: 'chevrons',
+    order: 5,
+    targetAttr: null,
+    title: 'Collapsing Sections',
+    body: (
+      <>
+        <p>
+          Welcome! This board packs a lot in. Before you dive in, note the
+          small ▾ chevrons on the header bar, each project row, the
+          notebook, and the library at the bottom.
+        </p>
+        <p className="mt-2">
+          Click any chevron to collapse or expand that section. Use them to
+          keep your view focused on whatever you're working on right now.
+        </p>
+      </>
+    ),
+    condition: (state) => {
+      const you = state?.you;
+      if (!you) return false;
+      if (you.game_over_reason) return false;
+      // Fire at the very start of the game, before any other hint.
+      return (state.game?.current_year ?? 1) === 1;
+    },
+  },
+
   // ─── Welcome / Draw ────────────────────────────────────────────────
   {
     id: 'welcome-draw',
@@ -31,23 +61,25 @@ export const TUTORIALS = [
     body: (
       <>
         <p>
-          You're a budding historian. Each year you may take ONE action:
-          draw research, develop a project, or peer-review someone's work.
+          You're a budding historian. You start grad school with a few
+          evidence cards already in your notebook below — the interests
+          that brought you to the field.
         </p>
         <p className="mt-2">
-          Start here — click this deck of cards to mark your action as
-          "Draw," then click "End Year" to advance the game. New evidence
-          will flow into your notebook below.
+          Each year you may take ONE action: draw research, develop a
+          project, or peer-review someone's work. To draw, click the deck
+          of cards to mark your action as "Draw," then click "End Year" to
+          advance — fresh evidence flows into your notebook.
         </p>
       </>
     ),
     condition: (state) => {
-      // First moment of the game — no actions taken, hand empty.
+      // First moment of the game — no action chosen yet. (Hands now start
+      // seeded with a few cards, so we no longer gate on an empty hand.)
       const you = state?.you;
       if (!you) return false;
       if (you.game_over_reason) return false;
       return (
-        (you.hand?.length ?? 0) === 0 &&
         (you.pending_action ?? null) === null &&
         state.game?.current_year === 1
       );
@@ -188,35 +220,6 @@ export const TUTORIALS = [
       // reviewed before" from state alone (server doesn't expose it
       // cleanly). The dismiss key itself handles that.
       return true;
-    },
-  },
-
-  // ─── Chevron / collapse hints ─────────────────────────────────────
-  {
-    id: 'chevrons',
-    order: 60,
-    targetAttr: null,
-    title: 'Collapsing Sections',
-    body: (
-      <>
-        <p>
-          The header bar, project rows, and library each have a small
-          ▾ chevron you can click to collapse them. Use these to keep
-          your view focused on what you're working on.
-        </p>
-      </>
-    ),
-    condition: (state) => {
-      const you = state?.you;
-      if (!you) return false;
-      // Fire after the player has had a chance to take their first
-      // action — once any submission exists in the world or year ≥ 2.
-      const anyActivity =
-        (state.your_submissions?.length ?? 0) > 0 ||
-        (state.resolved_submissions_for_you?.length ?? 0) > 0 ||
-        (state.published_works?.length ?? 0) > 0 ||
-        (state.game?.current_year ?? 1) >= 2;
-      return anyActivity;
     },
   },
 

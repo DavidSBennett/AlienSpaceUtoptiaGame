@@ -289,6 +289,15 @@ function initialState({ playerName, deck, allCards }) {
   const archiveCards = allCards.filter((c) => c.type === 'archive');
   const conclusionCards = allCards.filter((c) => c.type === 'conclusion');
 
+  // Deal a small starting hand. Each historian begins grad school with a few
+  // evidence cards already in their Research Notebook to represent the
+  // interests that brought them to the field. They come off the top of the
+  // freshly shuffled archive (no year tick — this is the game's setup).
+  const STARTING_HAND_SIZE = 3;
+  const shuffledArchive = shuffle(archiveCards);
+  const startingHand = shuffledArchive.slice(0, STARTING_HAND_SIZE);
+  const remainingArchive = shuffledArchive.slice(STARTING_HAND_SIZE);
+
   return {
     // Setup
     playerName,
@@ -312,9 +321,9 @@ function initialState({ playerName, deck, allCards }) {
     },
 
     // Cards
-    archiveDeck: shuffle(archiveCards),  // shuffled, drawn from the front
+    archiveDeck: remainingArchive,       // shuffled, drawn from the front (minus the starting hand)
     conclusionShelf: conclusionCards,    // all conclusions, always available
-    hand: [],                            // archive cards drawn into the notebook
+    hand: startingHand,                  // archive cards in the notebook (seeded with a starting hand)
     discard: [],                         // played/discarded archive cards
 
     // Projects — fixed-length array of 3 slots; only `workspaces` stat

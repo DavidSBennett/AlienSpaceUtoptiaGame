@@ -21,6 +21,7 @@ import Leaderboard from '../components/Leaderboard.jsx';
 import TagsToggle from '../components/TagsToggle.jsx';
 import SignificanceToggle from '../components/SignificanceToggle.jsx';
 import Bookshelf from '../components/Bookshelf.jsx';
+import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { exportPublicationsToPDF } from '../lib/publicationsPDF.js';
 import { buildSoloReport, openPlaytestReport } from '../lib/playtestReport.js';
@@ -161,6 +162,9 @@ function GameBoard({ playerName, deck, allCards }) {
   // status info. Player can expand to access the Reset link or change
   // tags-visibility.
   const [headerCollapsed, setHeaderCollapsed] = useState(true);
+
+  // "How to Play" actions reference overlay.
+  const [guideOpen, setGuideOpen] = useState(false);
 
   /**
    * Handle a "Place in Project N" click from inside the card modal.
@@ -345,6 +349,15 @@ function GameBoard({ playerName, deck, allCards }) {
               <div className="flex items-center gap-6 text-sm">
                 <TagsToggle showTags={state.showTags} onToggle={toggleTags} />
                 <SignificanceToggle showSignificance={state.showSignificance} onToggle={toggleSignificance} />
+
+                <button
+                  type="button"
+                  onClick={() => setGuideOpen(true)}
+                  className="font-mono text-xs uppercase tracking-wider text-cream-200 hover:text-gold-300 transition-colors"
+                  title="Open the How to Play reference"
+                >
+                  How to Play
+                </button>
 
                 <Link
                   to="/"
@@ -561,6 +574,11 @@ function GameBoard({ playerName, deck, allCards }) {
         )}
 
         {state.gameOver && <GameOverOverlay state={state} deck={deck} />}
+
+        {/* "How to Play" actions reference — summoned from the header. */}
+        {guideOpen && (
+          <ActionsGuideModal mode="single" onClose={() => setGuideOpen(false)} />
+        )}
       </div>
     </DndContext>
   );

@@ -50,6 +50,7 @@ import PublicationModal from '../components/PublicationModal.jsx';
 import ActionCommitBar from '../components/ActionCommitBar.jsx';
 import ActionHistoryModal from '../components/ActionHistoryModal.jsx';
 import TutorialManager from '../components/TutorialManager.jsx';
+import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import { isTutorialEnabled, setTutorialEnabled as persistTutorialEnabled } from '../lib/tutorialStorage.js';
 import useUserSetting from '../auth/useUserSetting.js';
 import GoalLine from '../components/GoalLine.jsx';
@@ -164,6 +165,9 @@ export default function MultiplayerGame() {
 
   // Concede confirmation modal
   const [concedeOpen, setConcedeOpen] = useState(false);
+
+  // "How to Play" actions reference overlay
+  const [guideOpen, setGuideOpen] = useState(false);
 
   // Transient state for showing the outcome banner after a player spends
   // an objection token. Cleared when the result dialog is dismissed.
@@ -746,6 +750,13 @@ export default function MultiplayerGame() {
                 <TagsToggle showTags={showTags} onToggle={() => setShowTags((v) => !v)} />
                 <SignificanceToggle showSignificance={showSignificance} onToggle={handleToggleSignificance} />
                 <button
+                  onClick={() => setGuideOpen(true)}
+                  className="font-mono text-xs uppercase tracking-wider text-cream-200 hover:text-gold-300"
+                  title="Open the How to Play reference"
+                >
+                  How to Play
+                </button>
+                <button
                   onClick={toggleTutorial}
                   className={`font-mono text-xs uppercase tracking-wider ${tutorialEnabled ? 'text-gold-300 hover:text-gold-100' : 'text-cream-200/50 hover:text-cream-100'}`}
                   title={tutorialEnabled ? 'Disable tutorial hints' : 'Enable tutorial hints'}
@@ -1166,6 +1177,11 @@ export default function MultiplayerGame() {
           playerToken={playerToken}
           enabled={tutorialEnabled}
         />
+
+        {/* "How to Play" actions reference — summoned from the header. */}
+        {guideOpen && (
+          <ActionsGuideModal mode="multiplayer" onClose={() => setGuideOpen(false)} />
+        )}
 
         {/* Upgrade chooser (suppressed while result dialog is open) */}
         {you.pending_upgrade && !liveResult && (
