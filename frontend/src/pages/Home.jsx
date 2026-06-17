@@ -9,6 +9,7 @@ import CornerOrnament from '../components/CornerOrnament.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import useUserSetting from '../auth/useUserSetting.js';
+import { GAME_MODES, DEFAULT_MODE, labelForRounds } from '../lib/gameModes.js';
 
 /**
  * Home — the unified landing page. Hosts BOTH the solo and multiplayer
@@ -47,6 +48,7 @@ export default function Home() {
   // ── Multiplayer panel state ──────────────────────────────────────
   const [mpOpen, setMpOpen] = useState(() => location.pathname === '/multiplayer');
   const [maxPlayers, setMaxPlayers] = useState(5);
+  const [gameMode, setGameMode] = useState(DEFAULT_MODE);
   const [lobbies, setLobbies] = useState([]);
   const [myGames, setMyGames] = useState([]);
 
@@ -142,6 +144,7 @@ export default function Home() {
         // Use the auth username as the multiplayer display name.
         player_name: user.username,
         max_players: Number(maxPlayers),
+        mode: gameMode,
       });
       saveSession(res.game_id, {
         player_token: res.player_token,
@@ -432,6 +435,40 @@ export default function Home() {
                         </select>
                       </div>
 
+                      {/* Game length */}
+                      <div>
+                        <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-gold-400 mb-2">
+                          Game length
+                        </label>
+                        <div
+                          role="group"
+                          aria-label="Game length"
+                          className="inline-flex rounded-full border border-gold-500/40 bg-ink-900/40 p-1"
+                        >
+                          {GAME_MODES.map((m) => (
+                            <button
+                              key={m.key}
+                              type="button"
+                              onClick={() => setGameMode(m.key)}
+                              aria-pressed={gameMode === m.key}
+                              title={`${m.rounds} rounds — ${m.blurb}`}
+                              className={`px-4 py-1.5 rounded-full font-mono text-[11px] uppercase tracking-[0.18em] transition-colors ${
+                                gameMode === m.key
+                                  ? 'bg-gold-500 text-ink-900'
+                                  : 'text-cream-200 hover:text-gold-400'
+                              }`}
+                            >
+                              {m.label}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="font-serif italic text-cream-200/60 text-xs mt-1.5">
+                          {GAME_MODES.find((m) => m.key === gameMode)?.rounds} rounds
+                          {' · '}
+                          {GAME_MODES.find((m) => m.key === gameMode)?.blurb}
+                        </p>
+                      </div>
+
                       <button
                         type="button"
                         onClick={handleCreateLobby}
@@ -470,6 +507,7 @@ export default function Home() {
                                 </div>
                                 <div className="font-mono text-[10px] uppercase tracking-[0.15em] text-cream-200/70 mt-1">
                                   Host: {lob.host_player_name || '—'} · {lob.current_players_count} / {lob.max_players}
+                                  {lob.total_years ? ` · ${labelForRounds(lob.total_years)}` : ''}
                                 </div>
                               </div>
                               <button

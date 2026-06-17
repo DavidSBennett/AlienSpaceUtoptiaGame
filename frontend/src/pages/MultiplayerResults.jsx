@@ -8,6 +8,7 @@ import FleuronDivider from '../components/FleuronDivider.jsx';
 import CornerOrnament from '../components/CornerOrnament.jsx';
 import { AWARDS, computeAwardStandings } from '../lib/awards.js';
 import { buildMultiplayerReport, openPlaytestReport } from '../lib/playtestReport.js';
+import { labelForRounds } from '../lib/gameModes.js';
 
 /**
  * MultiplayerResults — final scores page shown when game.status='ended'.
@@ -82,6 +83,11 @@ export default function MultiplayerResults() {
               Curtain Falls
             </p>
             <h1 className="font-display text-5xl text-cream-50">Final Standings</h1>
+            {state.game?.total_years && (
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cream-200/60 mt-2">
+                {labelForRounds(state.game.total_years)} game · {state.game.total_years} rounds
+              </p>
+            )}
           </div>
 
           <FleuronDivider className="my-6" />

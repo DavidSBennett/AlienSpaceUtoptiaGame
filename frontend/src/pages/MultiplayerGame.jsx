@@ -327,7 +327,9 @@ export default function MultiplayerGame() {
   const repThresh = reputationThresholds(you.stat_levels.reputation || 1);
   const articleMin = repThresh.articleMin;
   const freePublishing = (you.stat_levels.workspaces || 1) >= 4;
-  const yearProgress = (game.current_year - 1) / TOTAL_YEARS;
+  // Game length depends on the mode (short=10, medium=18, long=25).
+  const totalYears = game.total_years || TOTAL_YEARS;
+  const yearProgress = (game.current_year - 1) / totalYears;
   const yourSeat = you.seat_index;
   const yourColor = colorForSeat(yourSeat);
 
@@ -813,6 +815,7 @@ export default function MultiplayerGame() {
                 stage={you.stage}
                 articlesPublished={you.articles_published}
                 booksPublished={you.books_published}
+                totalYears={totalYears}
               />
             </div>
 
@@ -847,7 +850,7 @@ export default function MultiplayerGame() {
               <span className="flex items-center gap-3">
                 <ConnectionPill lastPollAt={lastPollAt} onRefresh={refresh} />
                 <span className="font-mono text-cream-200">
-                  <span className="text-gold-400 mr-2">Year</span>{game.current_year}<span>/{TOTAL_YEARS}</span>
+                  <span className="text-gold-400 mr-2">Year</span>{game.current_year}<span>/{totalYears}</span>
                 </span>
               </span>
             </div>
@@ -855,7 +858,7 @@ export default function MultiplayerGame() {
         </section>
 
         {/* Year progress bar — thin, visible, with gate markers at y5 and y12 */}
-        <YearProgressBar currentYear={game.current_year} />
+        <YearProgressBar currentYear={game.current_year} totalYears={totalYears} />
 
         {/* ── 3. Conclusion rail (reusing the pattern from single-player) ──
             We hide any conclusion that's currently placed in one of YOUR

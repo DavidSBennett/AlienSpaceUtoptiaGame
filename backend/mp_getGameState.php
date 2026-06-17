@@ -262,6 +262,7 @@ mp_json([
     'idDeck'        => (int) $game['idDeck'],
     'status'        => $game['status'],
     'current_year'  => (int) $game['current_year'],
+    'total_years'   => (int) $game['total_years'],
     'year_started_at' => $game['year_started_at'],
     'timer_seconds_default' => (int) $game['timer_seconds_default'],
     'timer_seconds_review'  => (int) $game['timer_seconds_review'],

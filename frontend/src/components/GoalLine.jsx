@@ -12,8 +12,8 @@
  */
 import { awardsForPlayer } from '../lib/awards.js';
 
-export default function GoalLine({ state, year, stage, articlesPublished, booksPublished }) {
-  const goal = computeGoal({ state, year, stage, articlesPublished, booksPublished });
+export default function GoalLine({ state, year, stage, articlesPublished, booksPublished, totalYears = 25 }) {
+  const goal = computeGoal({ state, year, stage, articlesPublished, booksPublished, totalYears });
 
   return (
     <div className="font-serif italic text-cream-200/90 text-xs text-center px-6 leading-snug">
@@ -23,7 +23,12 @@ export default function GoalLine({ state, year, stage, articlesPublished, booksP
   );
 }
 
-function computeGoal({ state, year, stage, articlesPublished, booksPublished }) {
+function computeGoal({ state, year, stage, articlesPublished, booksPublished, totalYears = 25 }) {
+  // Short games end before the year-12 tenure gate, so there's no tenure
+  // review and no post-tenure promotions. We detect that and, once the
+  // comps gate is cleared, pivot to a "build prestige before retirement"
+  // goal instead of pointing at a tenure review the game never reaches.
+  const hasTenureGate = totalYears > 12;
   // ──── Game-over states first ───────────────────────────────────────
   // The server sets `stage` to a failure value when a hard gate is
   // missed or the player concedes. Show a clear end-of-game line in
@@ -51,7 +56,7 @@ function computeGoal({ state, year, stage, articlesPublished, booksPublished }) 
   }
 
   // ──── Stage gate #2: publish a book by end of year 12 ──────────────
-  if (year <= 12 && booksPublished === 0) {
+  if (hasTenureGate && year <= 12 && booksPublished === 0) {
     const yearsLeft = 12 - year + 1;
     return (
       <>
@@ -59,6 +64,16 @@ function computeGoal({ state, year, stage, articlesPublished, booksPublished }) 
         {' '}({yearsLeft} year{yearsLeft === 1 ? '' : 's'} left)
         {" — otherwise you'll be denied tenure and the game ends."}
       </>
+    );
+  }
+
+  // ──── Short mode: no tenure gate. Once comps is behind you, play for
+  //      prestige and end-of-game awards until retirement. ─────────────
+  if (!hasTenureGate) {
+    const yearsLeft = Math.max(0, totalYears - year + 1);
+    return awardsGoalText(
+      state,
+      `Build prestige before retirement at year ${totalYears} (${yearsLeft} year${yearsLeft === 1 ? '' : 's'} left):`,
     );
   }
 

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { fetchDecks } from '../api/client.js';
 import Leaderboard from '../components/Leaderboard.jsx';
+import { GAME_MODES } from '../lib/gameModes.js';
 import FleuronDivider from '../components/FleuronDivider.jsx';
 import CornerOrnament from '../components/CornerOrnament.jsx';
 import SkipLink from '../components/SkipLink.jsx';
@@ -29,6 +30,9 @@ export default function LeaderboardPage() {
 
   // Which score source to display: solo (user_scores) or multiplayer (Scores).
   const [scoreMode, setScoreMode] = useState('solo');
+
+  // For the multiplayer board: which game-length leaderboard to show.
+  const [lengthMode, setLengthMode] = useState('long');
 
   // Name-search state. We keep the query separate from the "submitted" value
   // so we only re-fetch on explicit submit (typing doesn't hammer the server).
@@ -68,10 +72,11 @@ export default function LeaderboardPage() {
   // Translate the dropdown's current value into fetch params for Leaderboard.
   const fetchParams = useMemo(() => {
     const base = { mode: scoreMode };
+    if (scoreMode === 'mp') base.length = lengthMode;
     if (selectedDeckId === 'all') return { ...base, all: true };
     if (selectedDeckId) return { ...base, deck: selectedDeckId };
     return null;
-  }, [selectedDeckId, scoreMode]);
+  }, [selectedDeckId, scoreMode, lengthMode]);
 
   // Determine the heading text shown above the table
   const tableHeading = useMemo(() => {
@@ -213,6 +218,35 @@ export default function LeaderboardPage() {
                     </div>
                   </div>
 
+                  {/* Game-length board — only meaningful for multiplayer,
+                      where Short / Medium / Long each keep their own board. */}
+                  {scoreMode === 'mp' && (
+                    <div className="mt-3 flex justify-center">
+                      <div
+                        role="group"
+                        aria-label="Game length"
+                        className="inline-flex rounded-full border border-gold-500/40 bg-ink-900/40 p-1"
+                      >
+                        {GAME_MODES.map((m) => (
+                          <button
+                            key={m.key}
+                            type="button"
+                            onClick={() => setLengthMode(m.key)}
+                            aria-pressed={lengthMode === m.key}
+                            title={`${m.rounds} rounds`}
+                            className={`px-5 py-1.5 rounded-full font-mono text-[11px] uppercase tracking-[0.18em] transition-colors ${
+                              lengthMode === m.key
+                                ? 'bg-gold-500 text-ink-900'
+                                : 'text-cream-200 hover:text-gold-400'
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* The table */}
                   {fetchParams && (
                     <div className="surface-paper p-5 relative mt-4">
@@ -221,7 +255,9 @@ export default function LeaderboardPage() {
                         {tableHeading}
                       </h2>
                       <p className="font-mono text-[10px] uppercase tracking-widest text-ink-700 text-center mb-4 relative">
-                        {scoreMode === 'mp' ? 'Multiplayer' : 'Solo'} ·{' '}
+                        {scoreMode === 'mp'
+                          ? `Multiplayer · ${GAME_MODES.find((m) => m.key === lengthMode)?.label || ''}`
+                          : 'Solo'} ·{' '}
                         {selectedDeckId === 'all'
                           ? 'Combined standings across all decks · click headers to sort'
                           : 'Sorted by Prestige · click headers to sort'
@@ -277,7 +313,11 @@ export default function LeaderboardPage() {
                       </p>
                       <div className="relative">
                         <Leaderboard
-                          fetchParams={{ player: submittedName, mode: scoreMode }}
+                          fetchParams={{
+                            player: submittedName,
+                            mode: scoreMode,
+                            ...(scoreMode === 'mp' ? { length: lengthMode } : {}),
+                          }}
                           deckNamesById={deckNamesById}
                           showDeckColumn
                         />

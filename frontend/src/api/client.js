@@ -175,6 +175,8 @@ export async function fetchScores(opts = {}) {
   if (opts.user_id) params.user_id = opts.user_id;
   if (opts.limit)   params.limit = opts.limit;
   if (opts.sort)    params.sort = opts.sort;
+  // Multiplayer game-length board: 'short' | 'medium' | 'long' (mp only).
+  if (opts.length)  params.length = opts.length;
 
   try {
     const endpoint = opts.mode === 'mp' ? '/mp_listScores.php' : '/users_listScores.php';

@@ -14,8 +14,12 @@
  * Request body:
  *   {
  *     idDeck:      int,       (required)
- *     max_players: int        (optional, default 5, must be 2..5)
+ *     max_players: int,       (optional, default 5, must be 2..5)
+ *     mode:        string     (optional: 'short'|'medium'|'long', default 'long')
  *   }
+ *
+ * The mode sets the game length: short = 10 rounds, medium = 18, long = 25.
+ * Career gate rounds (comps at 5, tenure at 12) stay fixed regardless.
  *
  * Response:
  *   {
@@ -48,6 +52,15 @@ if ($maxPlayers < 2 || $maxPlayers > 5) {
   mp_error('max_players must be between 2 and 5', 400);
 }
 
+// Game-length mode → total rounds. Keep this map in sync with the frontend
+// (src/lib/gameModes.js).
+$modeYears = ['short' => 10, 'medium' => 18, 'long' => 25];
+$mode = isset($body['mode']) ? strtolower(trim((string) $body['mode'])) : 'long';
+if (!isset($modeYears[$mode])) {
+  mp_error('mode must be short, medium, or long', 400);
+}
+$totalYears = $modeYears[$mode];
+
 // ----- Verify deck exists -----
 
 $stmt = $mysqli->prepare("SELECT idDeck FROM Decks WHERE idDeck = ? LIMIT 1");
@@ -70,10 +83,10 @@ try {
   // 1. Create the game (status='lobby', no host yet — we'll fill in host
   //    immediately after we know the player_id).
   $stmt = $mysqli->prepare("
-    INSERT INTO mp_games (idDeck, max_players, status)
-    VALUES (?, ?, 'lobby')
+    INSERT INTO mp_games (idDeck, max_players, total_years, status)
+    VALUES (?, ?, ?, 'lobby')
   ");
-  $stmt->bind_param('ii', $idDeck, $maxPlayers);
+  $stmt->bind_param('iii', $idDeck, $maxPlayers, $totalYears);
   if (!$stmt->execute()) {
     throw new Exception('Failed to create game: ' . $stmt->error);
   }
@@ -111,6 +124,8 @@ try {
 mp_log_event($mysqli, $gameId, $playerId, 'game_created', [
   'deck' => $idDeck,
   'max_players' => $maxPlayers,
+  'mode' => $mode,
+  'total_years' => $totalYears,
 ]);
 
 mp_json([
@@ -118,4 +133,5 @@ mp_json([
   'player_id'    => (int) $playerId,
   'player_token' => $token,
   'seat_index'   => 0,
+  'total_years'  => $totalYears,
 ]);

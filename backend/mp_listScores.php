@@ -10,6 +10,8 @@
  * Query params (all optional):
  *   ?idDeck=N    — filter to one deck (omit / all=1 for every deck)
  *   ?player=str  — case-insensitive name search
+ *   ?length=str  — game-length board: 'short' | 'medium' | 'long'
+ *                  (omit / 'all' for every length combined)
  *   ?limit=N     — cap results (default 100, max 500)
  *   ?sort=prestige|year — sort key (default prestige)
  *
@@ -28,6 +30,7 @@ users_require_session($mysqli);
 
 $idDeck  = isset($_GET['idDeck']) ? (int) $_GET['idDeck'] : 0;
 $player  = isset($_GET['player']) ? trim($_GET['player']) : '';
+$length  = isset($_GET['length']) ? strtolower(trim($_GET['length'])) : '';
 $limit   = isset($_GET['limit'])  ? max(1, min(500, (int) $_GET['limit'])) : 100;
 // Whitelist the sort key — never interpolate raw user input into SQL.
 $sortKey = ($_GET['sort'] ?? 'prestige') === 'year' ? 'created_at' : 'prestige';
@@ -44,6 +47,12 @@ if ($player !== '') {
   $conds[] = 'LOWER(player_name) LIKE ?';
   $types  .= 's';
   $params[] = '%' . strtolower($player) . '%';
+}
+// Per-length leaderboard. 'all' (or absent) shows every length combined.
+if (in_array($length, ['short', 'medium', 'long'], true)) {
+  $conds[] = 'game_mode = ?';
+  $types  .= 's';
+  $params[] = $length;
 }
 $whereSql = count($conds) > 0 ? 'WHERE ' . implode(' AND ', $conds) : '';
 

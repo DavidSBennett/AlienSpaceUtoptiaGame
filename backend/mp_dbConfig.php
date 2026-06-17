@@ -173,6 +173,7 @@ function mp_authenticate($mysqli, $tokenOverride = null) {
            g.status AS g_status, g.current_year AS g_current_year,
            g.host_player_id AS g_host_player_id,
            g.year_started_at AS g_year_started_at,
+           g.total_years AS g_total_years,
            g.timer_seconds_default AS g_timer_seconds_default,
            g.timer_seconds_review AS g_timer_seconds_review,
            g.state_version AS g_state_version
@@ -237,6 +238,7 @@ function mp_authenticate($mysqli, $tokenOverride = null) {
     'idDeck'         => (int) $row['g_idDeck'],
     'status'         => $row['g_status'],
     'current_year'   => (int) $row['g_current_year'],
+    'total_years'    => (int) $row['g_total_years'],
     'host_player_id' => $row['g_host_player_id'] ? (int) $row['g_host_player_id'] : null,
     'year_started_at' => $row['g_year_started_at'],
     'timer_seconds_default' => (int) $row['g_timer_seconds_default'],

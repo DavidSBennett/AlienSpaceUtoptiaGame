@@ -32,7 +32,8 @@
  *      rejected: a draw bonus) and books_published / articles_published
  *      increment.
  *   4. Reviewers get their rewards (upgrade flag, possibly draw on reject).
- *   5. current_year increments by 1. If > 25, game ends.
+ *   5. current_year increments by 1. If > the game's total_years
+ *      (short=10, medium=18, long=25), the game ends.
  *   6. Stage gate checks (failed comps at year 5, tenure denied at year 12)
  *      run per-player.
  *   7. year_started_at reset to now.
@@ -201,10 +202,14 @@ function mp_maybe_resolve_year($mysqli, $gameId) {
     mp_resolve_submission_outcomes($mysqli, $gameId, (int) $game['current_year']);
 
     // ----- Advance year + apply stage gates -----
+    // The game length is per-game (short=10, medium=18, long=25). The career
+    // gate rounds below stay fixed (comps at 5 → year-6 gate, tenure at 12 →
+    // year-13 gate); only the end-of-game round scales with the mode.
+    $totalYears = (int) ($game['total_years'] ?? 25);
     $newYear = (int) $game['current_year'] + 1;
     $gameEnded = false;
 
-    if ($newYear > 25) {
+    if ($newYear > $totalYears) {
       // Game ends — mark all players game-over with reason 'retired' if not
       // already game-over from a stage gate.
       $stmt = $mysqli->prepare("
@@ -226,7 +231,7 @@ function mp_maybe_resolve_year($mysqli, $gameId) {
       // including the citations-received reward.
       mp_apply_renown_bonuses($mysqli, $gameId);
       $gameEnded = true;
-      mp_log_event($mysqli, $gameId, null, 'game_ended', ['final_year' => 25]);
+      mp_log_event($mysqli, $gameId, null, 'game_ended', ['final_year' => $totalYears]);
     } else {
       // Apply hard stage gates (year 5 failed comps, year 12 tenure denied).
       mp_apply_stage_gates($mysqli, $gameId, $newYear);

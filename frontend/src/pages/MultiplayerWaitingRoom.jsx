@@ -10,6 +10,7 @@ import { isTutorialEnabled, setTutorialEnabled } from '../lib/tutorialStorage.js
 import useUserSetting from '../auth/useUserSetting.js';
 import ChatPanel from '../components/ChatPanel.jsx';
 import { playChatPing } from '../lib/sounds.js';
+import { labelForRounds } from '../lib/gameModes.js';
 
 /**
  * MultiplayerWaitingRoom — the lobby for a specific gameId. Shows the
@@ -157,6 +158,11 @@ export default function MultiplayerWaitingRoom() {
             <h1 className="font-display text-4xl text-cream-50">Waiting Room</h1>
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cream-200/60 mt-2">
               Game #{gameId} · {players.length} of 5
+              {state.game.total_years && (
+                <span className="ml-2 text-gold-400">
+                  · {labelForRounds(state.game.total_years)} ({state.game.total_years} rounds)
+                </span>
+              )}
               {isHost && <span className="ml-2 text-gold-400">· you host</span>}
             </p>
 

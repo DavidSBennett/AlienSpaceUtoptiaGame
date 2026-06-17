@@ -38,6 +38,7 @@ $sql = "
     g.idDeck,
     d.nameDeck AS deck_name,
     g.max_players,
+    g.total_years,
     g.created_at,
     g.host_player_id,
     hp.player_name AS host_player_name,
@@ -68,6 +69,7 @@ while ($row = $res->fetch_assoc()) {
     'host_player_name'      => $row['host_player_name'],
     'current_players_count' => $count,
     'max_players'           => $max,
+    'total_years'           => (int) $row['total_years'],
     'created_at'            => $row['created_at'],
   ];
 }

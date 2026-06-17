@@ -45,6 +45,11 @@ if ($game['status'] !== 'ended') {
 $gameId = (int) $game['game_id'];
 $idDeck = (int) $game['idDeck'];
 
+// Game-length mode this score belongs to, so each length keeps its own
+// leaderboard. Keep in sync with mp_createGame.php / src/lib/gameModes.js.
+$totalYears = (int) ($game['total_years'] ?? 25);
+$gameMode = $totalYears <= 10 ? 'short' : ($totalYears <= 18 ? 'medium' : 'long');
+
 // Fetch all players to score
 $stmt = $mysqli->prepare("
   SELECT * FROM mp_game_players WHERE game_id = ? ORDER BY prestige DESC
@@ -70,9 +75,9 @@ foreach ($players as $p) {
   $influenceLevel  = (int) $p['influence_level'];
   $workspacesLevel = (int) $p['workspaces_level'];
 
-  // We need a year_ended. Use 25 if retired, else the year the player
-  // got knocked out (we approximate as current game year).
-  $yearEnded = ($rank === 'failed-comps') ? 5 : (($rank === 'tenure-denied') ? 12 : 25);
+  // We need a year_ended. Use the game's full length if retired, else the
+  // year the player got knocked out at a fixed gate.
+  $yearEnded = ($rank === 'failed-comps') ? 5 : (($rank === 'tenure-denied') ? 12 : $totalYears);
 
   // Idempotency: look for an existing Scores row tagged with this game.
   // We use a marker in player_name to make this safe: "<name> (mp:<game_id>)"
@@ -118,12 +123,15 @@ foreach ($players as $p) {
     $stmt = $mysqli->prepare("
       INSERT INTO Scores
         (player_name, idDeck, rank, prestige, articles_published, books_published,
-         research_level, notebook_level, influence_level, workspaces_level, year_ended)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         research_level, notebook_level, influence_level, workspaces_level, year_ended,
+         game_mode)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     if (!$stmt) {
-      // Scores table may not have all these columns. Fall back to a minimal
-      // insert that just records player + deck + rank + prestige.
+      // Scores table may be missing the extended columns (e.g. migration 16
+      // hasn't been run yet). Fall back to a minimal insert that records
+      // player + deck + rank + prestige WITHOUT game_mode, so scores still
+      // save (untagged) rather than failing outright.
       $stmt = $mysqli->prepare("
         INSERT INTO Scores (player_name, idDeck, rank, prestige)
         VALUES (?, ?, ?, ?)
@@ -134,11 +142,11 @@ foreach ($players as $p) {
       $stmt->bind_param('sisi', $taggedName, $idDeck, $rank, $prestige);
     } else {
       $stmt->bind_param(
-        'sisiiiiiiii',
+        'sisiiiiiiiis',
         $taggedName, $idDeck, $rank, $prestige,
         $articles, $books,
         $researchLevel, $notebookLevel, $influenceLevel, $workspacesLevel,
-        $yearEnded
+        $yearEnded, $gameMode
       );
     }
     @$stmt->execute();
