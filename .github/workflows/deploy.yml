@@ -1,4 +1,4 @@
-name: Build & Deploy to GreenGeeks
+name: Build & Deploy to GreenGeeks (SSH)
 
 on:
   push:
@@ -33,19 +33,15 @@ jobs:
           # config.secret.php, dbConfig.php, vendor/, uploads/, Images/ are
           # intentionally NOT here — they live only on the server.
 
-      - name: Deploy via FTPS
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Deploy via SSH (rsync)
+        uses: easingthemes/ssh-deploy@v5.1.0
         with:
-          server:   ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          local-dir: ./publish/
-          server-dir: public_html/thehistorians.org/
-          # Belt-and-suspenders: never touch server-only files even if present.
-          exclude: |
-            **/config.secret.php
-            **/dbConfig.php
-            **/vendor/**
-            **/uploads/**
-            **/Images/**
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST:     ${{ secrets.SSH_HOST }}
+          REMOTE_USER:     ${{ secrets.SSH_USERNAME }}
+          REMOTE_PORT:     ${{ secrets.SSH_PORT }}
+          SOURCE: "publish/"
+          TARGET: "public_html/thehistorians.org/"
+          # rsync flags: NO --delete, so server-only files are never removed.
+          ARGS: "-rltgoDzvO --no-perms"
+          EXCLUDE: "config.secret.php, dbConfig.php, vendor/, uploads/, Images/"
