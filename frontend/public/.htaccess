@@ -1,0 +1,39 @@
+# .htaccess for The Historians — frontend + backend share this folder.
+#
+# The React app (index.html + assets/) and the PHP backend (listCards.php,
+# saveScore.php, listScores.php, dbConfig.php, generatePDF.php, Images/, etc.)
+# all live in /projects/historians/.
+#
+# Routing strategy:
+#   - Any request that maps to a REAL file or directory is served directly.
+#     This covers every PHP endpoint, every image, the JS/CSS assets, etc.
+#   - Anything else (the SPA's client-side routes: /game, /works,
+#     /leaderboard) is rewritten to index.html so React Router can handle it.
+#
+# Because the PHP files physically exist, the `-f` condition below always
+# serves them directly — they are never routed to index.html.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # If the request is for an existing file or directory, serve it as-is.
+  # This is what protects all the PHP endpoints and the Images/ folder.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Everything else: hand off to the React app.
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  # Hashed asset filenames (index-XXXX.js / .css) can cache forever —
+  # a new build produces new filenames.
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  # index.html must NOT be cached — it points at the current asset hashes.
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>

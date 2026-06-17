@@ -1,0 +1,27 @@
+# Node / build
+node_modules/
+frontend/node_modules/
+frontend/dist/
+publish/
+
+# PHP deps (installed on the server)
+vendor/
+backend/vendor/
+
+# SECRETS — never commit these
+config.secret.php
+backend/config.secret.php
+dbConfig.php
+backend/dbConfig.php
+
+# Server-only data folders
+uploads/
+backend/uploads/
+Images/
+backend/Images/
+
+# Deploy state / misc
+.ftp-deploy-sync-state.json
+.DS_Store
+*.log
+.env
