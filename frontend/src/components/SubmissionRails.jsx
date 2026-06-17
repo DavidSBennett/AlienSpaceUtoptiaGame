@@ -17,6 +17,9 @@
  *   onOpenYour          — (submission) => void
  *   onOpenInbox         — (submission) => void
  *   committedReviewSubmissionId — int|null (highlight what you're reviewing)
+ *   showInbox           — bool (default true). False since peer review moved
+ *                         to the synchronous review phase, which removed the
+ *                         always-on inbox.
  */
 import { colorForSeat } from '../lib/playerColors.js';
 
@@ -28,6 +31,7 @@ export default function SubmissionRails({
   onOpenYour,
   onOpenInbox,
   committedReviewSubmissionId,
+  showInbox = true,
 }) {
   const yourColor = colorForSeat(yourSeat);
 
@@ -57,7 +61,9 @@ export default function SubmissionRails({
         )}
       </section>
 
-      {/* ── MANUSCRIPT INBOX (others') ── */}
+      {/* ── MANUSCRIPT INBOX (others') ──
+          Hidden when peer review runs in the synchronous review phase. */}
+      {showInbox && (
       <section data-tutorial="manuscript-inbox">
         <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-400 mb-1.5 px-1">
           Manuscript Inbox
@@ -94,6 +100,7 @@ export default function SubmissionRails({
           </ul>
         )}
       </section>
+      )}
     </div>
   );
 }

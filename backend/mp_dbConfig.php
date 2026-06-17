@@ -171,6 +171,7 @@ function mp_authenticate($mysqli, $tokenOverride = null) {
   $stmt = $mysqli->prepare("
     SELECT p.*, g.game_id AS g_game_id, g.idDeck AS g_idDeck,
            g.status AS g_status, g.current_year AS g_current_year,
+           g.phase AS g_phase, g.review_index AS g_review_index,
            g.host_player_id AS g_host_player_id,
            g.year_started_at AS g_year_started_at,
            g.total_years AS g_total_years,
@@ -239,6 +240,8 @@ function mp_authenticate($mysqli, $tokenOverride = null) {
     'status'         => $row['g_status'],
     'current_year'   => (int) $row['g_current_year'],
     'total_years'    => (int) $row['g_total_years'],
+    'phase'          => $row['g_phase'],
+    'review_index'   => (int) $row['g_review_index'],
     'host_player_id' => $row['g_host_player_id'] ? (int) $row['g_host_player_id'] : null,
     'year_started_at' => $row['g_year_started_at'],
     'timer_seconds_default' => (int) $row['g_timer_seconds_default'],

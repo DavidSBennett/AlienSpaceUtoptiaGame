@@ -36,6 +36,7 @@
  */
 
 require_once __DIR__ . '/mp_dbConfig.php';
+require_once __DIR__ . '/mp_resolveYear.php';   // mp_review_submission_ids()
 
 mp_require_method('POST');
 
@@ -45,6 +46,10 @@ $game   = $auth['game'];
 
 if ($game['status'] !== 'active') {
   mp_error('Game is not active', 409);
+}
+// Reviewing now happens only during the synchronous review phase.
+if (($game['phase'] ?? 'action') !== 'review') {
+  mp_error('Reviews can only be submitted during the review phase', 409);
 }
 
 $body = mp_read_json_body();
@@ -96,6 +101,12 @@ if ($row['status'] !== 'pending') {
 }
 if ((int) $row['writer_player_id'] === $pid) {
   mp_error('Cannot review your own submission', 400);
+}
+// Only the manuscript currently under review may be voted on.
+$reviewIds = mp_review_submission_ids($mysqli, (int) $game['game_id']);
+$reviewIdx = (int) $game['review_index'];
+if (!isset($reviewIds[$reviewIdx]) || $reviewIds[$reviewIdx] !== $sid) {
+  mp_error('That manuscript is not currently under review', 409);
 }
 
 // Reviewing is a FREE action: any non-writer player in an active game may

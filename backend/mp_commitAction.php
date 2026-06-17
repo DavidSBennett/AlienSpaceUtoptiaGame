@@ -61,6 +61,9 @@ $game   = $auth['game'];
 if ($game['status'] !== 'active') {
   mp_error('Game is not active', 409);
 }
+if (($game['phase'] ?? 'action') !== 'action') {
+  mp_error('Cannot take an action during the review phase', 409);
+}
 if ($player['game_over_reason']) {
   mp_error('You are out of the game', 409);
 }

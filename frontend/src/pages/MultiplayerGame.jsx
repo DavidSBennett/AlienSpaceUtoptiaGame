@@ -24,6 +24,7 @@ import {
   mpConcede,
   mpSpendObjection,
   mpResolveRevise,
+  mpReviewContinue,
 } from '../api/multiplayer.js';
 
 // Reuse single-player primitives where possible — these are the proven,
@@ -51,6 +52,7 @@ import ActionCommitBar from '../components/ActionCommitBar.jsx';
 import ActionHistoryModal from '../components/ActionHistoryModal.jsx';
 import TutorialManager from '../components/TutorialManager.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
+import ReviewPhaseModal from '../components/ReviewPhaseModal.jsx';
 import { isTutorialEnabled, setTutorialEnabled as persistTutorialEnabled } from '../lib/tutorialStorage.js';
 import useUserSetting from '../auth/useUserSetting.js';
 import GoalLine from '../components/GoalLine.jsx';
@@ -586,6 +588,26 @@ export default function MultiplayerGame() {
     }
   }
 
+  // ── Review phase ──────────────────────────────────────────────
+  // Record a verdict on the manuscript currently under review. Throws on
+  // error so ReviewPhaseModal can surface it inline before continuing.
+  async function handleReviewPhaseVerdict({ submission_id, verdict, flagged_card_ids, comment }) {
+    await mpSubmitReview({
+      player_token: playerToken,
+      submission_id,
+      verdict,
+      flagged_card_ids: flagged_card_ids || [],
+      comment,
+    });
+    await refresh();
+  }
+
+  // Mark yourself ready for the current manuscript (the barrier).
+  async function handleReviewContinue() {
+    await mpReviewContinue(playerToken);
+    await refresh();
+  }
+
   // Upgrade flow
   async function handleUpgrade(stat) {
     setBusy(true);
@@ -916,6 +938,7 @@ export default function MultiplayerGame() {
               }}
               onOpenInbox={openReview}
               committedReviewSubmissionId={committedReviewSid}
+              showInbox={false}
             />
           </aside>
 
@@ -1207,6 +1230,19 @@ export default function MultiplayerGame() {
             onCancel={() => setPublishingProject(null)}
             onConfirm={confirmPublish}
             busy={busy}
+          />
+        )}
+
+        {/* Synchronous review phase — overlays and blocks the board while the
+            table reviews each new manuscript behind a per-player barrier. */}
+        {game.phase === 'review' && state.review_phase && (
+          <ReviewPhaseModal
+            reviewPhase={state.review_phase}
+            you={you}
+            busy={busy}
+            onSubmitReview={handleReviewPhaseVerdict}
+            onContinue={handleReviewContinue}
+            showSignificance={effSignificance}
           />
         )}
       </div>

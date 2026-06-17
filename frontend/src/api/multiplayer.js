@@ -126,12 +126,27 @@ export async function mpCommitAction(args) {
 }
 
 /**
- * Submit a review verdict on a submission you committed to review.
- * @param {{ player_token, submission_id, verdict, flagged_card_ids?, comment? }} args
+ * Submit a review verdict on the manuscript currently under review.
+ * @param {{ player_token, submission_id, verdict, flagged_card_ids?, added_card_ids?, comment? }} args
  */
 export async function mpSubmitReview(args) {
   try {
     const res = await api.post('/mp_submitReview.php', args);
+    return res.data;
+  } catch (err) {
+    throw normalizeError(err);
+  }
+}
+
+/**
+ * Review phase: mark yourself ready ("Continue" / "Start Next Year") for the
+ * manuscript currently under review. When every live player is ready, the
+ * phase advances to the next manuscript or finishes the round.
+ * @param {string} playerToken
+ */
+export async function mpReviewContinue(playerToken) {
+  try {
+    const res = await api.post('/mp_reviewContinue.php', { player_token: playerToken });
     return res.data;
   } catch (err) {
     throw normalizeError(err);

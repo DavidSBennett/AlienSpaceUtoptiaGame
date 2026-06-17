@@ -94,7 +94,13 @@ $playerId = (int) $player['player_id'];
 // not 'active'. Runs on every poll so the first poll after the last
 // commitment triggers the year-end resolution.
 if ($game['status'] === 'active') {
+  // Action phase: resolve the year if everyone has committed. This may flip
+  // the game into the review phase.
   mp_maybe_resolve_year($mysqli, $gameId);
+  // Review phase: advance the barrier if all live players are ready for the
+  // current manuscript (also re-checked here so a concede mid-phase can't
+  // wedge the barrier).
+  mp_maybe_advance_review($mysqli, $gameId);
 }
 
 // ----- ALWAYS re-fetch the current game row before building state. -----
@@ -107,6 +113,8 @@ $stmt->close();
 if ($gameRow) {
   $game['current_year']    = (int) $gameRow['current_year'];
   $game['status']          = $gameRow['status'];
+  $game['phase']           = $gameRow['phase'] ?? 'action';
+  $game['review_index']    = (int) ($gameRow['review_index'] ?? 0);
   $game['year_started_at'] = $gameRow['year_started_at'];
   $game['state_version']   = (int) $gameRow['state_version'];
 }
@@ -159,6 +167,12 @@ $reviseDecisions = mp_build_revise_decisions($mysqli, $playerId);
 
 // 6. Published works library (Phase B feature, data populated from Phase A on)
 $publishedWorks = mp_build_published_works($mysqli, $gameId);
+
+// 6b. Review phase — when the game is in the synchronous review interstitial,
+//     the context-sensitive walk-through of every manuscript under review.
+$reviewPhase = (($game['phase'] ?? 'action') === 'review')
+  ? mp_build_review_phase($mysqli, $gameId, $playerId, (int) $game['review_index'])
+  : null;
 
 // 7. Timer deadline — when does the current year auto-resolve?
 //    Mirroring the fix in mp_resolveYear.php, we do this arithmetic in
@@ -261,6 +275,8 @@ mp_json([
     'game_id'       => $gameId,
     'idDeck'        => (int) $game['idDeck'],
     'status'        => $game['status'],
+    'phase'         => $game['phase'] ?? 'action',
+    'review_index'  => (int) ($game['review_index'] ?? 0),
     'current_year'  => (int) $game['current_year'],
     'total_years'   => (int) $game['total_years'],
     'year_started_at' => $game['year_started_at'],
@@ -276,6 +292,7 @@ mp_json([
   'opponents'                    => $opponents,
   'archive_remaining'            => $archiveRemaining,
   'pending_submissions'          => $pendingSubmissions,
+  'review_phase'                 => $reviewPhase,
   'resolved_submissions_for_you' => $resolvedForYou,
   'your_submissions'             => $yourSubmissions,
   'revise_decisions_for_you'     => $reviseDecisions,
@@ -588,6 +605,162 @@ function mp_build_pending_submissions($mysqli, $gameId, $youId) {
   }
   $stmt->close();
   return $submissions;
+}
+
+
+/**
+ * Build the review-phase payload: the ordered manuscripts under review, each
+ * with context-sensitive content (the writer sees full evidence; everyone else
+ * sees the reviewer-safe view of title/author/tags), plus the caller's recorded
+ * verdict and per-manuscript readiness (who has clicked Continue). Drives the
+ * synchronous ReviewPhaseModal on the client.
+ */
+function mp_build_review_phase($mysqli, $gameId, $youId, $reviewIndex) {
+  // Live roster (the barrier set) — name + seat for the "waiting on …" strip.
+  $stmt = $mysqli->prepare("
+    SELECT player_id, player_name, seat_index
+    FROM mp_game_players
+    WHERE game_id = ? AND is_ghost = 0 AND game_over_reason IS NULL
+    ORDER BY seat_index ASC
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $livePlayers = [];
+  while ($r = $res->fetch_assoc()) {
+    $livePlayers[] = [
+      'player_id'   => (int) $r['player_id'],
+      'player_name' => $r['player_name'],
+      'seat_index'  => (int) $r['seat_index'],
+    ];
+  }
+  $stmt->close();
+
+  // Ordered manuscripts (same order as mp_review_submission_ids()).
+  $stmt = $mysqli->prepare("
+    SELECT s.*, p.player_name AS writer_name, p.seat_index AS writer_seat
+    FROM mp_submissions s
+    JOIN mp_game_players p ON p.player_id = s.writer_player_id
+    WHERE s.game_id = ? AND s.status = 'pending'
+    ORDER BY s.submission_id ASC
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $rows = [];
+  while ($r = $res->fetch_assoc()) $rows[] = $r;
+  $stmt->close();
+
+  $manuscripts = [];
+  foreach ($rows as $row) {
+    $sid      = (int) $row['submission_id'];
+    $writerId = (int) $row['writer_player_id'];
+    $isWriter = ($writerId === $youId);
+    $evIds    = json_decode($row['evidence_card_ids'], true) ?: [];
+
+    // Evidence — writer sees full content/significance; reviewers see the
+    // reviewer-safe subset (title/author/tags only).
+    $evidence = [];
+    foreach ($evIds as $eid) {
+      $card = mp_fetch_card($mysqli, (int) $eid);
+      if (!$card) continue;
+      if ($isWriter) {
+        $evidence[] = mp_card_for_you($card);
+      } else {
+        $evidence[] = [
+          'idCard'       => (int) $card['idCard'],
+          'title'        => $card['title'],
+          'author'       => $card['author'] ?? null,
+          'argument'     => $card['argument'] ?? null,
+          'sub_argument' => $card['sub_argument'] ?? null,
+        ];
+      }
+    }
+
+    // Citations (reviewer-visible shape, same as the review dialog).
+    $citedWorkIds = isset($row['cited_work_ids']) && $row['cited_work_ids']
+                      ? (json_decode($row['cited_work_ids'], true) ?: [])
+                      : [];
+    $citations = [];
+    if (count($citedWorkIds) > 0) {
+      $ph = implode(',', array_fill(0, count($citedWorkIds), '?'));
+      $types = str_repeat('i', count($citedWorkIds));
+      $sql = "SELECT w.work_id, w.publication_title, w.conclusion_tag, w.kind,
+                     w.writer_player_id, w.year_published,
+                     p.player_name AS writer_name, p.seat_index AS writer_seat
+              FROM mp_published_works w
+              JOIN mp_game_players p ON p.player_id = w.writer_player_id
+              WHERE w.work_id IN ($ph)";
+      $cstmt = $mysqli->prepare($sql);
+      $cstmt->bind_param($types, ...$citedWorkIds);
+      $cstmt->execute();
+      $cres = $cstmt->get_result();
+      while ($cr = $cres->fetch_assoc()) {
+        $citations[] = [
+          'work_id'           => (int) $cr['work_id'],
+          'publication_title' => $cr['publication_title'],
+          'conclusion_tag'    => $cr['conclusion_tag'],
+          'kind'              => $cr['kind'],
+          'writer_name'       => $cr['writer_name'],
+          'writer_seat'       => (int) $cr['writer_seat'],
+          'year_published'    => (int) $cr['year_published'],
+        ];
+      }
+      $cstmt->close();
+    }
+
+    $conclusion = mp_fetch_card($mysqli, (int) $row['conclusion_card_id']);
+
+    // Your recorded verdict on this manuscript (reviewers only).
+    $yourVerdict = null;
+    if (!$isWriter) {
+      $vstmt = $mysqli->prepare("SELECT verdict, flagged_card_ids, added_card_ids, comment FROM mp_reviews WHERE submission_id = ? AND reviewer_player_id = ?");
+      $vstmt->bind_param('ii', $sid, $youId);
+      $vstmt->execute();
+      $vr = $vstmt->get_result()->fetch_assoc();
+      $vstmt->close();
+      if ($vr) {
+        $yourVerdict = [
+          'verdict'          => $vr['verdict'],
+          'flagged_card_ids' => $vr['flagged_card_ids'] ? (json_decode($vr['flagged_card_ids'], true) ?: []) : [],
+          'added_card_ids'   => $vr['added_card_ids'] ? (json_decode($vr['added_card_ids'], true) ?: []) : [],
+          'comment'          => $vr['comment'],
+        ];
+      }
+    }
+
+    // Readiness — who has clicked Continue for this manuscript.
+    $rstmt = $mysqli->prepare("SELECT player_id FROM mp_review_progress WHERE submission_id = ?");
+    $rstmt->bind_param('i', $sid);
+    $rstmt->execute();
+    $rres = $rstmt->get_result();
+    $readyIds = [];
+    while ($rr = $rres->fetch_assoc()) $readyIds[] = (int) $rr['player_id'];
+    $rstmt->close();
+
+    $manuscripts[] = [
+      'submission_id'    => $sid,
+      'writer_player_id' => $writerId,
+      'writer_name'      => $row['writer_name'],
+      'writer_seat'      => (int) $row['writer_seat'],
+      'year_submitted'   => (int) $row['year_submitted'],
+      'kind'             => $row['kind'],
+      'is_writer'        => $isWriter,
+      'conclusion'       => $conclusion ? mp_card_for_you($conclusion) : null,
+      'evidence'         => $evidence,
+      'citations'        => $citations,
+      'argument_text'    => $row['argument_text'],
+      'your_verdict'     => $yourVerdict,
+      'ready_player_ids' => $readyIds,
+    ];
+  }
+
+  return [
+    'current_index' => $reviewIndex,
+    'total'         => count($manuscripts),
+    'manuscripts'   => $manuscripts,
+    'live_players'  => $livePlayers,
+  ];
 }
 
 

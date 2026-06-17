@@ -71,6 +71,13 @@ function mp_maybe_resolve_year($mysqli, $gameId) {
       $mysqli->commit();
       return false;
     }
+    // Only the 'action' phase resolves here. During the 'review' phase the
+    // year is held open while players review manuscripts; advancement happens
+    // via mp_maybe_advance_review() instead.
+    if (($game['phase'] ?? 'action') !== 'action') {
+      $mysqli->commit();
+      return false;
+    }
 
     // ----- Fetch all players (live + ghost) -----
     $stmt = $mysqli->prepare("
@@ -188,88 +195,32 @@ function mp_maybe_resolve_year($mysqli, $gameId) {
           mp_resolve_publish($mysqli, $gameId, $p, $data);
           break;
 
-        case 'review':
-          // Reviews resolved together after this loop, since multiple
-          // players can review the same submission and we want all
-          // verdicts in the DB before we tally.
-          mp_resolve_review_record($mysqli, $gameId, $p, $data);
-          break;
+        // 'review' is no longer a per-year action — peer review now happens
+        // synchronously in the interstitial review phase (see below).
       }
     }
 
-    // ----- Tally reviews: any submission with at least one approval is
-    //       approved; any with all-rejects is rejected; no-reviews stays pending
-    mp_resolve_submission_outcomes($mysqli, $gameId, (int) $game['current_year']);
-
-    // ----- Advance year + apply stage gates -----
-    // The game length is per-game (short=10, medium=18, long=25). The career
-    // gate rounds below stay fixed (comps at 5 → year-6 gate, tenure at 12 →
-    // year-13 gate); only the end-of-game round scales with the mode.
-    $totalYears = (int) ($game['total_years'] ?? 25);
-    $newYear = (int) $game['current_year'] + 1;
-    $gameEnded = false;
-
-    if ($newYear > $totalYears) {
-      // Game ends — mark all players game-over with reason 'retired' if not
-      // already game-over from a stage gate.
-      $stmt = $mysqli->prepare("
-        UPDATE mp_game_players
-        SET game_over_reason = COALESCE(game_over_reason, 'retired')
-        WHERE game_id = ?
-      ");
-      $stmt->bind_param('i', $gameId);
-      $stmt->execute();
-      $stmt->close();
-      $stmt = $mysqli->prepare("
-        UPDATE mp_games SET status = 'ended', ended_at = NOW() WHERE game_id = ?
-      ");
-      $stmt->bind_param('i', $gameId);
-      $stmt->execute();
-      $stmt->close();
-      // Apply end-of-game renown bonuses inside the same transaction.
-      // After this, mp_game_players.prestige reflects the final value
-      // including the citations-received reward.
-      mp_apply_renown_bonuses($mysqli, $gameId);
-      $gameEnded = true;
-      mp_log_event($mysqli, $gameId, null, 'game_ended', ['final_year' => $totalYears]);
-    } else {
-      // Apply hard stage gates (year 5 failed comps, year 12 tenure denied).
-      mp_apply_stage_gates($mysqli, $gameId, $newYear);
-
-      // Reset pending actions, anchor new year
-      $stmt = $mysqli->prepare("
-        UPDATE mp_game_players
-        SET pending_action = NULL,
-            pending_action_data = NULL,
-            pending_action_committed = 0
-        WHERE game_id = ?
-      ");
-      $stmt->bind_param('i', $gameId);
-      $stmt->execute();
-      $stmt->close();
-
+    // ----- Decide: enter the review phase, or finish the round now -----
+    // Any manuscripts created this round (status='pending') — plus any
+    // stragglers from a prior round — are reviewed synchronously in an
+    // interstitial before the next year begins. If there are none, finish now.
+    $pendingCount = mp_count_pending_submissions($mysqli, $gameId);
+    if ($pendingCount > 0) {
       $stmt = $mysqli->prepare("
         UPDATE mp_games
-        SET current_year = ?,
-            year_started_at = NOW()
+        SET phase = 'review', review_index = 0, state_version = state_version + 1
         WHERE game_id = ?
       ");
-      $stmt->bind_param('ii', $newYear, $gameId);
+      $stmt->bind_param('i', $gameId);
       $stmt->execute();
       $stmt->close();
-
-      // Per-player stage progression (positive transitions): compute updated
-      // stage label from year + book count. Note we do this AFTER the gates.
-      mp_apply_stage_progression($mysqli, $gameId, $newYear);
-
-      mp_log_event($mysqli, $gameId, null, 'year_advanced', ['new_year' => $newYear]);
+      mp_log_event($mysqli, $gameId, null, 'review_phase_started', ['manuscripts' => $pendingCount]);
+      $mysqli->commit();
+      return true;
     }
 
-    // Bump state version once for the whole resolution batch.
-    $stmt = $mysqli->prepare("UPDATE mp_games SET state_version = state_version + 1 WHERE game_id = ?");
-    $stmt->bind_param('i', $gameId);
-    $stmt->execute();
-    $stmt->close();
+    // No manuscripts to review → resolve (a no-op) and advance the year now.
+    mp_finish_round_tail($mysqli, $gameId, $game);
 
     $mysqli->commit();
     return true;
@@ -282,6 +233,210 @@ function mp_maybe_resolve_year($mysqli, $gameId) {
     ]);
     return false;
   }
+}
+
+
+// ============================================================================
+// Review phase (synchronous interstitial)
+// ============================================================================
+
+/** Count manuscripts awaiting review (status='pending') in a game. */
+function mp_count_pending_submissions($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM mp_submissions WHERE game_id = ? AND status = 'pending'");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $n = (int) $stmt->get_result()->fetch_assoc()['n'];
+  $stmt->close();
+  return $n;
+}
+
+/** Ordered list (by submission_id) of the manuscripts under review this round. */
+function mp_review_submission_ids($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT submission_id FROM mp_submissions
+    WHERE game_id = ? AND status = 'pending'
+    ORDER BY submission_id ASC
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $ids = [];
+  while ($r = $res->fetch_assoc()) $ids[] = (int) $r['submission_id'];
+  $stmt->close();
+  return $ids;
+}
+
+/** Player ids still in the game (not ghosted, not game-over) — the barrier set. */
+function mp_live_player_ids($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT player_id FROM mp_game_players
+    WHERE game_id = ? AND is_ghost = 0 AND game_over_reason IS NULL
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $ids = [];
+  while ($r = $res->fetch_assoc()) $ids[] = (int) $r['player_id'];
+  $stmt->close();
+  return $ids;
+}
+
+/**
+ * Opportunistic review-phase advancement, mirroring mp_maybe_resolve_year.
+ * Called from polls and after a player marks themselves ready. If every live
+ * player is ready for the current manuscript, advance the review_index; once
+ * past the last manuscript, finish the round (resolve outcomes + advance year).
+ *
+ * Idempotent under concurrent calls (locks the game row).
+ */
+function mp_maybe_advance_review($mysqli, $gameId) {
+  $mysqli->begin_transaction();
+  try {
+    $stmt = $mysqli->prepare("SELECT * FROM mp_games WHERE game_id = ? FOR UPDATE");
+    $stmt->bind_param('i', $gameId);
+    $stmt->execute();
+    $game = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$game || $game['status'] !== 'active' || ($game['phase'] ?? 'action') !== 'review') {
+      $mysqli->commit();
+      return false;
+    }
+
+    $subIds = mp_review_submission_ids($mysqli, $gameId);
+    $index  = (int) $game['review_index'];
+
+    // If the index has run past the available manuscripts (e.g. all resolved),
+    // finish the round defensively.
+    if ($index >= count($subIds)) {
+      mp_finish_round_tail($mysqli, $gameId, $game);
+      $mysqli->commit();
+      return true;
+    }
+
+    $currentSid = $subIds[$index];
+    $live = mp_live_player_ids($mysqli, $gameId);
+
+    // How many live players are ready for the current manuscript?
+    $stmt = $mysqli->prepare("SELECT player_id FROM mp_review_progress WHERE submission_id = ?");
+    $stmt->bind_param('i', $currentSid);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $ready = [];
+    while ($r = $res->fetch_assoc()) $ready[(int) $r['player_id']] = true;
+    $stmt->close();
+
+    $allReady = true;
+    foreach ($live as $lpid) {
+      if (!isset($ready[$lpid])) { $allReady = false; break; }
+    }
+    if (!$allReady) {
+      // Barrier not met — nothing to do.
+      $mysqli->commit();
+      return false;
+    }
+
+    // Advance to the next manuscript, or finish the round if this was the last.
+    $nextIndex = $index + 1;
+    if ($nextIndex >= count($subIds)) {
+      mp_finish_round_tail($mysqli, $gameId, $game);
+    } else {
+      $stmt = $mysqli->prepare("
+        UPDATE mp_games SET review_index = ?, state_version = state_version + 1 WHERE game_id = ?
+      ");
+      $stmt->bind_param('ii', $nextIndex, $gameId);
+      $stmt->execute();
+      $stmt->close();
+      mp_log_event($mysqli, $gameId, null, 'review_advanced', ['index' => $nextIndex]);
+    }
+
+    $mysqli->commit();
+    return true;
+  } catch (Exception $e) {
+    $mysqli->rollback();
+    mp_log_event($mysqli, $gameId, null, 'advance_review_failed', ['error' => $e->getMessage()]);
+    return false;
+  }
+}
+
+/**
+ * Finish a round: tally all pending manuscript outcomes (majority vote), then
+ * advance the year (or end the game), reset per-player action state, and return
+ * the game to the 'action' phase. Assumes the caller holds the game-row lock
+ * and a transaction; does NOT commit. Reused by the no-manuscript path of
+ * mp_maybe_resolve_year and the final barrier of mp_maybe_advance_review.
+ */
+function mp_finish_round_tail($mysqli, $gameId, $game) {
+  // ----- Tally manuscript outcomes (majority; ties → revise) -----
+  mp_resolve_submission_outcomes($mysqli, $gameId, (int) $game['current_year']);
+
+  // ----- Advance year + apply stage gates -----
+  // The game length is per-game (short=10, medium=18, long=25). The career
+  // gate rounds below stay fixed (comps at 5 → year-6 gate, tenure at 12 →
+  // year-13 gate); only the end-of-game round scales with the mode.
+  $totalYears = (int) ($game['total_years'] ?? 25);
+  $newYear = (int) $game['current_year'] + 1;
+
+  if ($newYear > $totalYears) {
+    // Game ends — mark all players game-over with reason 'retired' if not
+    // already game-over from a stage gate. Also leave the review phase.
+    $stmt = $mysqli->prepare("
+      UPDATE mp_game_players
+      SET game_over_reason = COALESCE(game_over_reason, 'retired')
+      WHERE game_id = ?
+    ");
+    $stmt->bind_param('i', $gameId);
+    $stmt->execute();
+    $stmt->close();
+    $stmt = $mysqli->prepare("
+      UPDATE mp_games SET status = 'ended', phase = 'action', review_index = 0, ended_at = NOW() WHERE game_id = ?
+    ");
+    $stmt->bind_param('i', $gameId);
+    $stmt->execute();
+    $stmt->close();
+    // Apply end-of-game renown bonuses inside the same transaction.
+    mp_apply_renown_bonuses($mysqli, $gameId);
+    mp_log_event($mysqli, $gameId, null, 'game_ended', ['final_year' => $totalYears]);
+  } else {
+    // Apply hard stage gates (year 5 failed comps, year 12 tenure denied).
+    mp_apply_stage_gates($mysqli, $gameId, $newYear);
+
+    // Reset pending actions, anchor new year
+    $stmt = $mysqli->prepare("
+      UPDATE mp_game_players
+      SET pending_action = NULL,
+          pending_action_data = NULL,
+          pending_action_committed = 0
+      WHERE game_id = ?
+    ");
+    $stmt->bind_param('i', $gameId);
+    $stmt->execute();
+    $stmt->close();
+
+    // Advance the year and return to the action phase.
+    $stmt = $mysqli->prepare("
+      UPDATE mp_games
+      SET current_year = ?,
+          year_started_at = NOW(),
+          phase = 'action',
+          review_index = 0
+      WHERE game_id = ?
+    ");
+    $stmt->bind_param('ii', $newYear, $gameId);
+    $stmt->execute();
+    $stmt->close();
+
+    // Per-player stage progression (positive transitions).
+    mp_apply_stage_progression($mysqli, $gameId, $newYear);
+
+    mp_log_event($mysqli, $gameId, null, 'year_advanced', ['new_year' => $newYear]);
+  }
+
+  // Bump state version once for the whole resolution batch.
+  $stmt = $mysqli->prepare("UPDATE mp_games SET state_version = state_version + 1 WHERE game_id = ?");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $stmt->close();
 }
 
 
@@ -686,29 +841,29 @@ function mp_resolve_review_record($mysqli, $gameId, $player, $data) {
 
 
 /**
- * Look at every still-'pending' submission this year and decide its fate.
- *   - Any approve → 'approved' (writer gets prestige + upgrade)
- *   - All rejects with no approves → 'rejected'
- *   - No reviews at all → stays 'pending' (carries to next year)
+ * Look at every still-'pending' submission and decide its fate by MAJORITY
+ * vote of the reviewers (ties lean to Revise & Resubmit):
+ *   - approve wins → 'approved' (writer gets prestige + upgrade)
+ *   - reject wins  → 'rejected'
+ *   - revise wins (or any top tie) → 'revise-pending' (writer decides next year)
+ *   - no verdicts at all → stays 'pending' (carries to next round)
  *
- * On approval, evidence cards are consumed (moved from project to discard),
- * the project slot empties, prestige is awarded, the writer's upgrade flag
- * is set, and a publication record is written into mp_published_works.
+ * Runs at the end of the synchronous review phase (mp_finish_round_tail), so
+ * by the time it runs every reviewer has voted on every manuscript.
  *
- * On rejection, evidence stays in the project, conclusion unsticks, and
- * the writer gets the consolation rewards (draw, no prestige).
+ * On approval, evidence cards are consumed (moved to discard), prestige is
+ * awarded, the writer's upgrade flag is set, and a publication record is
+ * written. On rejection, evidence stays bound for reclaim. On revise, a single
+ * canonical proposal is kept and the others' locked cards are returned.
  */
 function mp_resolve_submission_outcomes($mysqli, $gameId, $currentYear) {
-  // The "review year" is the year we're resolving INTO — i.e. submissions
-  // submitted at year Y can be reviewed at year Y+1 and resolved at the
-  // end of Y+1. Since this function runs at year-end, $currentYear is the
-  // year that's just finished. We resolve any submission with status='pending'
-  // and at least one review for it.
+  // $currentYear is the year that's just finished; resolved_year is set to it.
 
   $stmt = $mysqli->prepare("
     SELECT s.*,
       SUM(CASE WHEN r.verdict = 'approve' THEN 1 ELSE 0 END) AS approves,
-      SUM(CASE WHEN r.verdict = 'reject'  THEN 1 ELSE 0 END) AS rejects
+      SUM(CASE WHEN r.verdict = 'reject'  THEN 1 ELSE 0 END) AS rejects,
+      SUM(CASE WHEN r.verdict = 'revise'  THEN 1 ELSE 0 END) AS revises
     FROM mp_submissions s
     LEFT JOIN mp_reviews r ON r.submission_id = s.submission_id
     WHERE s.game_id = ? AND s.status = 'pending'
@@ -724,6 +879,7 @@ function mp_resolve_submission_outcomes($mysqli, $gameId, $currentYear) {
   foreach ($subs as $s) {
     $approves = (int) $s['approves'];
     $rejects  = (int) $s['rejects'];
+    $revises  = (int) $s['revises'];
 
     $sid     = (int) $s['submission_id'];
     $writer  = (int) $s['writer_player_id'];
@@ -735,24 +891,175 @@ function mp_resolve_submission_outcomes($mysqli, $gameId, $currentYear) {
     $concId  = (int) $s['conclusion_card_id'];
 
     // ── PHASE B: citation-tag pre-validation ───────────────────────
-    // Citations are tag-checked at PUBLICATION time, not at add time.
-    // If any cited work's tag doesn't match the conclusion's argument
-    // tag, the submission auto-rejects regardless of any approve votes.
-    // No reviewer upgrades granted (no human did the rejecting), but
-    // the writer still gets the writer-upgrade and consolation draw
-    // via mp_apply_auto_rejection below.
+    // Citations are tag-checked at PUBLICATION time. A citation whose tag
+    // doesn't match the conclusion auto-rejects the submission regardless
+    // of votes. Any locked revise-proposal cards are returned.
     if (count($citeIds) > 0 && mp_submission_has_invalid_citation_tags($mysqli, $concId, $citeIds)) {
       mp_apply_auto_rejection($mysqli, $gameId, $sid, $writer, 'invalid-citation', $currentYear);
+      mp_return_revise_added($mysqli, $gameId, $sid, $currentYear, 0);
       continue;
     }
 
-    if ($approves === 0 && $rejects === 0) continue;  // no reviews → keep pending
+    // No verdicts at all (e.g. every reviewer ghosted) → leave pending so the
+    // writer isn't auto-rejected; it'll be picked up next round.
+    if ($approves === 0 && $rejects === 0 && $revises === 0) continue;
 
-    if ($approves >= 1) {
+    // Majority vote across all reviewers; ties lean to Revise & Resubmit.
+    $outcome = mp_majority_outcome($approves, $rejects, $revises);
+
+    if ($outcome === 'approve') {
       mp_apply_approval($mysqli, $gameId, $sid, $writer, $kind, $evIds, $citeIds, $concId, $currentYear);
-    } else {
+      mp_return_revise_added($mysqli, $gameId, $sid, $currentYear, 0);
+    } else if ($outcome === 'reject') {
       mp_apply_rejection($mysqli, $gameId, $sid, $writer, $evIds, $currentYear);
+      mp_return_revise_added($mysqli, $gameId, $sid, $currentYear, 0);
+    } else {
+      // Revise wins. Ensure a single canonical revise proposal exists
+      // (synthesizing one from a reject's flagged cards if nobody formally
+      // proposed a revision), then transition to 'revise-pending' so the
+      // writer decides next year via the existing ReviseDecisionDialog.
+      $canonical = mp_ensure_revise_proposal($mysqli, $sid);
+      if ($canonical === null) {
+        // No proposal could be formed (no revise and no reject) — fall back
+        // to a plain rejection rather than stranding the manuscript.
+        mp_apply_rejection($mysqli, $gameId, $sid, $writer, $evIds, $currentYear);
+        mp_return_revise_added($mysqli, $gameId, $sid, $currentYear, 0);
+      } else {
+        // Return every OTHER revise proposer's locked cards; keep the
+        // canonical reviewer's locked until the writer resolves.
+        mp_return_revise_added($mysqli, $gameId, $sid, $currentYear, $canonical);
+        $u = $mysqli->prepare("UPDATE mp_submissions SET status = 'revise-pending', resolved_year = ? WHERE submission_id = ?");
+        $u->bind_param('ii', $currentYear, $sid);
+        $u->execute();
+        $u->close();
+      }
     }
+  }
+}
+
+/**
+ * Decide a single manuscript outcome from the vote tallies.
+ * Returns 'approve' | 'reject' | 'revise'. A unique maximum wins; any tie at
+ * the top (including a top tie that doesn't involve revise) leans to 'revise'.
+ */
+function mp_majority_outcome($approves, $rejects, $revises) {
+  $max = max($approves, $rejects, $revises);
+  if ($approves === $max && $approves > $rejects && $approves > $revises) return 'approve';
+  if ($rejects  === $max && $rejects  > $approves && $rejects  > $revises) return 'reject';
+  return 'revise';
+}
+
+/**
+ * Make sure exactly one usable revise proposal exists for a submission and
+ * return its reviewer_player_id (the canonical proposer that mp_resolveRevise
+ * will read — the latest revise review by review_id). If no formal revise
+ * review exists, promote the latest reject review (its flagged cards become a
+ * remove-only proposal). Returns null if neither a revise nor reject exists.
+ */
+function mp_ensure_revise_proposal($mysqli, $sid) {
+  // Existing formal revise proposal? Use the latest (matches mp_resolveRevise).
+  $stmt = $mysqli->prepare("
+    SELECT reviewer_player_id FROM mp_reviews
+    WHERE submission_id = ? AND verdict = 'revise'
+    ORDER BY review_id DESC LIMIT 1
+  ");
+  $stmt->bind_param('i', $sid);
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+  if ($row) return (int) $row['reviewer_player_id'];
+
+  // None — promote the latest reject (it carries flagged cards to remove).
+  $stmt = $mysqli->prepare("
+    SELECT review_id, reviewer_player_id FROM mp_reviews
+    WHERE submission_id = ? AND verdict = 'reject'
+    ORDER BY review_id DESC LIMIT 1
+  ");
+  $stmt->bind_param('i', $sid);
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+  if (!$row) return null;
+
+  $reviewId = (int) $row['review_id'];
+  $u = $mysqli->prepare("UPDATE mp_reviews SET verdict = 'revise' WHERE review_id = ?");
+  $u->bind_param('i', $reviewId);
+  $u->execute();
+  $u->close();
+  return (int) $row['reviewer_player_id'];
+}
+
+/**
+ * Return locked cards from revise proposals on a submission back to their
+ * proposers, EXCEPT the canonical reviewer (pass 0 to return all). Used when a
+ * manuscript resolves to approve/reject (return all) or revise (keep the
+ * winning proposer's cards locked, return the rest).
+ */
+function mp_return_revise_added($mysqli, $gameId, $sid, $year, $keepReviewerId) {
+  $stmt = $mysqli->prepare("
+    SELECT reviewer_player_id, added_card_ids FROM mp_reviews
+    WHERE submission_id = ? AND verdict = 'revise' AND added_card_ids IS NOT NULL
+  ");
+  $stmt->bind_param('i', $sid);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $rows = [];
+  while ($r = $res->fetch_assoc()) $rows[] = $r;
+  $stmt->close();
+
+  foreach ($rows as $r) {
+    $rid = (int) $r['reviewer_player_id'];
+    if ($keepReviewerId !== 0 && $rid === (int) $keepReviewerId) continue;
+    $added = $r['added_card_ids'] ? (json_decode($r['added_card_ids'], true) ?: []) : [];
+    if (count($added) > 0) {
+      mp_return_cards_to_player($mysqli, $gameId, $rid, array_map('intval', $added), $year);
+    }
+  }
+}
+
+/**
+ * Return cards to a player's hand up to their notebook capacity; any that
+ * don't fit are parked in mp_pending_card_returns for delivery at a later year
+ * (drained by mp_maybe_resolve_year). Used to refund a reviewer's contributed
+ * cards when a revise proposal doesn't win (or the writer objects/rebuilds).
+ *
+ * (Defined here — a library file — so both mp_resolveYear and mp_resolveRevise
+ * can use it; mp_resolveRevise.php require_once's this file.)
+ */
+function mp_return_cards_to_player($mysqli, $gameId, $playerId, $cardIds, $year) {
+  if (!is_array($cardIds) || count($cardIds) === 0) return;
+
+  $stmt = $mysqli->prepare("SELECT notebook_level FROM mp_game_players WHERE player_id = ?");
+  $stmt->bind_param('i', $playerId);
+  $stmt->execute();
+  $lvl = (int) ($stmt->get_result()->fetch_assoc()['notebook_level'] ?? 1);
+  $stmt->close();
+
+  $notebookTable = [7, 11, 15, 25];
+  $capacity = $notebookTable[max(0, min(3, $lvl - 1))];
+
+  $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM mp_player_hands WHERE player_id = ?");
+  $stmt->bind_param('i', $playerId);
+  $stmt->execute();
+  $handSize = (int) $stmt->get_result()->fetch_assoc()['n'];
+  $stmt->close();
+
+  $room = max(0, $capacity - $handSize);
+  $i = 0;
+  foreach ($cardIds as $cid) {
+    $cidInt = (int) $cid;
+    if ($i < $room) {
+      $ins = $mysqli->prepare("INSERT IGNORE INTO mp_player_hands (player_id, idCard, added_year) VALUES (?, ?, ?)");
+      $ins->bind_param('iii', $playerId, $cidInt, $year);
+      $ins->execute();
+      $ins->close();
+    } else {
+      $q = $mysqli->prepare("INSERT INTO mp_pending_card_returns (game_id, player_id, idCard, queued_year) VALUES (?, ?, ?, ?)");
+      $q->bind_param('iiii', $gameId, $playerId, $cidInt, $year);
+      $q->execute();
+      $q->close();
+    }
+    $i++;
   }
 }
 

@@ -295,45 +295,5 @@ function mp_revise_find_common_tag($mysqli, $concId, $evIds, $citeIds) {
   return null;
 }
 
-/**
- * Return cards to a player's hand up to their notebook capacity; any that
- * don't fit are parked in mp_pending_card_returns for delivery at a later
- * year (drained by mp_maybe_resolve_year). Used to refund a reviewer's
- * contributed cards when the writer objects or rebuilds.
- */
-function mp_return_cards_to_player($mysqli, $gameId, $playerId, $cardIds, $year) {
-  if (!is_array($cardIds) || count($cardIds) === 0) return;
-
-  $stmt = $mysqli->prepare("SELECT notebook_level FROM mp_game_players WHERE player_id = ?");
-  $stmt->bind_param('i', $playerId);
-  $stmt->execute();
-  $lvl = (int) ($stmt->get_result()->fetch_assoc()['notebook_level'] ?? 1);
-  $stmt->close();
-
-  $notebookTable = [7, 11, 15, 25];
-  $capacity = $notebookTable[max(0, min(3, $lvl - 1))];
-
-  $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM mp_player_hands WHERE player_id = ?");
-  $stmt->bind_param('i', $playerId);
-  $stmt->execute();
-  $handSize = (int) $stmt->get_result()->fetch_assoc()['n'];
-  $stmt->close();
-
-  $room = max(0, $capacity - $handSize);
-  $i = 0;
-  foreach ($cardIds as $cid) {
-    $cidInt = (int) $cid;
-    if ($i < $room) {
-      $ins = $mysqli->prepare("INSERT IGNORE INTO mp_player_hands (player_id, idCard, added_year) VALUES (?, ?, ?)");
-      $ins->bind_param('iii', $playerId, $cidInt, $year);
-      $ins->execute();
-      $ins->close();
-    } else {
-      $q = $mysqli->prepare("INSERT INTO mp_pending_card_returns (game_id, player_id, idCard, queued_year) VALUES (?, ?, ?, ?)");
-      $q->bind_param('iiii', $gameId, $playerId, $cidInt, $year);
-      $q->execute();
-      $q->close();
-    }
-    $i++;
-  }
-}
+// mp_return_cards_to_player() now lives in mp_resolveYear.php (required above)
+// so both the revise resolver and the review-phase tally can share it.
