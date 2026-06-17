@@ -320,6 +320,22 @@ function mp_maybe_advance_review($mysqli, $gameId) {
     }
 
     $currentSid = $subIds[$index];
+
+    // The writer of the current manuscript is auto-ready — they only view their
+    // own work, they don't vote or confirm. Mark them ready idempotently so the
+    // barrier waits only on the reviewers.
+    $wstmt = $mysqli->prepare("SELECT writer_player_id FROM mp_submissions WHERE submission_id = ?");
+    $wstmt->bind_param('i', $currentSid);
+    $wstmt->execute();
+    $wrow = $wstmt->get_result()->fetch_assoc();
+    $wstmt->close();
+    if ($wrow) {
+      $wid = (int) $wrow['writer_player_id'];
+      $ins = $mysqli->prepare("INSERT INTO mp_review_progress (submission_id, player_id, ready) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE ready = 1");
+      $ins->bind_param('ii', $currentSid, $wid);
+      $ins->execute(); $ins->close();
+    }
+
     $live = mp_live_player_ids($mysqli, $gameId);
 
     // How many live players are ready for the current manuscript?

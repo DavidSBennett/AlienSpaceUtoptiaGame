@@ -25,6 +25,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { colorForSeat } from '../lib/playerColors.js';
 import FleuronDivider from './FleuronDivider.jsx';
+import MinimizedInterstitialBar from './MinimizedInterstitialBar.jsx';
 
 const VERDICTS = [
   { key: 'approve', label: 'Approve', help: 'Publish it as is.' },
@@ -57,6 +58,7 @@ export default function ReviewPhaseModal({
   const [comment, setComment] = useState('');
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [minimized, setMinimized] = useState(false);
 
   const currentSid = current?.submission_id;
   useEffect(() => {
@@ -120,6 +122,17 @@ export default function ReviewPhaseModal({
 
   const continueLabel = isLast ? 'Start Next Year' : 'Continue to Next Manuscript';
 
+  // Minimized: collapse to a bar so the player can see their hand below.
+  if (minimized) {
+    return (
+      <MinimizedInterstitialBar
+        label={`Peer Review · ${Math.min(index + 1, total)} of ${total}`}
+        hint={isWriter ? 'your manuscript' : (youReady ? 'waiting for others' : 'your review is needed')}
+        onRestore={() => setMinimized(false)}
+      />
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[120] bg-teal-950/90 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto animate-fade-in">
       <div
@@ -128,9 +141,19 @@ export default function ReviewPhaseModal({
       >
         <div className="absolute inset-2 border border-gold-500/30 pointer-events-none" />
 
+        {/* Minimize — peek at your hand without losing the review. */}
+        <button
+          type="button"
+          onClick={() => setMinimized(true)}
+          title="Minimize — check your hand"
+          className="absolute top-3 right-3 z-30 px-3 py-1 font-mono text-[10px] uppercase tracking-wider bg-cream-50 border border-gold-500 text-ink-900 hover:bg-gold-500 hover:text-teal-950 transition-colors"
+        >
+          — Minimize
+        </button>
+
         <div className="px-10 py-8">
           {/* Header */}
-          <div className="flex items-baseline justify-between gap-4 flex-wrap">
+          <div className="flex items-baseline justify-between gap-4 flex-wrap pr-28">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-gold-700 mb-1">
                 Peer Review
@@ -230,14 +253,22 @@ export default function ReviewPhaseModal({
                 ? 'Everyone is ready…'
                 : <>Waiting on: {waitingOn.map((p) => p.player_name).join(' · ')}</>}
             </p>
-            <button
-              type="button"
-              onClick={handleContinue}
-              disabled={youReady || busy || submitting || !verdictReady}
-              className="px-6 py-3 font-mono text-sm uppercase tracking-wider bg-gold-500 hover:bg-gold-400 text-teal-950 border border-gold-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {youReady ? 'Waiting for others…' : (submitting ? 'Submitting…' : continueLabel)}
-            </button>
+            {isWriter ? (
+              // The writer of this manuscript doesn't vote or confirm — the
+              // reviewers decide and the round moves on automatically.
+              <p className="font-serif italic text-ink-600 text-sm">
+                You wrote this — the reviewers are deciding. You'll move on automatically.
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={handleContinue}
+                disabled={youReady || busy || submitting || !verdictReady}
+                className="px-6 py-3 font-mono text-sm uppercase tracking-wider bg-gold-500 hover:bg-gold-400 text-teal-950 border border-gold-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {youReady ? 'Waiting for others…' : (submitting ? 'Submitting…' : continueLabel)}
+              </button>
+            )}
           </div>
         </div>
       </div>

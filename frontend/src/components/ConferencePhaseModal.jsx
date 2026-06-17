@@ -16,6 +16,7 @@
 import { useEffect, useState } from 'react';
 import { CardThumbnail, CardModal } from './Card.jsx';
 import { colorForSeat } from '../lib/playerColors.js';
+import MinimizedInterstitialBar from './MinimizedInterstitialBar.jsx';
 
 export default function ConferencePhaseModal({ conference, you, busy, onTake }) {
   const attendees = conference?.attendees || [];
@@ -30,6 +31,7 @@ export default function ConferencePhaseModal({ conference, you, busy, onTake }) 
   const [openCard, setOpenCard] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [minimized, setMinimized] = useState(false);
 
   // Reset selection whenever the turn changes (or the pool shifts under us).
   useEffect(() => {
@@ -59,6 +61,17 @@ export default function ConferencePhaseModal({ conference, you, busy, onTake }) 
     }
   }
 
+  // Minimized: collapse to a bar so the player can see their hand below.
+  if (minimized) {
+    return (
+      <MinimizedInterstitialBar
+        label="Conference"
+        hint={isYourTurn ? 'your turn to draft' : 'waiting for the draft'}
+        onRestore={() => setMinimized(false)}
+      />
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[120] bg-teal-950/90 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto animate-fade-in">
       <div
@@ -66,6 +79,16 @@ export default function ConferencePhaseModal({ conference, you, busy, onTake }) 
         style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(184, 146, 58, 0.5)' }}
       >
         <div className="absolute inset-2 border border-gold-500/30 pointer-events-none" />
+
+        {/* Minimize — peek at your hand without losing your place. */}
+        <button
+          type="button"
+          onClick={() => setMinimized(true)}
+          title="Minimize — check your hand"
+          className="absolute top-3 right-3 z-30 px-3 py-1 font-mono text-[10px] uppercase tracking-wider bg-cream-50 border border-gold-500 text-ink-900 hover:bg-gold-500 hover:text-teal-950 transition-colors"
+        >
+          — Minimize
+        </button>
 
         <div className="px-10 py-8">
           {/* Header */}
