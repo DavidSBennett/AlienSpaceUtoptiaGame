@@ -45,3 +45,7 @@ jobs:
           # rsync flags: NO --delete, so server-only files are never removed.
           ARGS: "-rltgoDzvO --no-perms"
           EXCLUDE: "config.secret.php, dbConfig.php, vendor/, uploads/, Images/"
+          # After upload, flush PHP OPcache so the new .php files run immediately
+          # (LiteSpeed serves static assets fresh but can keep stale PHP bytecode).
+          SCRIPT_AFTER: |
+            curl -s "https://thehistorians.org/_opcache_reset.php?token=bf5d5bf1de8bcbc0c7ceae99c868ca8f" >/dev/null 2>&1 || true
