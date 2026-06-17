@@ -12,6 +12,11 @@
  * `overflow-x-auto` / `overflow: hidden` ancestor (e.g. the horizontally
  * scrolling "Library of Publications" rail) and always lays on top.
  *
+ * Positioning measures the rendered tooltip's own box and CLAMPS it to the
+ * viewport, so a wide tooltip anchored to an element near a screen edge
+ * (e.g. the first/leftmost book spine) stays fully on screen instead of
+ * running off the edge.
+ *
  * Props:
  *   content  — string or ReactNode (the tooltip body)
  *   children — the element to attach the tooltip to
@@ -29,35 +34,35 @@
 import { useState, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 
-const GAP = 8; // px gap between the trigger and the tooltip
+const GAP = 8;    // px gap between the trigger and the tooltip
+const MARGIN = 8; // px minimum distance the tooltip keeps from the viewport edge
 
 /**
- * Compute a fixed-position style for the tooltip from the trigger's
- * bounding rect. We position by an anchor point + a CSS transform so we
- * don't need to know the tooltip's own size ahead of time.
+ * Compute a fixed-position {top,left} for the tooltip from the trigger's
+ * rect and the tooltip's measured size, then clamp it to the viewport so
+ * it never runs off screen. Returns pixel values (no CSS transform, so the
+ * clamp is exact).
  */
-function positionFor(side, align, r) {
+function positionFor(side, align, r, tipW, tipH, vw, vh) {
   let top;
   let left;
-  let tx = '0';
-  let ty = '0';
 
   if (side === 'left' || side === 'right') {
-    ty = '-50%';
-    top = r.top + r.height / 2;
-    if (side === 'left') { left = r.left - GAP; tx = '-100%'; }
-    else { left = r.right + GAP; tx = '0'; }
+    top = r.top + r.height / 2 - tipH / 2;
+    left = side === 'left' ? r.left - GAP - tipW : r.right + GAP;
   } else {
     // top / bottom
-    if (side === 'bottom') { top = r.bottom + GAP; ty = '0'; }
-    else { top = r.top - GAP; ty = '-100%'; }
-
-    if (align === 'start') { left = r.left; tx = '0'; }
-    else if (align === 'end') { left = r.right; tx = '-100%'; }
-    else { left = r.left + r.width / 2; tx = '-50%'; }
+    top = side === 'bottom' ? r.bottom + GAP : r.top - GAP - tipH;
+    if (align === 'start') left = r.left;
+    else if (align === 'end') left = r.right - tipW;
+    else left = r.left + r.width / 2 - tipW / 2;
   }
 
-  return { top: `${top}px`, left: `${left}px`, transform: `translate(${tx}, ${ty})` };
+  // Keep the whole box inside the viewport (edges win over the anchor).
+  left = Math.max(MARGIN, Math.min(left, vw - tipW - MARGIN));
+  top = Math.max(MARGIN, Math.min(top, vh - tipH - MARGIN));
+
+  return { top: `${top}px`, left: `${left}px` };
 }
 
 /** Accept a number (ms) or a Tailwind 'delay-200'-style class. */
@@ -76,20 +81,25 @@ export default function Tooltip({
   delay = 200,
 }) {
   const triggerRef = useRef(null);
+  const tooltipRef = useRef(null);
   const timerRef = useRef(null);
   const [show, setShow] = useState(false);
   const [coords, setCoords] = useState(null);
 
   const delayMs = parseDelayMs(delay);
 
-  // Recompute position whenever the tooltip becomes visible, and keep it
-  // pinned to the trigger while scrolling/resizing.
+  // Once visible, measure the trigger AND the tooltip's own size so we can
+  // place it and clamp it to the viewport. Re-run while scrolling/resizing.
   useLayoutEffect(() => {
-    if (!show || !triggerRef.current) return undefined;
+    if (!show) return undefined;
     const measure = () => {
-      const el = triggerRef.current;
-      if (!el) return;
-      setCoords(positionFor(side, align, el.getBoundingClientRect()));
+      const trigger = triggerRef.current;
+      const tip = tooltipRef.current;
+      if (!trigger || !tip) return;
+      const r = trigger.getBoundingClientRect();
+      setCoords(
+        positionFor(side, align, r, tip.offsetWidth, tip.offsetHeight, window.innerWidth, window.innerHeight),
+      );
     };
     measure();
     window.addEventListener('scroll', measure, true);
@@ -98,7 +108,7 @@ export default function Tooltip({
       window.removeEventListener('scroll', measure, true);
       window.removeEventListener('resize', measure);
     };
-  }, [show, side, align]);
+  }, [show, side, align, content]);
 
   // Early-out AFTER hooks so hook order stays stable across renders.
   if (!content) return children;
@@ -110,6 +120,7 @@ export default function Tooltip({
   const close = () => {
     clearTimeout(timerRef.current);
     setShow(false);
+    setCoords(null);
   };
 
   return (
@@ -122,12 +133,19 @@ export default function Tooltip({
       onBlur={close}
     >
       {children}
-      {show && coords && createPortal(
+      {show && createPortal(
         <span
+          ref={tooltipRef}
           role="tooltip"
-          style={{ position: 'fixed', top: coords.top, left: coords.left, transform: coords.transform }}
+          style={{
+            position: 'fixed',
+            top: coords ? coords.top : 0,
+            left: coords ? coords.left : 0,
+            // Hide for the first measuring pass so it can't flash off-edge.
+            visibility: coords ? 'visible' : 'hidden',
+          }}
           className={`
-            ${width} z-[9999] pointer-events-none
+            ${width} max-w-[calc(100vw-16px)] z-[9999] pointer-events-none
             border border-gold-500/50 bg-ink-900/95 backdrop-blur-sm
             px-3 py-2 text-cream-50
             font-serif text-xs leading-snug
