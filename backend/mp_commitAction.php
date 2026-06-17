@@ -76,7 +76,7 @@ $action = isset($body['action']) ? (string) $body['action'] : '';
 $actionData = $body['action_data'] ?? null;
 $commit = !empty($body['commit']);
 
-if (!in_array($action, ['draw','publish','review','pass'], true)) {
+if (!in_array($action, ['draw','publish','review','pass','attend_conference'], true)) {
   mp_error('Unknown action', 400);
 }
 
@@ -144,6 +144,26 @@ switch ($action) {
       mp_error('Submission is no longer reviewable', 409);
     }
     $actionData = ['submissionId' => $sid];
+    break;
+
+  case 'attend_conference':
+    // Stage cards into a project slot and attend a conference with them.
+    if (!is_array($actionData)) mp_error('action_data required for attend_conference', 400);
+    $projectId = isset($actionData['projectId']) ? (int) $actionData['projectId'] : -1;
+    if ($projectId < 0 || $projectId > 2) mp_error('Invalid projectId', 400);
+    $pid = (int) $player['player_id'];
+    $stmt = $mysqli->prepare("
+      SELECT evidence_card_ids FROM mp_projects WHERE player_id = ? AND slot_index = ?
+    ");
+    $stmt->bind_param('ii', $pid, $projectId);
+    $stmt->execute();
+    $proj = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    $ev = ($proj && $proj['evidence_card_ids']) ? json_decode($proj['evidence_card_ids'], true) : [];
+    if (!is_array($ev) || count($ev) < 1) {
+      mp_error('Stage at least one card to attend a conference', 400);
+    }
+    $actionData = ['projectId' => $projectId];
     break;
 
   case 'draw':

@@ -224,8 +224,8 @@ function mp_maybe_resolve_year($mysqli, $gameId) {
       return true;
     }
 
-    // No manuscripts to review → resolve (a no-op) and advance the year now.
-    mp_finish_round_tail($mysqli, $gameId, $game);
+    // No manuscripts → either run the conference interstitial or finish.
+    mp_after_review_step($mysqli, $gameId, $game);
 
     $mysqli->commit();
     return true;
@@ -312,9 +312,9 @@ function mp_maybe_advance_review($mysqli, $gameId) {
     $index  = (int) $game['review_index'];
 
     // If the index has run past the available manuscripts (e.g. all resolved),
-    // finish the round defensively.
+    // proceed to the conference step (or finish) defensively.
     if ($index >= count($subIds)) {
-      mp_finish_round_tail($mysqli, $gameId, $game);
+      mp_after_review_step($mysqli, $gameId, $game);
       $mysqli->commit();
       return true;
     }
@@ -341,10 +341,10 @@ function mp_maybe_advance_review($mysqli, $gameId) {
       return false;
     }
 
-    // Advance to the next manuscript, or finish the round if this was the last.
+    // Advance to the next manuscript, or move on (conference / finish) if last.
     $nextIndex = $index + 1;
     if ($nextIndex >= count($subIds)) {
-      mp_finish_round_tail($mysqli, $gameId, $game);
+      mp_after_review_step($mysqli, $gameId, $game);
     } else {
       $stmt = $mysqli->prepare("
         UPDATE mp_games SET review_index = ?, state_version = state_version + 1 WHERE game_id = ?
@@ -461,6 +461,329 @@ function mp_finish_round_tail($mysqli, $gameId, $game) {
   $stmt->bind_param('i', $gameId);
   $stmt->execute();
   $stmt->close();
+}
+
+
+// ============================================================================
+// Conference phase (Attend a Conference interstitial)
+// ============================================================================
+
+// Reputation → citation tokens granted, and fresh cards injected into the pool.
+function mp_conf_citation_grant($repLevel) { $t = [1, 2, 3, 6]; return $t[max(0, min(3, $repLevel - 1))]; }
+function mp_conf_fresh_count($repLevel)    { $t = [1, 2, 3, 4]; return $t[max(0, min(3, $repLevel - 1))]; }
+
+/** Count live players who committed Attend a Conference this round. */
+function mp_count_conference_attendees($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT COUNT(*) AS n FROM mp_game_players
+    WHERE game_id = ? AND pending_action = 'attend_conference'
+      AND game_over_reason IS NULL AND is_ghost = 0
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $n = (int) $stmt->get_result()->fetch_assoc()['n'];
+  $stmt->close();
+  return $n;
+}
+
+/**
+ * After the review phase (or when there are no manuscripts), either run the
+ * conference interstitial (if anyone attended) or finish the round. Assumes the
+ * caller holds the game-row lock and a transaction.
+ */
+function mp_after_review_step($mysqli, $gameId, $game) {
+  if (mp_count_conference_attendees($mysqli, $gameId) > 0) {
+    mp_enter_conference_phase($mysqli, $gameId);
+  } else {
+    mp_finish_round_tail($mysqli, $gameId, $game);
+  }
+}
+
+/**
+ * Build the conference: gather attendees in pick order (reputation desc, then
+ * renown desc, then least prestige), build the card pool from their contributed
+ * cards plus reputation fresh cards, and flip to the 'conference' phase.
+ */
+function mp_enter_conference_phase($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT player_id, pending_action_data, reputation_level, renown_level, prestige
+    FROM mp_game_players
+    WHERE game_id = ? AND pending_action = 'attend_conference'
+      AND game_over_reason IS NULL AND is_ghost = 0
+    ORDER BY reputation_level DESC, renown_level DESC, prestige ASC, player_id ASC
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $attendees = [];
+  while ($r = $res->fetch_assoc()) $attendees[] = $r;
+  $stmt->close();
+  if (count($attendees) === 0) return false;
+
+  $year   = (int) mp_current_year($mysqli, $gameId);
+  $isSolo = count($attendees) === 1;
+  $order  = 0;
+
+  foreach ($attendees as $a) {
+    $pid      = (int) $a['player_id'];
+    $repLevel = max(1, min(4, (int) $a['reputation_level']));
+    $data     = $a['pending_action_data'] ? json_decode($a['pending_action_data'], true) : null;
+    $slot     = (is_array($data) && isset($data['projectId'])) ? (int) $data['projectId'] : 0;
+
+    // Contributed cards = the staged project slot's evidence.
+    $cstmt = $mysqli->prepare("SELECT evidence_card_ids FROM mp_projects WHERE player_id = ? AND slot_index = ?");
+    $cstmt->bind_param('ii', $pid, $slot);
+    $cstmt->execute();
+    $prow = $cstmt->get_result()->fetch_assoc();
+    $cstmt->close();
+    $contrib = ($prow && $prow['evidence_card_ids']) ? (json_decode($prow['evidence_card_ids'], true) ?: []) : [];
+    $contrib = array_map('intval', $contrib);
+    $takeLimit = count($contrib);
+
+    // Clear the staged slot — the cards now live in the pool.
+    $u = $mysqli->prepare("UPDATE mp_projects SET conclusion_card_id = NULL, evidence_card_ids = NULL WHERE player_id = ? AND slot_index = ?");
+    $u->bind_param('ii', $pid, $slot);
+    $u->execute(); $u->close();
+
+    // Attendee row (fixes pick order + take limit).
+    $ai = $mysqli->prepare("INSERT INTO mp_conference_attendees (game_id, player_id, take_limit, draft_order) VALUES (?, ?, ?, ?)");
+    $ai->bind_param('iiii', $gameId, $pid, $takeLimit, $order);
+    $ai->execute(); $ai->close();
+    $order++;
+
+    if ($isSolo) {
+      // Solo: contributed cards are discarded; pool is fresh cards of size
+      // (sent + reputation bonus). They take up to (sent).
+      foreach ($contrib as $cid) {
+        $d = $mysqli->prepare("INSERT IGNORE INTO mp_player_discards (player_id, idCard, discarded_year) VALUES (?, ?, ?)");
+        $d->bind_param('iii', $pid, $cid, $year);
+        $d->execute(); $d->close();
+      }
+      mp_conference_add_fresh($mysqli, $gameId, $pid, $takeLimit + mp_conf_fresh_count($repLevel));
+    } else {
+      // Group: contributed cards go into the pool (takeable by OTHERS).
+      foreach ($contrib as $cid) {
+        $pi = $mysqli->prepare("INSERT INTO mp_conference_pool (game_id, idCard, contributor_player_id) VALUES (?, ?, ?)");
+        $pi->bind_param('iii', $gameId, $cid, $pid);
+        $pi->execute(); $pi->close();
+      }
+      mp_conference_add_fresh($mysqli, $gameId, $pid, mp_conf_fresh_count($repLevel));
+    }
+  }
+
+  $u = $mysqli->prepare("UPDATE mp_games SET phase = 'conference', state_version = state_version + 1 WHERE game_id = ?");
+  $u->bind_param('i', $gameId);
+  $u->execute(); $u->close();
+  mp_log_event($mysqli, $gameId, null, 'conference_started', ['attendees' => count($attendees)]);
+  return true;
+}
+
+/** Pull N fresh cards from the archive into the conference pool (contributor NULL). */
+function mp_conference_add_fresh($mysqli, $gameId, $ownerPid, $n) {
+  $year = (int) mp_current_year($mysqli, $gameId);
+  $remaining = (int) $n;
+  while ($remaining > 0) {
+    $stmt = $mysqli->prepare("
+      SELECT idCard FROM mp_game_archive
+      WHERE game_id = ? AND drawn_by_player_id IS NULL
+      ORDER BY archive_position ASC LIMIT ?
+    ");
+    $stmt->bind_param('ii', $gameId, $remaining);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $ids = [];
+    while ($r = $res->fetch_assoc()) $ids[] = (int) $r['idCard'];
+    $stmt->close();
+    if (count($ids) === 0) {
+      $reshuffled = mp_reshuffle_discards_into_archive($mysqli, $gameId);
+      if ($reshuffled === 0) break;
+      continue;
+    }
+    foreach ($ids as $cid) {
+      // Mark drawn (placeholder owner) so it leaves the draw pile while pooled.
+      $u = $mysqli->prepare("UPDATE mp_game_archive SET drawn_by_player_id = ?, drawn_year = ? WHERE game_id = ? AND idCard = ? AND drawn_by_player_id IS NULL");
+      $u->bind_param('iiii', $ownerPid, $year, $gameId, $cid);
+      $u->execute();
+      $aff = $u->affected_rows; $u->close();
+      if ($aff !== 1) continue;
+      $pi = $mysqli->prepare("INSERT INTO mp_conference_pool (game_id, idCard, contributor_player_id) VALUES (?, ?, NULL)");
+      $pi->bind_param('ii', $gameId, $cid);
+      $pi->execute(); $pi->close();
+      $remaining--;
+      if ($remaining <= 0) break;
+    }
+  }
+}
+
+/** The attendee whose turn it is to draft (lowest draft_order, not done), or null. */
+function mp_conference_current_picker($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT player_id, take_limit, taken_count, draft_order
+    FROM mp_conference_attendees
+    WHERE game_id = ? AND done = 0
+    ORDER BY draft_order ASC LIMIT 1
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+  return $row ?: null;
+}
+
+/**
+ * The calling attendee drafts the given pool cards (up to their take limit).
+ * Validates it's their turn and the cards are eligible (available, not their
+ * own). Marks them done afterward. Assumes a transaction + game-row lock held.
+ */
+function mp_conference_take($mysqli, $gameId, $playerId, $poolIds) {
+  // Skip any attendees who dropped out so the turn can't wedge.
+  mp_conference_skip_dead($mysqli, $gameId);
+
+  $picker = mp_conference_current_picker($mysqli, $gameId);
+  if (!$picker || (int) $picker['player_id'] !== (int) $playerId) {
+    throw new Exception('It is not your turn to draft');
+  }
+  $takeLimit = (int) $picker['take_limit'];
+  $poolIds = array_values(array_unique(array_map('intval', (array) $poolIds)));
+  if (count($poolIds) > $takeLimit) {
+    throw new Exception('You may take at most ' . $takeLimit . ' card(s)');
+  }
+
+  $year = (int) mp_current_year($mysqli, $gameId);
+  $taken = 0;
+  foreach ($poolIds as $poolId) {
+    $stmt = $mysqli->prepare("SELECT idCard, contributor_player_id, taken_by_player_id FROM mp_conference_pool WHERE pool_id = ? AND game_id = ? FOR UPDATE");
+    $stmt->bind_param('ii', $poolId, $gameId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) continue;
+    if ($row['taken_by_player_id'] !== null) continue;  // already taken
+    if ($row['contributor_player_id'] !== null && (int) $row['contributor_player_id'] === (int) $playerId) {
+      throw new Exception('You cannot take a card you contributed');
+    }
+    $cid = (int) $row['idCard'];
+    $u = $mysqli->prepare("UPDATE mp_conference_pool SET taken_by_player_id = ? WHERE pool_id = ?");
+    $u->bind_param('ii', $playerId, $poolId); $u->execute(); $u->close();
+    $h = $mysqli->prepare("INSERT IGNORE INTO mp_player_hands (player_id, idCard, added_year) VALUES (?, ?, ?)");
+    $h->bind_param('iii', $playerId, $cid, $year); $h->execute(); $h->close();
+    $a = $mysqli->prepare("UPDATE mp_game_archive SET drawn_by_player_id = ?, drawn_year = ? WHERE game_id = ? AND idCard = ?");
+    $a->bind_param('iiii', $playerId, $year, $gameId, $cid); $a->execute(); $a->close();
+    $taken++;
+  }
+
+  $u = $mysqli->prepare("UPDATE mp_conference_attendees SET taken_count = ?, done = 1 WHERE game_id = ? AND player_id = ?");
+  $u->bind_param('iii', $taken, $gameId, $playerId); $u->execute(); $u->close();
+  mp_log_event($mysqli, $gameId, $playerId, 'conference_drafted', ['taken' => $taken]);
+}
+
+/** Mark any attendee who is no longer live as done (so they don't block the draft). */
+function mp_conference_skip_dead($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    UPDATE mp_conference_attendees a
+    JOIN mp_game_players p ON p.player_id = a.player_id
+    SET a.done = 1
+    WHERE a.game_id = ? AND a.done = 0 AND (p.game_over_reason IS NOT NULL OR p.is_ghost = 1)
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $stmt->close();
+}
+
+/**
+ * Opportunistic conference advance: if every attendee has drafted (or dropped
+ * out), grant citations, clear the pool, and finish the round. Mirrors
+ * mp_maybe_advance_review. Idempotent under concurrent calls (locks the game).
+ */
+function mp_maybe_finish_conference($mysqli, $gameId) {
+  $mysqli->begin_transaction();
+  try {
+    $stmt = $mysqli->prepare("SELECT * FROM mp_games WHERE game_id = ? FOR UPDATE");
+    $stmt->bind_param('i', $gameId);
+    $stmt->execute();
+    $game = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$game || $game['status'] !== 'active' || ($game['phase'] ?? 'action') !== 'conference') {
+      $mysqli->commit();
+      return false;
+    }
+
+    mp_conference_skip_dead($mysqli, $gameId);
+    if (mp_conference_current_picker($mysqli, $gameId)) {
+      // Someone is still drafting.
+      $mysqli->commit();
+      return false;
+    }
+
+    mp_finish_conference($mysqli, $gameId, $game);
+    $mysqli->commit();
+    return true;
+  } catch (Exception $e) {
+    $mysqli->rollback();
+    mp_log_event($mysqli, $gameId, null, 'finish_conference_failed', ['error' => $e->getMessage()]);
+    return false;
+  }
+}
+
+/**
+ * Finish the conference: grant each attendee their reputation citations, dispose
+ * of untaken pool cards, clear the conference tables, then finish the round.
+ */
+function mp_finish_conference($mysqli, $gameId, $game) {
+  $year = (int) $game['current_year'];
+
+  // Grant citation tokens = reputation level value.
+  $stmt = $mysqli->prepare("
+    SELECT a.player_id, p.reputation_level
+    FROM mp_conference_attendees a
+    JOIN mp_game_players p ON p.player_id = a.player_id
+    WHERE a.game_id = ?
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $rows = [];
+  while ($r = $res->fetch_assoc()) $rows[] = $r;
+  $stmt->close();
+  foreach ($rows as $r) {
+    $pid = (int) $r['player_id'];
+    $grant = mp_conf_citation_grant(max(1, min(4, (int) $r['reputation_level'])));
+    $u = $mysqli->prepare("UPDATE mp_game_players SET citations_received_count = citations_received_count + ? WHERE player_id = ?");
+    $u->bind_param('ii', $grant, $pid); $u->execute(); $u->close();
+    mp_log_event($mysqli, $gameId, $pid, 'conference_citations', ['citations' => $grant]);
+  }
+
+  // Dispose of untaken pool cards: contributed → contributor's discard; fresh →
+  // back to the draw pile.
+  $stmt = $mysqli->prepare("SELECT idCard, contributor_player_id FROM mp_conference_pool WHERE game_id = ? AND taken_by_player_id IS NULL");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $left = [];
+  while ($r = $res->fetch_assoc()) $left[] = $r;
+  $stmt->close();
+  foreach ($left as $r) {
+    $cid = (int) $r['idCard'];
+    if ($r['contributor_player_id'] !== null) {
+      $cp = (int) $r['contributor_player_id'];
+      $d = $mysqli->prepare("INSERT IGNORE INTO mp_player_discards (player_id, idCard, discarded_year) VALUES (?, ?, ?)");
+      $d->bind_param('iii', $cp, $cid, $year); $d->execute(); $d->close();
+    } else {
+      $a = $mysqli->prepare("UPDATE mp_game_archive SET drawn_by_player_id = NULL, drawn_year = NULL WHERE game_id = ? AND idCard = ?");
+      $a->bind_param('ii', $gameId, $cid); $a->execute(); $a->close();
+    }
+  }
+
+  // Clear conference state.
+  foreach (['mp_conference_pool', 'mp_conference_attendees'] as $tbl) {
+    $d = $mysqli->prepare("DELETE FROM $tbl WHERE game_id = ?");
+    $d->bind_param('i', $gameId); $d->execute(); $d->close();
+  }
+
+  mp_log_event($mysqli, $gameId, null, 'conference_ended', []);
+
+  // Resolve outcomes + advance the year.
+  mp_finish_round_tail($mysqli, $gameId, $game);
 }
 
 

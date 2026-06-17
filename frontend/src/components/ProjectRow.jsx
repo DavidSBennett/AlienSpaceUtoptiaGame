@@ -48,6 +48,7 @@ export default function ProjectRow({
   showSignificance,
   onCardClick,
   onPublish,
+  onAttendConference,
   onReturnToHand,
   onRemoveCitation,
   useSpines = false,
@@ -294,7 +295,7 @@ export default function ProjectRow({
         </div>
 
         {/* === Publish column — fixed right, always reachable === */}
-        <PublishColumn project={project} onPublish={onPublish} articleMin={articleMin} freePublishing={freePublishing} statLevels={statLevels} />
+        <PublishColumn project={project} onPublish={onPublish} onAttendConference={onAttendConference} articleMin={articleMin} freePublishing={freePublishing} statLevels={statLevels} />
 
       </div>
     </div>
@@ -311,10 +312,12 @@ export default function ProjectRow({
  * The button uses an oxblood color so it stands out from the gold accents
  * elsewhere — it's a momentous action, not a routine one.
  */
-function PublishColumn({ project, onPublish, articleMin = 2, freePublishing = false, statLevels = {} }) {
+function PublishColumn({ project, onPublish, onAttendConference, articleMin = 2, freePublishing = false, statLevels = {} }) {
   const hasConclusion = project.conclusion !== null;
   const evidenceCount = project.evidence.length;
   const canPublish = hasConclusion && evidenceCount >= articleMin;
+  // A conference needs at least one staged evidence card (no conclusion).
+  const canConference = evidenceCount >= 1;
 
   // Helpful tooltip text when disabled
   const needed = articleMin - evidenceCount;
@@ -393,6 +396,32 @@ function PublishColumn({ project, onPublish, articleMin = 2, freePublishing = fa
       <p className={`font-mono text-[9px] uppercase tracking-wider text-center ${canPublish ? 'text-cream-100' : 'text-cream-100/70'}`}>
         {freePublishing ? 'free' : '+ 1 year'}
       </p>
+
+      {/* Attend a Conference — stage cards here and swap them at a conference.
+          Needs at least one staged card; no conclusion required. */}
+      <Tooltip
+        content="Send the staged cards to a conference to swap them for others (and earn citation tokens by your reputation). No conclusion needed."
+        side="left"
+        width="w-64"
+      >
+        <button
+          type="button"
+          onClick={() => canConference && onAttendConference?.(project.id)}
+          disabled={!canConference}
+          className={`
+            mt-1 font-mono text-[10px] uppercase tracking-[0.12em]
+            px-3 py-2 border transition-all duration-200 ease-desk
+            ${canConference
+              ? 'bg-teal-800 hover:bg-teal-700 text-cream-50 border-gold-500/60 hover:border-gold-400 cursor-pointer'
+              : 'bg-wood-900 text-cream-100/60 border-wood-800 cursor-not-allowed'
+            }
+          `}
+        >
+          Attend
+          <br />
+          Conference
+        </button>
+      </Tooltip>
     </div>
   );
 }

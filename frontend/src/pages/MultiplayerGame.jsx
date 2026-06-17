@@ -25,6 +25,7 @@ import {
   mpSpendObjection,
   mpResolveRevise,
   mpReviewContinue,
+  mpConferenceTake,
 } from '../api/multiplayer.js';
 
 // Reuse single-player primitives where possible — these are the proven,
@@ -54,6 +55,7 @@ import ActionHistoryModal from '../components/ActionHistoryModal.jsx';
 import TutorialManager from '../components/TutorialManager.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import ReviewPhaseModal from '../components/ReviewPhaseModal.jsx';
+import ConferencePhaseModal from '../components/ConferencePhaseModal.jsx';
 import { isTutorialEnabled, setTutorialEnabled as persistTutorialEnabled } from '../lib/tutorialStorage.js';
 import useUserSetting from '../auth/useUserSetting.js';
 import GoalLine from '../components/GoalLine.jsx';
@@ -470,6 +472,11 @@ export default function MultiplayerGame() {
     commitAction('draw', null, false);
   }
 
+  // Attend a Conference — stage the project's cards and commit the action.
+  function selectConference(projectSlotIndex) {
+    commitAction('attend_conference', { projectId: projectSlotIndex }, false);
+  }
+
   // Publish flow — when user clicks the Publish button on a ProjectRow,
   // we open a small modal asking for argument text, then commit publish.
   function startPublishFlow(projectSlotIndex) {
@@ -605,6 +612,12 @@ export default function MultiplayerGame() {
   // Mark yourself ready for the current manuscript (the barrier).
   async function handleReviewContinue() {
     await mpReviewContinue(playerToken);
+    await refresh();
+  }
+
+  // Conference: draft the selected pool cards on your turn.
+  async function handleConferenceTake(poolIds) {
+    await mpConferenceTake(playerToken, poolIds);
     await refresh();
   }
 
@@ -955,6 +968,7 @@ export default function MultiplayerGame() {
                 showTags={effTags} showSignificance={effSignificance}
                 onCardClick={(card) => setOpenCard({ card, source: 'project' })}
                 onPublish={(projectId) => startPublishFlow(projectId)}
+                onAttendConference={(projectId) => selectConference(projectId)}
                 onReturnToHand={returnFromProject}
                 onRemoveCitation={removeCitation}
                 useSpines
@@ -1243,6 +1257,16 @@ export default function MultiplayerGame() {
             onSubmitReview={handleReviewPhaseVerdict}
             onContinue={handleReviewContinue}
             showSignificance={effSignificance}
+          />
+        )}
+
+        {/* Conference interstitial — the card-swap draft. */}
+        {game.phase === 'conference' && state.conference && (
+          <ConferencePhaseModal
+            conference={state.conference}
+            you={you}
+            busy={busy}
+            onTake={handleConferenceTake}
           />
         )}
       </div>

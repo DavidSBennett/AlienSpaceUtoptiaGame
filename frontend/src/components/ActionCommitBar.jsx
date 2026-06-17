@@ -138,6 +138,12 @@ function bannerFor(action) {
       bgClass:   'bg-periwinkle-600/20',
       borderClass: 'border-periwinkle-400/40',
     };
+    case 'attend_conference': return {
+      label: 'Attend a conference',
+      textClass: 'text-gold-200',
+      bgClass:   'bg-gold-700/20',
+      borderClass: 'border-gold-500/50',
+    };
     case null:
     case undefined: return {
       label: '— no action chosen yet —',
@@ -165,6 +171,7 @@ function actionLabelSubline(action, data, drawCount) {
     case 'draw':    return `Up to ${drawCount} card${drawCount === 1 ? '' : 's'} from the archive`;
     case 'publish': return `Project ${(data?.projectId ?? 0) + 1} goes out for peer review`;
     case 'review':  return `Submission #${data?.submissionId ?? '?'}`;
+    case 'attend_conference': return `Project ${(data?.projectId ?? 0) + 1}'s cards go to the conference`;
     case null:
     case undefined: return 'Click the deck on the left to draw, click Publish on a ready project, or open a manuscript in the inbox to review.';
     default: return null;

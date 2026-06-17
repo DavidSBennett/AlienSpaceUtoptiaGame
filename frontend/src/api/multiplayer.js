@@ -154,6 +154,21 @@ export async function mpReviewContinue(playerToken) {
 }
 
 /**
+ * Conference phase: draft the chosen pool cards on your turn (up to as many as
+ * you contributed). Passing an empty list takes nothing and ends your turn.
+ * @param {string} playerToken
+ * @param {number[]} poolIds  pool_id values of the cards to take
+ */
+export async function mpConferenceTake(playerToken, poolIds) {
+  try {
+    const res = await api.post('/mp_conferenceTake.php', { player_token: playerToken, pool_ids: poolIds });
+    return res.data;
+  } catch (err) {
+    throw normalizeError(err);
+  }
+}
+
+/**
  * Move a card between zones. Free action (no year cost).
  * @param {{ player_token, card_id, from, to }} args
  */

@@ -75,7 +75,13 @@ const GUIDE = {
       glyph: '🔍',
       label: 'Review a manuscript',
       where:
-        'Click a manuscript in the Manuscript Inbox (left column) to open the review dialog and approve, request revisions, or reject it.',
+        'After everyone ends the year, the review phase opens automatically — read each new manuscript and vote approve, revise, or reject.',
+    },
+    {
+      glyph: '🎤',
+      label: 'Attend a conference',
+      where:
+        'Stage cards into a project and click "Attend Conference" on that row. After the year ends, you swap your cards for others from a shared pool and earn citation tokens by your reputation.',
     },
     {
       glyph: '📚',

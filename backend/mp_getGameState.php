@@ -101,6 +101,8 @@ if ($game['status'] === 'active') {
   // current manuscript (also re-checked here so a concede mid-phase can't
   // wedge the barrier).
   mp_maybe_advance_review($mysqli, $gameId);
+  // Conference phase: finish it once every attendee has drafted (or dropped).
+  mp_maybe_finish_conference($mysqli, $gameId);
 }
 
 // ----- ALWAYS re-fetch the current game row before building state. -----
@@ -172,6 +174,11 @@ $publishedWorks = mp_build_published_works($mysqli, $gameId);
 //     the context-sensitive walk-through of every manuscript under review.
 $reviewPhase = (($game['phase'] ?? 'action') === 'review')
   ? mp_build_review_phase($mysqli, $gameId, $playerId, (int) $game['review_index'])
+  : null;
+
+// 6c. Conference phase — the card-draft pool, pick order, and whose turn it is.
+$conference = (($game['phase'] ?? 'action') === 'conference')
+  ? mp_build_conference($mysqli, $gameId, $playerId)
   : null;
 
 // 7. Timer deadline — when does the current year auto-resolve?
@@ -293,6 +300,7 @@ mp_json([
   'archive_remaining'            => $archiveRemaining,
   'pending_submissions'          => $pendingSubmissions,
   'review_phase'                 => $reviewPhase,
+  'conference'                   => $conference,
   'resolved_submissions_for_you' => $resolvedForYou,
   'your_submissions'             => $yourSubmissions,
   'revise_decisions_for_you'     => $reviseDecisions,
@@ -760,6 +768,74 @@ function mp_build_review_phase($mysqli, $gameId, $youId, $reviewIndex) {
     'total'         => count($manuscripts),
     'manuscripts'   => $manuscripts,
     'live_players'  => $livePlayers,
+  ];
+}
+
+
+/**
+ * Build the conference payload: the attendees in pick order, whose turn it is,
+ * and the pool of cards you may draft (untaken, and not ones you contributed).
+ * Pool cards carry full content/tags/significance so attendees can choose well.
+ */
+function mp_build_conference($mysqli, $gameId, $youId) {
+  $stmt = $mysqli->prepare("
+    SELECT a.player_id, a.take_limit, a.taken_count, a.done, a.draft_order,
+           p.player_name, p.seat_index
+    FROM mp_conference_attendees a
+    JOIN mp_game_players p ON p.player_id = a.player_id
+    WHERE a.game_id = ?
+    ORDER BY a.draft_order ASC
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $attendees = [];
+  $currentPickerId = null;
+  $you = null;
+  while ($r = $res->fetch_assoc()) {
+    $pid = (int) $r['player_id'];
+    $done = (int) $r['done'] === 1;
+    if ($currentPickerId === null && !$done) $currentPickerId = $pid;
+    $entry = [
+      'player_id'   => $pid,
+      'player_name' => $r['player_name'],
+      'seat_index'  => (int) $r['seat_index'],
+      'take_limit'  => (int) $r['take_limit'],
+      'taken_count' => (int) $r['taken_count'],
+      'done'        => $done,
+    ];
+    $attendees[] = $entry;
+    if ($pid === $youId) $you = $entry;
+  }
+  $stmt->close();
+
+  // Pool you may draft from: untaken and not contributed by you.
+  $stmt = $mysqli->prepare("
+    SELECT pool_id, idCard
+    FROM mp_conference_pool
+    WHERE game_id = ? AND taken_by_player_id IS NULL
+      AND (contributor_player_id IS NULL OR contributor_player_id <> ?)
+    ORDER BY pool_id ASC
+  ");
+  $stmt->bind_param('ii', $gameId, $youId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $pool = [];
+  while ($r = $res->fetch_assoc()) {
+    $card = mp_fetch_card($mysqli, (int) $r['idCard']);
+    if (!$card) continue;
+    $entry = mp_card_for_you($card);
+    $entry['pool_id'] = (int) $r['pool_id'];
+    $pool[] = $entry;
+  }
+  $stmt->close();
+
+  return [
+    'attendees'         => $attendees,
+    'current_picker_id' => $currentPickerId,
+    'is_your_turn'      => ($currentPickerId !== null && $currentPickerId === $youId),
+    'you'               => $you,   // null if you didn't attend
+    'pool'              => $pool,
   ];
 }
 
