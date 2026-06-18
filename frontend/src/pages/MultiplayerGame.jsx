@@ -874,62 +874,57 @@ export default function MultiplayerGame() {
         {/* Year progress bar — thin, visible, with gate markers at y5 and y12 */}
         <YearProgressBar currentYear={game.current_year} totalYears={totalYears} />
 
-        {/* ── 3. Library (left) + Conclusions (right) on one band ──
-            The published-works library sits on the left and the conclusion
-            shelf is right-aligned beside it. We hide any conclusion currently
-            placed in one of YOUR projects (right-click a project's conclusion
-            to return it to the shelf). */}
+        {/* ── 3. Library band — full width (compact published-works shelf). */}
+        <div className="surface-binding border-b border-edge-on-dark px-6 py-2">
+          <MultiplayerBookshelf
+            compact
+            you={you}
+            opponents={state.opponents}
+            publishedWorks={state.published_works}
+            onSpineClick={(work) => setOpenWork(work)}
+          />
+        </div>
+
+        {/* ── 4. Play row: conclusions (left) + project rows (right) ──
+            Conclusions are split into Main (a/b) and Sub (s/p/e), each stacked
+            three to a column. We hide any conclusion currently placed in one of
+            YOUR projects (right-click a project's conclusion to return it). */}
         {(() => {
           const inUse = new Set(
             you.projects.map((p) => p.conclusion?.id).filter(Boolean)
           );
           const visibleShelf = conclusionShelf.filter((c) => !inUse.has(c.idCard));
           return (
-            <div className="surface-binding border-b border-edge-on-dark px-6 py-2 flex items-stretch gap-6">
-              <div className="flex-1 min-w-0">
-                <MultiplayerBookshelf
-                  compact
-                  you={you}
-                  opponents={state.opponents}
-                  publishedWorks={state.published_works}
-                  onSpineClick={(work) => setOpenWork(work)}
-                />
-              </div>
-              <div className="flex-1 min-w-0 flex justify-end">
-                <ConclusionRail
-                  shelf={visibleShelf}
-                  onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
-                  showTags={effTags} showSignificance={effSignificance}
-                  align="right"
-                />
-              </div>
+            <div className="flex-1 flex gap-4 p-4 min-h-0">
+              <ConclusionSidebar
+                shelf={visibleShelf}
+                onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
+                showTags={effTags} showSignificance={effSignificance}
+              />
+              <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
+                {projects.map((project, i) => (
+                  <ProjectRow
+                    key={project.id}
+                    project={project}
+                    locked={i >= workspaces}
+                    collapsed={collapsedProjects.has(project.id)}
+                    onToggleCollapse={() => toggleProjectCollapse(project.id)}
+                    showTags={effTags} showSignificance={effSignificance}
+                    onCardClick={(card) => setOpenCard({ card, source: 'project' })}
+                    onPublish={(projectId) => startPublishFlow(projectId)}
+                    onAttendConference={(projectId) => selectConference(projectId)}
+                    onReturnToHand={returnFromProject}
+                    onRemoveCitation={removeCitation}
+                    useSpines
+                    articleMin={articleMin}
+                    freePublishing={freePublishing}
+                    statLevels={you.stat_levels || {}}
+                  />
+                ))}
+              </main>
             </div>
           );
         })()}
-
-        {/* ── 4. Project rows — full width (the opponent/inbox sidebar is gone;
-            opponents now live in the status strip and review is interstitial). */}
-        <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col gap-4 p-4 min-w-0 overflow-y-auto">
-          {projects.map((project, i) => (
-            <ProjectRow
-              key={project.id}
-              project={project}
-              locked={i >= workspaces}
-              collapsed={collapsedProjects.has(project.id)}
-              onToggleCollapse={() => toggleProjectCollapse(project.id)}
-              showTags={effTags} showSignificance={effSignificance}
-              onCardClick={(card) => setOpenCard({ card, source: 'project' })}
-              onPublish={(projectId) => startPublishFlow(projectId)}
-              onAttendConference={(projectId) => selectConference(projectId)}
-              onReturnToHand={returnFromProject}
-              onRemoveCitation={removeCitation}
-              useSpines
-              articleMin={articleMin}
-              freePublishing={freePublishing}
-              statLevels={you.stat_levels || {}}
-            />
-          ))}
-        </main>
 
         {error && (
           <div className="mx-4 mb-2 p-3 bg-oxblood-700/40 border border-oxblood-500 text-oxblood-300 font-serif text-sm">
@@ -1324,6 +1319,56 @@ function ConclusionRail({ shelf, onConclusionClick, showTags, showSignificance, 
     <section data-tutorial="conclusion-rail" className="surface-binding border-b border-edge-on-dark px-6 py-2">
       {inner}
     </section>
+  );
+}
+
+
+/**
+ * ConclusionSidebar — conclusions to the LEFT of the project rows, split into
+ * Main (top-level a/b) and Sub (s/p/e), each stacked three tiles to a column.
+ */
+function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificance }) {
+  const mainTier = shelf.filter((c) => conclusionTier(c) === 'top');
+  const subTier = shelf.filter((c) => conclusionTier(c) === 'sub');
+
+  const renderTile = (c) => (
+    <DraggableCard
+      key={`shelf-${c.idCard}`}
+      id={`shelf-${c.idCard}`}
+      data={{ cardId: c.idCard, from: { kind: 'conclusionShelf' } }}
+    >
+      {({ dragHandleProps, isDragging }) => (
+        <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
+          <ConclusionSpine
+            card={{ ...c, id: c.idCard }}
+            onClick={() => onConclusionClick(c)}
+            showTags={showTags} showSignificance={showSignificance}
+          />
+        </div>
+      )}
+    </DraggableCard>
+  );
+
+  const renderGroup = (cards, label) => (
+    <div className="flex flex-col min-w-0">
+      <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-gold-400 mb-1 px-0.5">
+        {label}
+      </span>
+      {/* flex-col + flex-wrap + a 3-tile max height → three tiles stack per
+          column, wrapping into more columns when there are more than three. */}
+      <div className="flex flex-col flex-wrap content-start gap-2" style={{ maxHeight: '12rem' }}>
+        {cards.length === 0
+          ? <span className="font-mono text-[9px] italic text-cream-200/40">none</span>
+          : cards.map(renderTile)}
+      </div>
+    </div>
+  );
+
+  return (
+    <aside data-tutorial="conclusion-rail" className="shrink-0 flex gap-3 overflow-x-auto max-w-[40rem]">
+      {renderGroup(mainTier, 'Main')}
+      {renderGroup(subTier, 'Sub')}
+    </aside>
   );
 }
 
