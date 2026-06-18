@@ -21,13 +21,8 @@
  */
 
 export const AWARDS = [
-  {
-    id: 'most-prestigious',
-    name: 'Most Prestigious Career',
-    description: 'Highest accumulated prestige.',
-    score: (p) => Number(p.prestige ?? 0),
-    format: (n) => `${n} prestige`,
-  },
+  // (No "Most Prestigious Career" award — highest prestige already wins the
+  // game, so awarding it again just rewards the leader twice.)
   {
     id: 'most-prolific',
     name: 'Most Prolific',
