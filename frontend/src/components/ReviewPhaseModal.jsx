@@ -177,12 +177,22 @@ export default function ReviewPhaseModal({
             <h3 className="font-display text-2xl font-bold text-ink-900">
               {current.conclusion?.title || 'Untitled'}
             </h3>
+            {(() => {
+              const concTags = [current.conclusion?.argument, current.conclusion?.sub_argument]
+                .filter(Boolean).join(', ');
+              return concTags ? (
+                <p className="font-mono text-xs uppercase tracking-[0.15em] text-ink-900 mt-1">
+                  Conclusion tag:{' '}
+                  <span className="font-bold text-gold-800">{concTags}</span>
+                </p>
+              ) : null;
+            })()}
             {current.conclusion?.description && (
-              <p className="font-serif italic text-ink-700 mt-1">{current.conclusion.description}</p>
+              <p className="font-serif italic text-ink-800 mt-1">{current.conclusion.description}</p>
             )}
             {current.argument_text
               ? <p className="font-serif text-ink-900 mt-3 leading-relaxed">{current.argument_text}</p>
-              : <p className="font-serif italic text-ink-600 mt-3">The writer will explain by voice.</p>}
+              : <p className="font-serif italic text-ink-800 mt-3">The writer will explain by voice.</p>}
           </div>
 
           <FleuronDivider className="my-5" />
@@ -223,7 +233,7 @@ export default function ReviewPhaseModal({
                 ))}
               </div>
               {verdict && (
-                <p className="font-serif italic text-ink-600 text-sm mt-2">
+                <p className="font-serif italic text-ink-800 text-sm mt-2">
                   {VERDICTS.find((v) => v.key === verdict)?.help}
                   {needsFlags && ` (${flagged.size} flagged)`}
                 </p>
@@ -248,7 +258,7 @@ export default function ReviewPhaseModal({
 
           {/* Barrier — readiness + continue */}
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-ink-700">
+            <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-ink-900">
               {waitingOn.length === 0
                 ? 'Everyone is ready…'
                 : <>Waiting on: {waitingOn.map((p) => p.player_name).join(' · ')}</>}
@@ -256,7 +266,7 @@ export default function ReviewPhaseModal({
             {isWriter ? (
               // The writer of this manuscript doesn't vote or confirm — the
               // reviewers decide and the round moves on automatically.
-              <p className="font-serif italic text-ink-600 text-sm">
+              <p className="font-serif italic text-ink-800 text-sm">
                 You wrote this — the reviewers are deciding. You'll move on automatically.
               </p>
             ) : (
@@ -280,7 +290,7 @@ export default function ReviewPhaseModal({
 /** Full evidence table — the writer's own manuscript. */
 function WriterEvidence({ evidence, showSignificance }) {
   if (!evidence || evidence.length === 0) {
-    return <p className="font-serif italic text-ink-600">No evidence recorded.</p>;
+    return <p className="font-serif italic text-ink-800">No evidence recorded.</p>;
   }
   return (
     <div className="overflow-x-auto">
@@ -299,7 +309,7 @@ function WriterEvidence({ evidence, showSignificance }) {
             <tr key={ev.idCard ?? i} className="border-b border-gold-500/20 align-top">
               <td className="font-serif px-3 py-2 text-ink-900">
                 <span className="font-semibold">{ev.title || '—'}</span>
-                {ev.author && <span className="block font-mono text-[10px] text-ink-600">{ev.author}</span>}
+                {ev.author && <span className="block font-mono text-[10px] text-ink-700">{ev.author}</span>}
               </td>
               <td className="font-serif px-3 py-2 text-ink-900 leading-relaxed">{ev.content || '—'}</td>
               {showSignificance && (
@@ -319,7 +329,7 @@ function ReviewerEvidence({ evidence, citations, flagged, flagging, onToggleFlag
   return (
     <div className="space-y-2">
       {(!evidence || evidence.length === 0) && (
-        <p className="font-serif italic text-ink-600">No evidence recorded.</p>
+        <p className="font-serif italic text-ink-800">No evidence recorded.</p>
       )}
       {(evidence || []).map((ev, i) => {
         const isFlagged = flagged.has(ev.idCard);
@@ -339,13 +349,13 @@ function ReviewerEvidence({ evidence, citations, flagged, flagging, onToggleFlag
             <div className="flex items-baseline justify-between gap-3">
               <span className="font-serif font-semibold text-ink-900">{ev.title || '—'}</span>
               {flagging && (
-                <span className={`font-mono text-[10px] uppercase tracking-wider ${isFlagged ? 'text-oxblood-600' : 'text-ink-500'}`}>
+                <span className={`font-mono text-[10px] uppercase tracking-wider ${isFlagged ? 'text-oxblood-700' : 'text-ink-700'}`}>
                   {isFlagged ? '⚑ flagged' : 'flag'}
                 </span>
               )}
             </div>
-            <div className="font-mono text-[10px] text-ink-600 mt-0.5">
-              {ev.author || 'Unknown'}{tags && <span className="text-gold-700"> · {tags}</span>}
+            <div className="font-mono text-[10px] text-ink-800 mt-0.5">
+              {ev.author || 'Unknown'}{tags && <span className="font-bold text-gold-800"> · {tags}</span>}
             </div>
           </button>
         );
@@ -353,11 +363,11 @@ function ReviewerEvidence({ evidence, citations, flagged, flagging, onToggleFlag
 
       {citations && citations.length > 0 && (
         <div className="pt-2">
-          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-ink-700 mb-1">Citations</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-ink-900 mb-1">Citations</p>
           {citations.map((c) => (
-            <div key={c.work_id} className="font-serif text-sm text-ink-800">
+            <div key={c.work_id} className="font-serif text-sm text-ink-900">
               “{c.publication_title}” — {c.writer_name}
-              <span className="text-gold-700"> · {c.conclusion_tag}</span>
+              <span className="font-bold text-gold-800"> · {c.conclusion_tag}</span>
             </div>
           ))}
         </div>
