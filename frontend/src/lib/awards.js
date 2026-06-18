@@ -16,9 +16,13 @@
  *   id          — stable identifier (used as map keys)
  *   name        — display name shown in the goal line and results
  *   description — one-line summary of the criterion
+ *   prestige    — prestige granted to the winner(s) at game end
  *   score(p, ctx) — returns a numeric score; higher = better
  *   format(n)   — display the raw score for the leaderboard column
  */
+
+/** Flat prestige every award grants its winner(s). Tune freely. */
+export const AWARD_PRESTIGE = 10;
 
 export const AWARDS = [
   // (No "Most Prestigious Career" award — highest prestige already wins the
@@ -27,6 +31,7 @@ export const AWARDS = [
     id: 'most-prolific',
     name: 'Most Prolific',
     description: 'Most books published.',
+    prestige: AWARD_PRESTIGE,
     score: (p) => Number(p.books_published ?? 0),
     format: (n) => `${n} book${n === 1 ? '' : 's'}`,
   },
@@ -34,6 +39,7 @@ export const AWARDS = [
     id: 'peers-favorite',
     name: "Peer's Favorite",
     description: 'Most citation tokens collected — from being cited by others and from conferences.',
+    prestige: AWARD_PRESTIGE,
     score: (p) => Number(p.citations_received_count ?? 0),
     format: (n) => `${n} citation${n === 1 ? '' : 's'}`,
   },
@@ -41,6 +47,7 @@ export const AWARDS = [
     id: 'broadest-scholar',
     name: 'Broadest Scholar',
     description: 'Published works covering the most distinct tags.',
+    prestige: AWARD_PRESTIGE,
     score: (p, ctx) => {
       const works = (ctx.publishedWorks || []).filter(
         (w) => w.writer_player_id === p.player_id
@@ -61,6 +68,7 @@ export const AWARDS = [
     id: 'earliest-tenure',
     name: 'Earliest Tenure',
     description: 'Earliest year of first book published. (Lower year wins.)',
+    prestige: AWARD_PRESTIGE,
     score: (p, ctx) => {
       // Find the player's earliest book publication. We invert the year
       // so HIGHER scores win (matches the other awards' direction).
@@ -108,6 +116,43 @@ export function computeAwardStandings(players, ctx) {
     standings[award.id] = scored;
   }
   return standings;
+}
+
+
+/**
+ * Total award prestige each player earned, with a per-award breakdown.
+ * A player wins an award (and its prestige) when they hold the top score;
+ * everyone TIED at that top score is a co-winner and each gets the full
+ * amount. Awards nobody qualified for (top score 0 or -Infinity) pay out
+ * nothing.
+ *
+ * Returns { [playerId]: { total, breakdown: [{ id, name, amount }] } }.
+ */
+export function awardPrestigeByPlayer(players, ctx) {
+  const standings = computeAwardStandings(players, ctx);
+  const out = {};
+  for (const p of players) {
+    out[p.player_id] = { total: 0, breakdown: [] };
+  }
+  for (const award of AWARDS) {
+    const ranked = standings[award.id];
+    if (!ranked || ranked.length === 0) continue;
+    const leader = ranked[0];
+    const noWinner = leader.score <= 0 || leader.score === -Infinity;
+    if (noWinner) continue;
+    const amount = Number(award.prestige ?? 0);
+    if (amount <= 0) continue;
+    // ranked is sorted descending, so the tied top group is contiguous.
+    for (const r of ranked) {
+      if (r.score !== leader.score) break;
+      const entry = out[r.playerId];
+      if (entry) {
+        entry.total += amount;
+        entry.breakdown.push({ id: award.id, name: award.name, amount });
+      }
+    }
+  }
+  return out;
 }
 
 

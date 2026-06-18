@@ -6,7 +6,7 @@ import { mpSubmitFinalScore } from '../api/multiplayer.js';
 import { loadSession, clearSession } from '../api/mpSession.js';
 import FleuronDivider from '../components/FleuronDivider.jsx';
 import CornerOrnament from '../components/CornerOrnament.jsx';
-import { AWARDS, computeAwardStandings } from '../lib/awards.js';
+import { AWARDS, computeAwardStandings, awardPrestigeByPlayer } from '../lib/awards.js';
 import { buildMultiplayerReport, openPlaytestReport } from '../lib/playtestReport.js';
 import { labelForRounds } from '../lib/gameModes.js';
 
@@ -55,9 +55,19 @@ export default function MultiplayerResults() {
   }
   if (!state) return null;
 
-  const players = [state.you, ...state.opponents]
-    .filter(Boolean)
-    .sort((a, b) => b.prestige - a.prestige);
+  const roster = [state.you, ...state.opponents].filter(Boolean);
+  // Award prestige is granted at game end on top of base prestige. Compute it
+  // here (awards are a frontend concept) and rank by the combined total.
+  const awardBonus = awardPrestigeByPlayer(roster, {
+    publishedWorks: state.published_works || [],
+  });
+  const players = roster
+    .map((p) => ({
+      ...p,
+      award_prestige: awardBonus[p.player_id]?.total ?? 0,
+      total_prestige: Number(p.prestige ?? 0) + (awardBonus[p.player_id]?.total ?? 0),
+    }))
+    .sort((a, b) => b.total_prestige - a.total_prestige);
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6 py-12">
@@ -114,9 +124,11 @@ export default function MultiplayerResults() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-display text-3xl text-cream-50">{p.prestige}</div>
+                  <div className="font-display text-3xl text-cream-50">{p.total_prestige}</div>
                   <div className="font-mono text-[10px] uppercase tracking-[0.15em] text-cream-200/70">
-                    prestige
+                    {p.award_prestige > 0
+                      ? <>{p.prestige} prestige + {p.award_prestige} awards</>
+                      : 'prestige'}
                   </div>
                 </div>
               </li>
@@ -208,10 +220,15 @@ function AwardsSection({ players, publishedWorks }) {
 
           return (
             <li key={award.id} className="surface-well p-4">
-              {/* Name */}
+              {/* Name + prestige value */}
               <div className="flex items-center gap-2">
                 <span className="text-xl" aria-hidden="true">🏆</span>
                 <h3 className="font-display text-lg text-gold-300">{award.name}</h3>
+                {award.prestige > 0 && (
+                  <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-gold-300 border border-gold-500/40 rounded px-1.5 py-0.5">
+                    +{award.prestige} prestige
+                  </span>
+                )}
               </div>
 
               {/* Condition — what it takes to win */}
