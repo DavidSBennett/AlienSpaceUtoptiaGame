@@ -102,8 +102,10 @@ try {
     $stmt->execute();
   } catch (Exception $e) {
     $stmt->close();
-    if ($mysqli->errno === 1062) {
-      throw new Exception('This work is already cited in that project');
+    // Duplicate-key (1062) — the code is on the exception for prepared
+    // statements, not always on $mysqli->errno.
+    if ((int) $e->getCode() === 1062 || (int) $mysqli->errno === 1062) {
+      throw new Exception('You have already cited that work in this project.');
     }
     throw $e;
   }

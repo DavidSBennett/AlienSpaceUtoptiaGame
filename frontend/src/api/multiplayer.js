@@ -15,8 +15,11 @@ import { api } from './client.js';
 function normalizeError(err) {
   if (err.response) {
     const bodyError = err.response.data && err.response.data.error;
-    const message = bodyError || err.response.statusText || 'no message';
-    return new Error(`Server returned ${err.response.status}: ${message}`);
+    // Our endpoints return a friendly {error: "..."} — show it as-is. Only
+    // fall back to the technical "Server returned NNN" form for unexpected
+    // failures that carry no message of their own.
+    if (bodyError) return new Error(bodyError);
+    return new Error(`Server returned ${err.response.status}: ${err.response.statusText || 'error'}`);
   }
   if (err.request) {
     return new Error('Could not reach the server. Check your connection or try again.');

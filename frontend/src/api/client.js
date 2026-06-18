@@ -44,8 +44,10 @@ function normalizeError(err) {
     // statusText is often empty under HTTP/2, so checking the body first
     // gives much more diagnostic value.
     const bodyError = err.response.data && err.response.data.error;
-    const message = bodyError || err.response.statusText || 'no message';
-    return new Error(`Server returned ${err.response.status}: ${message}`);
+    // Show the server's friendly {error: "..."} message as-is; only fall back
+    // to the technical "Server returned NNN" form when there's no message.
+    if (bodyError) return new Error(bodyError);
+    return new Error(`Server returned ${err.response.status}: ${err.response.statusText || 'error'}`);
   }
   if (err.request) {
     // Request was made, no response — network or CORS or server down
