@@ -60,6 +60,7 @@ import GoalLine from '../components/GoalLine.jsx';
 import YearProgressBar from '../components/YearProgressBar.jsx';
 import StatsStrip from '../components/StatsStrip.jsx';
 import DrawZone from '../components/DrawZone.jsx';
+import Tooltip from '../components/Tooltip.jsx';
 
 import { colorForSeat } from '../lib/playerColors.js';
 import ToastStack from '../components/Toast.jsx';
@@ -846,11 +847,11 @@ export default function MultiplayerGame() {
           {/* Players (left) + Goal/Year (right) */}
           <div className="flex items-start justify-between gap-6">
             <div className="flex items-start gap-6 min-w-0 flex-wrap">
-              <PlayerStatCard player={you} isYou />
+              <PlayerStatCard player={you} isYou publishedWorks={state.published_works} />
               {[...state.opponents]
                 .sort((a, b) => a.seat_index - b.seat_index)
                 .map((op) => (
-                  <PlayerStatCard key={op.player_id} player={op} />
+                  <PlayerStatCard key={op.player_id} player={op} publishedWorks={state.published_works} />
                 ))}
             </div>
 
@@ -1768,16 +1769,58 @@ function labelForStage(stage) {
 
 
 /**
- * PlayerStatCard — one column in the status strip: name, rank, and the
- * Prestige / Citations / Anticipated boxes. Used for the main player and each
- * opponent.
+ * PlayerStatCard — one column in the status strip: name, rank, and a single
+ * total score (current prestige + citations × renown, as if the game ended
+ * now). The score's tooltip itemizes where the points came from: each
+ * publication's prestige and the citation payout. Used for you and opponents.
  */
-function PlayerStatCard({ player, isYou = false }) {
+function PlayerStatCard({ player, isYou = false, publishedWorks = [] }) {
   const col = colorForSeat(player.seat_index);
   const citations = player.citations_received_count ?? 0;
   const mult = renownMultiplier(player.stat_levels?.renown);
-  const projected = projectedScore(player.prestige, citations, player.stat_levels?.renown);
+  const prestige = player.prestige ?? 0;
+  const citationPayout = citations * mult;
+  const total = prestige + citationPayout;
   const dim = player.is_ghost || player.game_over_reason;
+
+  const works = publishedWorks.filter((w) => w.writer_player_id === player.player_id);
+  const pubSum = works.reduce((s, w) => s + (w.prestige_granted || 0), 0);
+  const otherPrestige = prestige - pubSum;
+
+  const tooltip = (
+    <div className="space-y-0.5">
+      <strong className="block font-display text-sm text-gold-300 mb-1">Score breakdown</strong>
+      <div className="font-mono text-[9px] uppercase tracking-[0.15em] text-cream-200/70">Publications</div>
+      {works.length === 0 ? (
+        <div className="italic text-cream-200/50">none yet</div>
+      ) : (
+        works.map((w) => (
+          <div key={w.work_id} className="flex justify-between gap-3">
+            <span className="truncate">“{w.publication_title}”</span>
+            <span className="text-gold-300 tabular-nums">+{w.prestige_granted}</span>
+          </div>
+        ))
+      )}
+      {otherPrestige > 0 && (
+        <div className="flex justify-between gap-3">
+          <span>Other prestige</span>
+          <span className="text-gold-300 tabular-nums">+{otherPrestige}</span>
+        </div>
+      )}
+      <div className="flex justify-between gap-3 border-t border-gold-500/20 mt-1 pt-1">
+        <span>Prestige total</span>
+        <span className="text-gold-200 tabular-nums">{prestige}</span>
+      </div>
+      <div className="flex justify-between gap-3">
+        <span>Citations {citations} × renown ×{mult}</span>
+        <span className="text-verdigris-300 tabular-nums">+{citationPayout}</span>
+      </div>
+      <div className="flex justify-between gap-3 border-t border-gold-500/40 mt-1 pt-1 font-bold">
+        <span>Total score</span>
+        <span className="text-cream-50 tabular-nums">{total}</span>
+      </div>
+    </div>
+  );
 
   return (
     <div className={`flex flex-col items-start gap-1 ${dim ? 'opacity-50' : ''}`}>
@@ -1789,31 +1832,16 @@ function PlayerStatCard({ player, isYou = false }) {
       <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-gold-400">
         {labelForStage(player.stage)}
       </span>
-      <div className="flex items-stretch gap-1.5 mt-0.5">
-        <StatBox value={player.prestige ?? 0} label="Prestige" tone="gold" emphasize={isYou} />
-        <StatBox value={citations} label="Citations" tone="cream" emphasize={isYou} />
-        <StatBox value={projected} suffix={`×${mult}`} label="Anticipated" tone="verdigris" emphasize={isYou} />
-      </div>
-    </div>
-  );
-}
-
-/** A single labelled stat box used by PlayerStatCard. */
-function StatBox({ value, label, suffix, tone = 'gold', emphasize = false }) {
-  const toneClass = tone === 'verdigris'
-    ? 'text-verdigris-300 border-verdigris-500/40'
-    : tone === 'cream'
-    ? 'text-cream-100 border-gold-500/25'
-    : 'text-gold-200 border-gold-500/40';
-  return (
-    <div className={`inline-flex flex-col items-center justify-center border ${toneClass} px-3 py-1 leading-none`}>
-      <span className={`font-display font-bold tabular-nums ${emphasize ? 'text-2xl' : 'text-xl'}`}>
-        {value}
-        {suffix && <span className="text-[10px] font-mono text-cream-200/60 ml-0.5">{suffix}</span>}
-      </span>
-      <span className="font-mono text-[8px] uppercase tracking-[0.15em] text-cream-200/60 mt-1">
-        {label}
-      </span>
+      <Tooltip content={tooltip} side="bottom" width="w-72">
+        <div className="inline-flex flex-col items-center justify-center border border-gold-500/40 px-5 py-1.5 leading-none cursor-help">
+          <span className={`font-display font-bold tabular-nums text-gold-200 ${isYou ? 'text-3xl' : 'text-2xl'}`}>
+            {total}
+          </span>
+          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-gold-400/80 mt-1">
+            Score
+          </span>
+        </div>
+      </Tooltip>
     </div>
   );
 }
