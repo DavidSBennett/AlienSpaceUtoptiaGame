@@ -201,46 +201,53 @@ function AwardsSection({ players, publishedWorks }) {
           const ranked = standings[award.id];
           if (!ranked || ranked.length === 0) return null;
           const leader = ranked[0];
-          const others = ranked.slice(1);
           const noWinner = leader.score <= 0 || leader.score === -Infinity;
+          // Everyone tied at the top score shares the award.
+          const winners = noWinner ? [] : ranked.filter((r) => r.score === leader.score);
+          const runnersUp = ranked.filter((r) => r.score < leader.score && r.score > 0);
+
           return (
-            <li key={award.id} className="surface-well p-3">
-              <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                <div className="min-w-0">
-                  <div className="font-display text-lg text-gold-300">
-                    {award.name}
-                  </div>
-                  <div className="font-serif italic text-cream-200/70 text-xs">
-                    {award.description}
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  {noWinner ? (
-                    <span className="font-serif italic text-cream-200/60 text-sm">
-                      (not awarded)
-                    </span>
-                  ) : (
-                    <>
-                      <div className="font-display text-cream-50">
-                        {leader.playerName}
-                      </div>
-                      <div className="font-mono text-[10px] uppercase tracking-wider text-cream-200/70">
-                        {award.format(leader.score)}
-                      </div>
-                    </>
-                  )}
-                </div>
+            <li key={award.id} className="surface-well p-4">
+              {/* Name */}
+              <div className="flex items-center gap-2">
+                <span className="text-xl" aria-hidden="true">🏆</span>
+                <h3 className="font-display text-lg text-gold-300">{award.name}</h3>
               </div>
-              {others.length > 0 && !noWinner && (
-                <div className="font-mono text-[10px] uppercase tracking-wider text-cream-200/50 mt-2">
-                  {others.map((r, i) => (
-                    <span key={r.playerId}>
-                      {i > 0 ? ' · ' : ''}
-                      {r.playerName}: {award.format(r.score)}
+
+              {/* Condition — what it takes to win */}
+              <p className="font-serif text-cream-200/80 text-sm mt-1">
+                <span className="font-mono not-italic uppercase tracking-wider text-gold-400 text-[10px] mr-1.5">
+                  How to win
+                </span>
+                {award.description}
+              </p>
+
+              {/* Winner(s) */}
+              <div className="mt-3 border-t border-gold-500/20 pt-2">
+                {noWinner ? (
+                  <span className="font-serif italic text-cream-200/60 text-sm">
+                    Not awarded — no one qualified.
+                  </span>
+                ) : (
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-verdigris-400">
+                      {winners.length > 1 ? 'Co-winners' : 'Winner'}
                     </span>
-                  ))}
-                </div>
-              )}
+                    <span className="font-display text-cream-50 text-lg">
+                      {winners.map((w) => w.playerName).join(' & ')}
+                    </span>
+                    <span className="font-mono text-xs text-gold-300">
+                      ({award.format(leader.score)})
+                    </span>
+                  </div>
+                )}
+
+                {runnersUp.length > 0 && (
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-cream-200/50 mt-1.5">
+                    Also: {runnersUp.map((r) => `${r.playerName} ${award.format(r.score)}`).join(' · ')}
+                  </div>
+                )}
+              </div>
             </li>
           );
         })}

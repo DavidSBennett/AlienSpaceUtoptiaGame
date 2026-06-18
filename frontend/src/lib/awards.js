@@ -38,7 +38,7 @@ export const AWARDS = [
   {
     id: 'peers-favorite',
     name: "Peer's Favorite",
-    description: 'Most citations received from other players.',
+    description: 'Most citation tokens collected — from being cited by others and from conferences.',
     score: (p) => Number(p.citations_received_count ?? 0),
     format: (n) => `${n} citation${n === 1 ? '' : 's'}`,
   },
