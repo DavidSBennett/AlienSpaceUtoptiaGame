@@ -177,22 +177,22 @@ export function CardThumbnail({ card, onClick, isDragging = false, showTags = fa
  * Same visual family as ConclusionTile (verdigris border + tint) so the
  * connection between the two reads at a glance.
  */
-export function ConclusionSpine({ card, onClick, showTags = false, showSignificance = false }) {
+export function ConclusionSpine({ card, onClick, showTags = false, showSignificance = false, thin = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="
+      className={`
         group relative
-        w-64 h-14 flex flex-col justify-center
+        w-64 ${thin ? 'h-9 py-0.5' : 'h-14 py-1'} flex flex-col justify-center
         surface-paper
         border border-verdigris-500
         shadow-card hover:shadow-card-hover
         transition-all duration-200 ease-desk
         text-left overflow-hidden flex-shrink-0
         hover:-translate-y-1
-        px-3 py-1
-      "
+        px-3
+      `}
       style={{
         backgroundImage:
           'linear-gradient(rgba(82, 117, 94, 0.08), rgba(82, 117, 94, 0.08))',
@@ -200,15 +200,17 @@ export function ConclusionSpine({ card, onClick, showTags = false, showSignifica
     >
       <div className="absolute inset-1 border border-verdigris-500/30 pointer-events-none" />
 
-      <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-verdigris-600 leading-none">
-        Conclusion
-      </p>
+      {!thin && (
+        <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-verdigris-600 leading-none">
+          Conclusion
+        </p>
+      )}
 
-      <h3 className="font-display text-xs leading-tight font-bold text-ink-900 line-clamp-2 mt-0.5">
+      <h3 className={`font-display text-xs leading-tight font-bold text-ink-900 ${thin ? 'line-clamp-1' : 'line-clamp-2 mt-0.5'}`}>
         {card.title}
       </h3>
 
-      {showTags && (
+      {showTags && !thin && (
         <div className="mt-1">
           <TagChips card={card} surface="paper" size="sm" />
         </div>

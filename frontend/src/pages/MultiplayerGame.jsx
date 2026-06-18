@@ -1324,8 +1324,9 @@ function ConclusionRail({ shelf, onConclusionClick, showTags, showSignificance, 
 
 
 /**
- * ConclusionSidebar — conclusions to the LEFT of the project rows, split into
- * Main (top-level a/b) and Sub (s/p/e), each stacked three tiles to a column.
+ * ConclusionSidebar — conclusions to the LEFT of the project rows, all stacked
+ * in one thin vertical column. Main (a/b) conclusions sit on top, Sub (s/p/e)
+ * below, each under a small label.
  */
 function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificance }) {
   const mainTier = shelf.filter((c) => conclusionTier(c) === 'top');
@@ -1340,6 +1341,7 @@ function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificanc
       {({ dragHandleProps, isDragging }) => (
         <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
           <ConclusionSpine
+            thin
             card={{ ...c, id: c.idCard }}
             onClick={() => onConclusionClick(c)}
             showTags={showTags} showSignificance={showSignificance}
@@ -1349,25 +1351,24 @@ function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificanc
     </DraggableCard>
   );
 
-  const renderGroup = (cards, label) => (
-    <div className="flex flex-col min-w-0">
-      <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-gold-400 mb-1 px-0.5">
-        {label}
-      </span>
-      {/* flex-col + flex-wrap + a 3-tile max height → three tiles stack per
-          column, wrapping into more columns when there are more than three. */}
-      <div className="flex flex-col flex-wrap content-start gap-2" style={{ maxHeight: '12rem' }}>
-        {cards.length === 0
-          ? <span className="font-mono text-[9px] italic text-cream-200/40">none</span>
-          : cards.map(renderTile)}
-      </div>
-    </div>
+  const groupLabel = (label) => (
+    <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-gold-400 px-0.5">{label}</span>
   );
 
   return (
-    <aside data-tutorial="conclusion-rail" className="shrink-0 flex gap-3 overflow-x-auto max-w-[40rem]">
-      {renderGroup(mainTier, 'Main')}
-      {renderGroup(subTier, 'Sub')}
+    <aside data-tutorial="conclusion-rail" className="shrink-0 flex flex-col gap-1.5 overflow-y-auto">
+      {mainTier.length > 0 && (
+        <>
+          {groupLabel('Main')}
+          {mainTier.map(renderTile)}
+        </>
+      )}
+      {subTier.length > 0 && (
+        <>
+          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-gold-400 px-0.5 mt-1.5">Sub</span>
+          {subTier.map(renderTile)}
+        </>
+      )}
     </aside>
   );
 }
