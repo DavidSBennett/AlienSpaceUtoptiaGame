@@ -208,7 +208,7 @@ function AwardsSection({ players, publishedWorks }) {
       <h2 className="font-display text-2xl text-cream-50 mb-3 text-center">
         Awards
       </h2>
-      <ul className="space-y-3">
+      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {AWARDS.map((award) => {
           const ranked = standings[award.id];
           if (!ranked || ranked.length === 0) return null;
@@ -219,20 +219,20 @@ function AwardsSection({ players, publishedWorks }) {
           const runnersUp = ranked.filter((r) => r.score < leader.score && r.score > 0);
 
           return (
-            <li key={award.id} className="surface-well p-4">
+            <li key={award.id} className="surface-well p-4 flex flex-col h-full">
               {/* Name + prestige value */}
-              <div className="flex items-center gap-2">
-                <span className="text-xl" aria-hidden="true">🏆</span>
-                <h3 className="font-display text-lg text-gold-300">{award.name}</h3>
+              <div className="flex items-start gap-2">
+                <span className="text-xl leading-tight" aria-hidden="true">🏆</span>
+                <h3 className="font-display text-lg text-gold-300 leading-tight">{award.name}</h3>
                 {award.prestige > 0 && (
-                  <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-gold-300 border border-gold-500/40 rounded px-1.5 py-0.5">
-                    +{award.prestige} prestige
+                  <span className="ml-auto flex-shrink-0 font-mono text-[10px] uppercase tracking-wider text-gold-300 border border-gold-500/40 rounded px-1.5 py-0.5">
+                    +{award.prestige} pts
                   </span>
                 )}
               </div>
 
               {/* Condition — what it takes to win */}
-              <p className="font-serif text-cream-200/80 text-sm mt-1">
+              <p className="font-serif text-cream-200/80 text-sm mt-1 break-words">
                 <span className="font-mono not-italic uppercase tracking-wider text-gold-400 text-[10px] mr-1.5">
                   How to win
                 </span>
@@ -240,7 +240,7 @@ function AwardsSection({ players, publishedWorks }) {
               </p>
 
               {/* Winner(s) */}
-              <div className="mt-3 border-t border-gold-500/20 pt-2">
+              <div className="mt-auto pt-2 border-t border-gold-500/20">
                 {noWinner ? (
                   <span className="font-serif italic text-cream-200/60 text-sm">
                     Not awarded — no one qualified.

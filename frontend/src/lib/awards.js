@@ -21,69 +21,87 @@
  *   format(n)   — display the raw score for the leaderboard column
  */
 
-/** Flat prestige every award grants its winner(s). Tune freely. */
-export const AWARD_PRESTIGE = 10;
-
 export const AWARDS = [
   // (No "Most Prestigious Career" award — highest prestige already wins the
   // game, so awarding it again just rewards the leader twice.)
   {
-    id: 'most-prolific',
-    name: 'Most Prolific',
-    description: 'Most books published.',
-    prestige: AWARD_PRESTIGE,
-    score: (p) => Number(p.books_published ?? 0),
-    format: (n) => `${n} book${n === 1 ? '' : 's'}`,
-  },
-  {
-    id: 'peers-favorite',
-    name: "Peer's Favorite",
-    description: 'Most citation tokens collected — from being cited by others and from conferences.',
-    prestige: AWARD_PRESTIGE,
-    score: (p) => Number(p.citations_received_count ?? 0),
-    format: (n) => `${n} citation${n === 1 ? '' : 's'}`,
-  },
-  {
-    id: 'broadest-scholar',
-    name: 'Broadest Scholar',
-    description: 'Published works covering the most distinct tags.',
-    prestige: AWARD_PRESTIGE,
+    id: 'francis-perkins',
+    name: 'Francis Perkins Award',
+    description: 'The single publication built on the most evidence.',
+    prestige: 15,
+    // A player's score is their BEST publication's evidence count — the
+    // award celebrates one heavyweight work, not a body of work.
     score: (p, ctx) => {
       const works = (ctx.publishedWorks || []).filter(
         (w) => w.writer_player_id === p.player_id
       );
-      const tags = new Set();
-      for (const work of works) {
-        for (const card of work.evidence_snapshot || []) {
-          for (const tag of card.tags || []) {
-            if (tag) tags.add(tag);
-          }
-        }
-      }
-      return tags.size;
+      if (works.length === 0) return 0;
+      return Math.max(
+        ...works.map((w) => Number(w.evidence_count ?? (w.evidence_snapshot?.length ?? 0)))
+      );
     },
-    format: (n) => `${n} tag${n === 1 ? '' : 's'}`,
+    format: (n) => `${n} evidence`,
   },
   {
-    id: 'earliest-tenure',
-    name: 'Earliest Tenure',
-    description: 'Earliest year of first book published. (Lower year wins.)',
-    prestige: AWARD_PRESTIGE,
+    id: 'lifetime-achievement',
+    name: 'Lifetime Achievement Award',
+    description: 'The most publications — articles and books combined.',
+    prestige: 15,
+    score: (p) => Number(p.articles_published ?? 0) + Number(p.books_published ?? 0),
+    format: (n) => `${n} publication${n === 1 ? '' : 's'}`,
+  },
+  {
+    id: 'renaissance-scholar',
+    name: 'Renaissance Scholar',
+    description: 'The most varied scholar — publications across the most distinct conclusions.',
+    prestige: 10,
     score: (p, ctx) => {
-      // Find the player's earliest book publication. We invert the year
-      // so HIGHER scores win (matches the other awards' direction).
-      // A player with no book gets score -Infinity so they sort last.
+      const works = (ctx.publishedWorks || []).filter(
+        (w) => w.writer_player_id === p.player_id
+      );
+      const conclusions = new Set();
+      for (const work of works) {
+        const key = (work.conclusion_title || work.conclusion_tag || '')
+          .trim()
+          .toLowerCase();
+        if (key) conclusions.add(key);
+      }
+      return conclusions.size;
+    },
+    format: (n) => `${n} conclusion${n === 1 ? '' : 's'}`,
+  },
+  {
+    id: 'pulitzer',
+    name: 'The Pulitzer Award',
+    description: 'The most citations — but you must have published at least once.',
+    prestige: 10,
+    // Citations can come from conferences without ever publishing, so the
+    // award requires at least one publication. No publication → can't win.
+    score: (p) => {
+      const pubs = Number(p.articles_published ?? 0) + Number(p.books_published ?? 0);
+      if (pubs <= 0) return -Infinity;
+      return Number(p.citations_received_count ?? 0);
+    },
+    format: (n) => (n === -Infinity ? '—' : `${n} citation${n === 1 ? '' : 's'}`),
+  },
+  {
+    id: 'prodigy',
+    name: 'Prodigy',
+    description: 'First to publish a book.',
+    prestige: 10,
+    score: (p, ctx) => {
+      // Earliest book wins. We invert the year so HIGHER scores win (matches
+      // the other awards' direction). No book → -Infinity, sorts last.
       const myBooks = (ctx.publishedWorks || []).filter(
         (w) => w.writer_player_id === p.player_id && w.kind === 'book'
       );
       if (myBooks.length === 0) return -Infinity;
       const earliest = Math.min(...myBooks.map((b) => b.year_published));
-      // Invert: year 6 → 19, year 12 → 13, year 25 → 0. The higher the
-      // number the earlier the book.
+      // Invert: year 6 → 19, year 12 → 13, year 25 → 0. Higher = earlier.
       return 25 - earliest;
     },
     // Display the actual year, not the inverted score
-    format: (n) => n === -Infinity ? '—' : `year ${25 - n}`,
+    format: (n) => (n === -Infinity ? '—' : `year ${25 - n}`),
   },
 ];
 
