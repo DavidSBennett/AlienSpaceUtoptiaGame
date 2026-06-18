@@ -209,7 +209,12 @@ function AwardsSection({ players, publishedWorks }) {
         Awards
       </h2>
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {AWARDS.map((award) => {
+        {AWARDS.map((award, idx) => {
+          // A lone final card on an odd-length list would sit in the left
+          // column; span both columns and keep single-column width so it
+          // centers under the row above.
+          const lonelyLast =
+            idx === AWARDS.length - 1 && AWARDS.length % 2 === 1;
           const ranked = standings[award.id];
           if (!ranked || ranked.length === 0) return null;
           const leader = ranked[0];
@@ -219,7 +224,12 @@ function AwardsSection({ players, publishedWorks }) {
           const runnersUp = ranked.filter((r) => r.score < leader.score && r.score > 0);
 
           return (
-            <li key={award.id} className="surface-well p-4 flex flex-col h-full">
+            <li
+              key={award.id}
+              className={`surface-well p-4 flex flex-col h-full ${
+                lonelyLast ? 'sm:col-span-2 sm:w-[calc(50%-0.375rem)] sm:mx-auto' : ''
+              }`}
+            >
               {/* Name + prestige value */}
               <div className="flex items-start gap-2">
                 <span className="text-xl leading-tight" aria-hidden="true">🏆</span>
