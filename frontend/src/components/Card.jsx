@@ -178,6 +178,8 @@ export function CardThumbnail({ card, onClick, isDragging = false, showTags = fa
  * connection between the two reads at a glance.
  */
 export function ConclusionSpine({ card, onClick, showTags = false, showSignificance = false, thin = false }) {
+  const bonus = Number(card?.bonus);
+  const prestige = Number.isFinite(bonus) ? bonus : 0;
   return (
     <button
       type="button"
@@ -200,20 +202,33 @@ export function ConclusionSpine({ card, onClick, showTags = false, showSignifica
     >
       <div className="absolute inset-1 border border-verdigris-500/30 pointer-events-none" />
 
-      {!thin && (
-        <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-verdigris-600 leading-none">
-          Conclusion
-        </p>
-      )}
-
-      <h3 className={`font-display text-xs leading-tight font-bold text-ink-900 ${thin ? 'line-clamp-1' : 'line-clamp-2 mt-0.5'}`}>
-        {card.title}
-      </h3>
-
-      {showTags && !thin && (
-        <div className="mt-1">
-          <TagChips card={card} surface="paper" size="sm" />
+      {thin ? (
+        // Thin sidebar tile: title on the left, prestige value on the right.
+        <div className="flex items-center gap-2 w-full">
+          <h3 className="flex-1 min-w-0 font-display text-xs leading-tight font-bold text-ink-900 line-clamp-1">
+            {card.title}
+          </h3>
+          <span
+            className="shrink-0 font-mono text-[11px] font-bold text-verdigris-700 tabular-nums"
+            title="Conclusion prestige value"
+          >
+            +{prestige}
+          </span>
         </div>
+      ) : (
+        <>
+          <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-verdigris-600 leading-none">
+            Conclusion
+          </p>
+          <h3 className="font-display text-xs leading-tight font-bold text-ink-900 line-clamp-2 mt-0.5">
+            {card.title}
+          </h3>
+          {showTags && (
+            <div className="mt-1">
+              <TagChips card={card} surface="paper" size="sm" />
+            </div>
+          )}
+        </>
       )}
     </button>
   );

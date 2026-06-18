@@ -61,6 +61,7 @@ import YearProgressBar from '../components/YearProgressBar.jsx';
 import StatsStrip from '../components/StatsStrip.jsx';
 import DrawZone from '../components/DrawZone.jsx';
 import Tooltip from '../components/Tooltip.jsx';
+import FleuronDivider from '../components/FleuronDivider.jsx';
 
 import { colorForSeat } from '../lib/playerColors.js';
 import ToastStack from '../components/Toast.jsx';
@@ -1326,50 +1327,50 @@ function ConclusionRail({ shelf, onConclusionClick, showTags, showSignificance, 
 
 /**
  * ConclusionSidebar — conclusions to the LEFT of the project rows, all stacked
- * in one thin vertical column. Main (a/b) conclusions sit on top, Sub (s/p/e)
- * below, each under a small label.
+ * in one thin vertical column under a single decorated "Conclusions" header.
+ * Each tile shows its prestige value on the right.
  */
 function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificance }) {
-  const mainTier = shelf.filter((c) => conclusionTier(c) === 'top');
-  const subTier = shelf.filter((c) => conclusionTier(c) === 'sub');
-
-  const renderTile = (c) => (
-    <DraggableCard
-      key={`shelf-${c.idCard}`}
-      id={`shelf-${c.idCard}`}
-      data={{ cardId: c.idCard, from: { kind: 'conclusionShelf' } }}
-    >
-      {({ dragHandleProps, isDragging }) => (
-        <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
-          <ConclusionSpine
-            thin
-            card={{ ...c, id: c.idCard }}
-            onClick={() => onConclusionClick(c)}
-            showTags={showTags} showSignificance={showSignificance}
-          />
-        </div>
-      )}
-    </DraggableCard>
-  );
-
-  const groupLabel = (label) => (
-    <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-gold-400 px-0.5">{label}</span>
-  );
+  // Main (a/b) conclusions first, then sub (s/p/e) — but no separate labels.
+  const ordered = [
+    ...shelf.filter((c) => conclusionTier(c) === 'top'),
+    ...shelf.filter((c) => conclusionTier(c) === 'sub'),
+  ];
 
   return (
-    <aside data-tutorial="conclusion-rail" className="shrink-0 flex flex-col gap-1.5 overflow-y-auto">
-      {mainTier.length > 0 && (
-        <>
-          {groupLabel('Main')}
-          {mainTier.map(renderTile)}
-        </>
-      )}
-      {subTier.length > 0 && (
-        <>
-          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-gold-400 px-0.5 mt-1.5">Sub</span>
-          {subTier.map(renderTile)}
-        </>
-      )}
+    <aside data-tutorial="conclusion-rail" className="shrink-0 flex flex-col overflow-y-auto">
+      {/* Fancy header */}
+      <div className="text-center">
+        <span className="font-display text-sm uppercase tracking-[0.3em] text-gold-300">
+          ❧ Conclusions ❧
+        </span>
+        <FleuronDivider className="my-1" />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        {ordered.length === 0 ? (
+          <span className="font-mono text-[9px] italic text-cream-200/40 px-0.5">none available</span>
+        ) : (
+          ordered.map((c) => (
+            <DraggableCard
+              key={`shelf-${c.idCard}`}
+              id={`shelf-${c.idCard}`}
+              data={{ cardId: c.idCard, from: { kind: 'conclusionShelf' } }}
+            >
+              {({ dragHandleProps, isDragging }) => (
+                <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
+                  <ConclusionSpine
+                    thin
+                    card={{ ...c, id: c.idCard }}
+                    onClick={() => onConclusionClick(c)}
+                    showTags={showTags} showSignificance={showSignificance}
+                  />
+                </div>
+              )}
+            </DraggableCard>
+          ))
+        )}
+      </div>
     </aside>
   );
 }
