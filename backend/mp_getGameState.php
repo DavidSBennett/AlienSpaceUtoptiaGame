@@ -108,6 +108,9 @@ if ($game['status'] === 'active') {
   } elseif ($curPhase === 'conference') {
     // Finish the conference once every attendee has drafted (or dropped).
     mp_maybe_finish_conference($mysqli, $gameId);
+  } elseif ($curPhase === 'aftermath') {
+    // Final-year writer-response window: finalize once no writer is blocking.
+    mp_maybe_finish_aftermath($mysqli, $gameId);
   }
 }
 
@@ -185,6 +188,12 @@ $reviewPhase = (($game['phase'] ?? 'action') === 'review')
 // 6c. Conference phase — the card-draft pool, pick order, and whose turn it is.
 $conference = (($game['phase'] ?? 'action') === 'conference')
   ? mp_build_conference($mysqli, $gameId, $playerId)
+  : null;
+
+// 6d. Aftermath phase — final-year writer-response window. Lists this player's
+//     manuscripts still awaiting a decision and who the table is waiting on.
+$aftermath = (($game['phase'] ?? 'action') === 'aftermath')
+  ? mp_build_aftermath($mysqli, $gameId, $playerId)
   : null;
 
 // 7. Timer deadline — when does the current year auto-resolve?
@@ -307,6 +316,7 @@ mp_json([
   'pending_submissions'          => $pendingSubmissions,
   'review_phase'                 => $reviewPhase,
   'conference'                   => $conference,
+  'aftermath'                    => $aftermath,
   'resolved_submissions_for_you' => $resolvedForYou,
   'your_submissions'             => $yourSubmissions,
   'revise_decisions_for_you'     => $reviseDecisions,
@@ -1036,6 +1046,80 @@ function mp_build_revise_decisions($mysqli, $youId) {
   }
   $stmt->close();
   return $out;
+}
+
+
+/**
+ * Aftermath phase payload (final-year writer-response window). Returns this
+ * player's manuscripts still awaiting a decision (revise-pending, plus
+ * rejections they can still contest if they hold >=2 objection tokens), their
+ * sign-off flag, and the live writers the table is still waiting on. The actual
+ * resolution reuses the normal Revise & Resubmit / result dialogs, which the
+ * frontend pops from revise_decisions_for_you / resolved_submissions_for_you.
+ */
+function mp_build_aftermath($mysqli, $gameId, $youId) {
+  $stmt = $mysqli->prepare("
+    SELECT objection_tokens_remaining, aftermath_ready
+    FROM mp_game_players WHERE player_id = ?
+  ");
+  $stmt->bind_param('i', $youId);
+  $stmt->execute();
+  $me = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+  $tokens   = $me ? (int) $me['objection_tokens_remaining'] : 0;
+  $youReady = $me ? (bool) $me['aftermath_ready'] : false;
+
+  // Your open responses.
+  $open = [];
+  $stmt = $mysqli->prepare("
+    SELECT s.submission_id, s.kind, s.status, c.title AS conclusion_title
+    FROM mp_submissions s
+    LEFT JOIN Cards c ON c.idCard = s.conclusion_card_id
+    WHERE s.writer_player_id = ?
+      AND (s.status = 'revise-pending' OR s.status = 'rejected')
+    ORDER BY s.submission_id ASC
+  ");
+  $stmt->bind_param('i', $youId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  while ($r = $res->fetch_assoc()) {
+    // A plain rejection is only actionable if you can afford to contest it.
+    if ($r['status'] === 'rejected' && $tokens < 2) continue;
+    $open[] = [
+      'submission_id'    => (int) $r['submission_id'],
+      'kind'             => $r['kind'],
+      'conclusion_title' => $r['conclusion_title'] ?? 'Untitled',
+      'resp_type'        => $r['status'] === 'revise-pending' ? 'revise' : 'objectable',
+    ];
+  }
+  $stmt->close();
+
+  // Live writers the table is still waiting on (not resolved, not signed off).
+  $waiting = [];
+  $stmt = $mysqli->prepare("
+    SELECT DISTINCT p.player_name
+    FROM mp_game_players p
+    JOIN mp_submissions s ON s.writer_player_id = p.player_id
+    WHERE p.game_id = ?
+      AND p.game_over_reason IS NULL AND p.is_ghost = 0
+      AND p.aftermath_ready = 0
+      AND (
+        s.status = 'revise-pending'
+        OR (s.status = 'rejected' AND p.objection_tokens_remaining >= 2)
+      )
+    ORDER BY p.player_name ASC
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  while ($r = $res->fetch_assoc()) $waiting[] = $r['player_name'];
+  $stmt->close();
+
+  return [
+    'you_ready'  => $youReady,
+    'your_open'  => $open,
+    'waiting_on' => $waiting,
+  ];
 }
 
 

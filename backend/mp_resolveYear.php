@@ -399,25 +399,19 @@ function mp_finish_round_tail($mysqli, $gameId, $game) {
   $newYear = (int) $game['current_year'] + 1;
 
   if ($newYear > $totalYears) {
-    // Game ends — mark all players game-over with reason 'retired' if not
-    // already game-over from a stage gate. Also leave the review phase.
-    $stmt = $mysqli->prepare("
-      UPDATE mp_game_players
-      SET game_over_reason = COALESCE(game_over_reason, 'retired')
-      WHERE game_id = ?
-    ");
-    $stmt->bind_param('i', $gameId);
-    $stmt->execute();
-    $stmt->close();
-    $stmt = $mysqli->prepare("
-      UPDATE mp_games SET status = 'ended', phase = 'action', review_index = 0, ended_at = NOW() WHERE game_id = ?
-    ");
-    $stmt->bind_param('i', $gameId);
-    $stmt->execute();
-    $stmt->close();
-    // Apply end-of-game renown bonuses inside the same transaction.
-    mp_apply_renown_bonuses($mysqli, $gameId);
-    mp_log_event($mysqli, $gameId, null, 'game_ended', ['final_year' => $totalYears]);
+    // The game would end now. But if any LIVE writer still has an outstanding
+    // response to a manuscript resolved this final round — a Revise & Resubmit
+    // decision, or a peer rejection they could still contest with objection
+    // tokens — we must NOT end yet. In a normal year that response happens
+    // "next year"; on the final year there is no next year, so the writer was
+    // silently denied their reply and the outcome stood. Instead, hold the
+    // game open in an 'aftermath' phase. mp_maybe_finish_aftermath finalizes
+    // it once no live writer is still blocking.
+    if (mp_game_has_open_responses($mysqli, $gameId)) {
+      mp_enter_aftermath_phase($mysqli, $gameId);
+    } else {
+      mp_finalize_game($mysqli, $gameId, $totalYears);
+    }
   } else {
     // Apply hard stage gates (year 5 failed comps, year 12 tenure denied).
     mp_apply_stage_gates($mysqli, $gameId, $newYear);
@@ -477,6 +471,149 @@ function mp_finish_round_tail($mysqli, $gameId, $game) {
   $stmt->bind_param('i', $gameId);
   $stmt->execute();
   $stmt->close();
+}
+
+
+// ============================================================================
+// Aftermath phase (final-year writer-response window)
+// ============================================================================
+
+/**
+ * End the game for good: mark every remaining player game-over ('retired'
+ * unless already failed/denied), flip the game to 'ended', apply end-of-game
+ * renown bonuses, and bump the state version. Assumes the caller holds the
+ * game-row lock and an open transaction; does NOT commit.
+ */
+function mp_finalize_game($mysqli, $gameId, $finalYear = null) {
+  $stmt = $mysqli->prepare("
+    UPDATE mp_game_players
+    SET game_over_reason = COALESCE(game_over_reason, 'retired')
+    WHERE game_id = ?
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $stmt->close();
+
+  $stmt = $mysqli->prepare("
+    UPDATE mp_games SET status = 'ended', phase = 'action', review_index = 0, ended_at = NOW() WHERE game_id = ?
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $stmt->close();
+
+  // End-of-game renown bonuses (citations × renown) inside the same transaction.
+  mp_apply_renown_bonuses($mysqli, $gameId);
+
+  mp_log_event($mysqli, $gameId, null, 'game_ended', ['final_year' => $finalYear]);
+
+  $stmt = $mysqli->prepare("UPDATE mp_games SET state_version = state_version + 1 WHERE game_id = ?");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $stmt->close();
+}
+
+/**
+ * Does any LIVE writer still have a manuscript awaiting their response?
+ * Open response = a revise-pending decision, OR a peer rejection ('rejected')
+ * they could still contest (they hold >=2 objection tokens). Auto-rejections
+ * and already-spent objections (objection-lost) are NOT contestable.
+ */
+function mp_game_has_open_responses($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT COUNT(*) AS n
+    FROM mp_submissions s
+    JOIN mp_game_players p ON p.player_id = s.writer_player_id
+    WHERE s.game_id = ?
+      AND p.game_over_reason IS NULL AND p.is_ghost = 0
+      AND (
+        s.status = 'revise-pending'
+        OR (s.status = 'rejected' AND p.objection_tokens_remaining >= 2)
+      )
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $n = (int) $stmt->get_result()->fetch_assoc()['n'];
+  $stmt->close();
+  return $n > 0;
+}
+
+/**
+ * How many live writers are still BLOCKING finalization: they have an open
+ * response (above) AND haven't signed off (aftermath_ready = 0). When this hits
+ * zero, the game can finalize.
+ */
+function mp_aftermath_blocking_count($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT COUNT(DISTINCT p.player_id) AS n
+    FROM mp_game_players p
+    JOIN mp_submissions s ON s.writer_player_id = p.player_id
+    WHERE p.game_id = ?
+      AND p.game_over_reason IS NULL AND p.is_ghost = 0
+      AND p.aftermath_ready = 0
+      AND (
+        s.status = 'revise-pending'
+        OR (s.status = 'rejected' AND p.objection_tokens_remaining >= 2)
+      )
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $n = (int) $stmt->get_result()->fetch_assoc()['n'];
+  $stmt->close();
+  return $n;
+}
+
+/**
+ * Hold the game open for final writer responses. Resets every player's
+ * aftermath_ready flag and flips the phase to 'aftermath' (status stays
+ * 'active'; the year is NOT advanced). Assumes the caller holds the game-row
+ * lock and an open transaction.
+ */
+function mp_enter_aftermath_phase($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("UPDATE mp_game_players SET aftermath_ready = 0 WHERE game_id = ?");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $stmt->close();
+
+  $stmt = $mysqli->prepare("UPDATE mp_games SET phase = 'aftermath', review_index = 0 WHERE game_id = ?");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $stmt->close();
+
+  mp_log_event($mysqli, $gameId, null, 'aftermath_entered', []);
+}
+
+/**
+ * Poll-time advancer for the aftermath phase: once no live writer is still
+ * blocking (everyone has resolved or signed off), finalize the game. Opens its
+ * own transaction + lock (mirrors mp_maybe_advance_review / _finish_conference).
+ */
+function mp_maybe_finish_aftermath($mysqli, $gameId) {
+  $mysqli->begin_transaction();
+  try {
+    $stmt = $mysqli->prepare("SELECT * FROM mp_games WHERE game_id = ? FOR UPDATE");
+    $stmt->bind_param('i', $gameId);
+    $stmt->execute();
+    $game = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$game || $game['status'] !== 'active' || ($game['phase'] ?? 'action') !== 'aftermath') {
+      $mysqli->commit();
+      return false;
+    }
+
+    if (mp_aftermath_blocking_count($mysqli, $gameId) === 0) {
+      mp_finalize_game($mysqli, $gameId, (int) $game['current_year']);
+      $mysqli->commit();
+      return true;
+    }
+
+    $mysqli->commit();
+    return false;
+  } catch (Exception $e) {
+    $mysqli->rollback();
+    mp_log_event($mysqli, $gameId, null, 'aftermath_finish_failed', ['error' => $e->getMessage()]);
+    return false;
+  }
 }
 
 

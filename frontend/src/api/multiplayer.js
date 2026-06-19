@@ -157,6 +157,21 @@ export async function mpReviewContinue(playerToken) {
 }
 
 /**
+ * Aftermath phase (final-year writer-response window): sign off that you're
+ * done responding to your manuscripts. The game ends once every live writer
+ * with an outstanding response has resolved it or signed off.
+ * @param {string} playerToken
+ */
+export async function mpAftermathReady(playerToken) {
+  try {
+    const res = await api.post('/mp_aftermathReady.php', { player_token: playerToken });
+    return res.data;
+  } catch (err) {
+    throw normalizeError(err);
+  }
+}
+
+/**
  * Conference phase: draft the chosen pool cards on your turn (up to as many as
  * you contributed). Passing an empty list takes nothing and ends your turn.
  * @param {string} playerToken

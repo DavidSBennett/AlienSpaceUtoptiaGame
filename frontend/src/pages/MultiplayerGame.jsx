@@ -26,6 +26,7 @@ import {
   mpResolveRevise,
   mpReviewContinue,
   mpConferenceTake,
+  mpAftermathReady,
 } from '../api/multiplayer.js';
 
 // Reuse single-player primitives where possible — these are the proven,
@@ -54,6 +55,7 @@ import TutorialManager from '../components/TutorialManager.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import ReviewPhaseModal from '../components/ReviewPhaseModal.jsx';
 import ConferencePhaseModal from '../components/ConferencePhaseModal.jsx';
+import AftermathPhaseModal from '../components/AftermathPhaseModal.jsx';
 import { isTutorialEnabled, setTutorialEnabled as persistTutorialEnabled } from '../lib/tutorialStorage.js';
 import useUserSetting from '../auth/useUserSetting.js';
 import GoalLine from '../components/GoalLine.jsx';
@@ -614,6 +616,39 @@ export default function MultiplayerGame() {
   async function handleConferenceTake(poolIds) {
     await mpConferenceTake(playerToken, poolIds);
     await refresh();
+  }
+
+  // Aftermath: open the right dialog for one outstanding manuscript. Revise
+  // proposals pop the decision dialog; rejections pop the result dialog (whose
+  // Object button lets the writer contest with tokens) — reusing the existing
+  // flows rather than rebuilding them inside the aftermath modal.
+  function handleAftermathResolve(item) {
+    if (item.resp_type === 'revise') {
+      const d = (state.revise_decisions_for_you || []).find(
+        (x) => x.submission_id === item.submission_id
+      );
+      if (d) setReviseDecision(d);
+    } else {
+      const r = (state.resolved_submissions_for_you || []).find(
+        (x) => x.submission_id === item.submission_id
+      );
+      if (r) setOpenResult(r);
+    }
+  }
+
+  // Aftermath: sign off ("end the game"). The game finalizes once every live
+  // writer with an outstanding response has resolved it or signed off.
+  async function handleAftermathFinish() {
+    setBusy(true);
+    setError(null);
+    try {
+      await mpAftermathReady(playerToken);
+      await refresh();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   // Upgrade flow
@@ -1209,6 +1244,18 @@ export default function MultiplayerGame() {
             you={you}
             busy={busy}
             onTake={handleConferenceTake}
+          />
+        )}
+
+        {/* Aftermath interstitial — final-year writer-response window. Sits at
+            z-30 so the Revise & Resubmit / result dialogs (z-70) pop above it
+            when the writer opens an outstanding manuscript. */}
+        {game.phase === 'aftermath' && state.aftermath && (
+          <AftermathPhaseModal
+            aftermath={state.aftermath}
+            busy={busy}
+            onResolve={handleAftermathResolve}
+            onFinish={handleAftermathFinish}
           />
         )}
       </div>
