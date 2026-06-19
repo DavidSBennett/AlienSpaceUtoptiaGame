@@ -39,41 +39,40 @@ export const STAT_TABLES = {
   // but instead removes the year cost from publishing. The slot count
   // value at L4 stays at 3 — the L4 effect lives in the publish reducer.
   workspaces:      [1, 2, 3, 3],
-  // Reputation — added in Phase 10.3 — lowers publication-threshold
-  // requirements. L1 = baseline (no reduction), each level past that
-  // lowers either the article or book minimum:
-  //   L1: article ≥ 3, book ≥ 6
-  //   L2: article ≥ 2, book ≥ 6      (article reduction)
-  //   L3: article ≥ 2, book ≥ 5      (book reduction)
-  //   L4: article ≥ 1, book ≥ 3      (one more article -1, two more book)
-  // The numeric values in this array are not directly meaningful as
-  // tooltips; the StatStrip and chooser dialog read the level and produce
-  // descriptive text via reputationThresholds() below.
-  reputation:      [0, 1, 2, 3],
-  // Renown — at end of game, each player gets bonus prestige equal to
-  // citations_received × this multiplier. Citations RECEIVED means
-  // other players cited one of your published works. L1 (default) is
-  // still a positive payout (each citation = +1 at L1), so renown is
-  // always worth something if your work gets cited; L4 turns each
-  // citation into +6. See mp_apply_renown_bonuses() server-side.
-  renown:          [1, 2, 3, 6],
+  // Reputation — now drives the "Attend a Conference" action (it no longer
+  // lowers publication thresholds; those are fixed, see PUBLISH_THRESHOLDS).
+  // The value is the number of CITATION TOKENS a conference grants you at
+  // that level (1/2/3/6). Reputation also controls the conference's pool
+  // size via CONFERENCE_FRESH below. Mirrors the multiplayer reputation.
+  reputation:      [1, 2, 3, 6],
+  // Renown — at end of game, you gain bonus prestige equal to your banked
+  // citation tokens × this multiplier (×1/2/3/5). In solo, citations come
+  // from attending conferences. Mirrors mp_apply_renown_bonuses() server-side.
+  renown:          [1, 2, 3, 5],
 };
 
-// Helper — derive article/book thresholds from reputation level (1-4).
-// Returns { articleMin, bookMin } usable both in validation and classification.
-export function reputationThresholds(level) {
-  // L1 (default): article ≥ 3, book ≥ 6
-  // L2: article ≥ 2
-  // L3: book ≥ 5
-  // L4: article ≥ 1, book ≥ 3 (book drops two more — was 5 at L3, 4 was
-  //                              the prior L4, now 3)
-  switch (level) {
-    case 1: return { articleMin: 3, bookMin: 6 };
-    case 2: return { articleMin: 2, bookMin: 6 };
-    case 3: return { articleMin: 2, bookMin: 5 };
-    case 4: return { articleMin: 1, bookMin: 3 };
-    default: return { articleMin: 3, bookMin: 6 };
-  }
+// Fixed publication thresholds. Reputation used to lower these; it now powers
+// conferences instead, so the article/book split is a constant (mirrors the
+// multiplayer MP_ARTICLE_MIN / MP_BOOK_MIN).
+export const PUBLISH_THRESHOLDS = { articleMin: 2, bookMin: 6 };
+
+// Conference fresh-card pool bonus by reputation level (1-4): the pool you
+// draft from is (cards you staged) + this many extra fresh cards.
+export const CONFERENCE_FRESH = [1, 2, 3, 4];
+
+/** Citation tokens a conference grants, by reputation level (1-4). */
+export function conferenceCitations(level) {
+  return STAT_TABLES.reputation[Math.max(0, Math.min(3, (level || 1) - 1))];
+}
+
+/** Extra fresh cards a conference adds to the pool, by reputation level. */
+export function conferenceFresh(level) {
+  return CONFERENCE_FRESH[Math.max(0, Math.min(3, (level || 1) - 1))];
+}
+
+/** Renown multiplier (×1/2/3/5) applied to banked citations at game end. */
+export function renownMultiplier(level) {
+  return STAT_TABLES.renown[Math.max(0, Math.min(3, (level || 1) - 1))];
 }
 
 export const TOTAL_YEARS = 25;
@@ -318,7 +317,16 @@ function initialState({ playerName, deck, allCards }) {
       influence: 1,
       workspaces: 1,
       reputation: 1,
+      renown: 1,
     },
+
+    // Banked citation tokens (from attending conferences). At game end each
+    // is worth renownMultiplier(renown) prestige.
+    citations: 0,
+
+    // Active conference draft session (null when not at a conference). Shape:
+    //   { projectId, pool: [cards], keepLimit: int, citationGrant: int }
+    conference: null,
 
     // Cards
     archiveDeck: remainingArchive,       // shuffled, drawn from the front (minus the starting hand)
@@ -529,10 +537,9 @@ function reducer(state, action) {
 
       const { conclusion, evidence } = project;
 
-      // Compute reputation-derived thresholds first — the validator's
-      // minimum-evidence rule depends on the player's articleMin (which
-      // drops to 1 at Reputation L2+).
-      const { articleMin, bookMin } = reputationThresholds(state.statLevels.reputation || 1);
+      // Fixed publication thresholds (reputation now powers conferences, not
+      // these). articleMin gates publishing at all; bookMin splits article/book.
+      const { articleMin, bookMin } = PUBLISH_THRESHOLDS;
 
       // Run validation. We allow the caller to publish even when missing
       // pieces — the result dialog explains the failure.
@@ -556,8 +563,7 @@ function reducer(state, action) {
       }
 
       // Classify the publication. Article = under bookMin, book = at or
-      // above. Reputation lowers bookMin from the L1 default of 6 down
-      // to 4 at max (L4). See reputationThresholds() for the table.
+      // above (fixed thresholds — see PUBLISH_THRESHOLDS).
       const publicationKind = validation.ok
         ? (evidence.length >= bookMin ? 'book' : 'article')
         : null;
@@ -699,6 +705,91 @@ function reducer(state, action) {
       return { ...state, lastPublishResult: null };
     }
 
+    // ---- Conferences ----
+    //
+    // "Attend a Conference" mirrors the multiplayer SOLO-attendee branch: the
+    // evidence you stage in a project is sent to the conference (discarded),
+    // and in exchange you draft from a fresh pool of (staged + reputation
+    // bonus) cards, keeping up to as many as you staged. You also bank
+    // citation tokens by your reputation level. Resolving the draft costs the
+    // year (like a draw or publish).
+
+    case 'ATTEND_CONFERENCE': {
+      if (state.gameOver) return state;
+      if (state.conference) return state;          // already at one
+      const { projectId } = action;
+      const project = state.projects[projectId];
+      if (!project) return state;
+
+      const staged = project.evidence;
+      if (!staged || staged.length === 0) return state;  // need ≥1 staged card
+
+      const rep = state.statLevels.reputation || 1;
+      const keepLimit = staged.length;
+      const poolSize = keepLimit + conferenceFresh(rep);
+
+      // Empty the project's evidence (its conclusion, if any, stays put).
+      const projects = state.projects.map((p, i) =>
+        i === projectId ? { ...p, evidence: [] } : p
+      );
+
+      // Draw the fresh pool from the archive, reshuffling the discard back in
+      // if the deck runs dry (same walk as DRAW_CARDS).
+      let deck = state.archiveDeck.slice();
+      let discard = state.discard.slice();
+      const pool = [];
+      while (pool.length < poolSize) {
+        if (deck.length === 0) {
+          if (discard.length === 0) break;
+          deck = shuffle(discard);
+          discard = [];
+        }
+        pool.push(deck.shift());
+      }
+
+      // Send the staged cards to the conference (discarded) AFTER drawing the
+      // pool, so they can never be reshuffled into the pool you draft from.
+      discard = [...discard, ...staged];
+
+      return {
+        ...state,
+        projects,
+        archiveDeck: deck,
+        discard,
+        conference: {
+          projectId,
+          pool,
+          keepLimit,
+          citationGrant: conferenceCitations(rep),
+        },
+      };
+    }
+
+    case 'CONFERENCE_KEEP': {
+      // Resolve the draft: take the chosen cards into the hand, return the
+      // rest to the discard, bank the citation tokens, and advance the year.
+      if (!state.conference) return state;
+      const { keepIds } = action;
+      const { pool, keepLimit, citationGrant } = state.conference;
+
+      const capacity = STAT_TABLES.notebookCapacity[state.statLevels.notebookCapacity - 1];
+      const room = Math.max(0, capacity - state.hand.length);
+      const maxKeep = Math.min(keepLimit, room);
+
+      const wanted = new Set(keepIds || []);
+      const kept = pool.filter((c) => wanted.has(c.id)).slice(0, maxKeep);
+      const keptIds = new Set(kept.map((c) => c.id));
+      const returned = pool.filter((c) => !keptIds.has(c.id));
+
+      return advanceYear({
+        ...state,
+        hand: [...state.hand, ...kept],
+        discard: [...state.discard, ...returned],
+        citations: (state.citations || 0) + (citationGrant || 0),
+        conference: null,
+      });
+    }
+
     case 'DISMISS_STAGE_ADVANCEMENT': {
       return { ...state, lastStageAdvancement: null };
     }
@@ -764,12 +855,19 @@ function advanceYear(state) {
   const previousStage = state.stage;
   let next = { ...state, year: nextYear };
 
+  // Banked citation tokens cash in at game end: each is worth the renown
+  // multiplier in prestige. Applied to whichever game-over branch fires below,
+  // so the recorded final prestige includes the conference payout.
+  const citationBonus = (state.citations || 0) * renownMultiplier(state.statLevels.renown || 1);
+  const finalPrestige = state.prestige + citationBonus;
+
   // ----- HARD GATE: Year 5 — must have published at least one (article or book) -----
   // Per design: "Year 5 failure = Game Over"
   // We check this when ENDING year 5, i.e. when nextYear becomes 6.
   if (nextYear === 6 && state.articlesPublished === 0 && state.booksPublished === 0) {
     return {
       ...next,
+      prestige: finalPrestige,
       stage: 'failed-comps',
       gameOver: { reason: 'failed-comps', year: 5 },
     };
@@ -781,6 +879,7 @@ function advanceYear(state) {
   if (nextYear === 13 && state.booksPublished === 0) {
     return {
       ...next,
+      prestige: finalPrestige,
       stage: 'tenure-denied',
       gameOver: { reason: 'tenure-denied', year: 12 },
     };
@@ -791,6 +890,7 @@ function advanceYear(state) {
     return {
       ...next,
       year: TOTAL_YEARS,
+      prestige: finalPrestige,
       stage: 'retired',
       gameOver: { reason: 'retired', year: TOTAL_YEARS },
     };
@@ -1022,10 +1122,18 @@ export function useGameState(setup) {
     (stat) => dispatch({ type: 'UPGRADE_STAT', stat }),
     []
   );
+  const attendConference = useCallback(
+    (projectId) => dispatch({ type: 'ATTEND_CONFERENCE', projectId }),
+    []
+  );
+  const conferenceKeep = useCallback(
+    (keepIds) => dispatch({ type: 'CONFERENCE_KEEP', keepIds }),
+    []
+  );
 
   // Derived values — convenient for UI without re-reading the lookup tables
   const derived = useMemo(() => {
-    const { articleMin, bookMin } = reputationThresholds(state.statLevels.reputation || 1);
+    const { articleMin, bookMin } = PUBLISH_THRESHOLDS;
     const capacity = STAT_TABLES.notebookCapacity[state.statLevels.notebookCapacity - 1];
     // Research L4 special-case: instead of a fixed number, draw a full
     // notebook's worth. The STAT_TABLES.research[3] entry is a sentinel
@@ -1046,8 +1154,15 @@ export function useGameState(setup) {
       bookThreshold: bookMin,
       deckRemaining: state.archiveDeck.length,
       handFull: state.hand.length >= capacity,
+      // Conference / citation economy (reputation + renown).
+      conferenceFresh: conferenceFresh(state.statLevels.reputation || 1),
+      conferenceCitations: conferenceCitations(state.statLevels.reputation || 1),
+      renownMultiplier: renownMultiplier(state.statLevels.renown || 1),
+      // End-game projection: prestige + banked citations × renown.
+      projectedPrestige:
+        state.prestige + (state.citations || 0) * renownMultiplier(state.statLevels.renown || 1),
     };
-  }, [state.statLevels, state.archiveDeck.length, state.hand.length]);
+  }, [state.statLevels, state.archiveDeck.length, state.hand.length, state.prestige, state.citations]);
 
   return {
     state,
@@ -1060,6 +1175,8 @@ export function useGameState(setup) {
     dismissPublishResult,
     dismissStageAdvancement,
     upgradeStat,
+    attendConference,
+    conferenceKeep,
     reset,
     derived,
   };

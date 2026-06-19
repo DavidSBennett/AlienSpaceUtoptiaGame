@@ -1,6 +1,6 @@
 import CornerOrnament from './CornerOrnament.jsx';
 import FleuronDivider from './FleuronDivider.jsx';
-import { STAT_TABLES } from '../hooks/useGameState.js';
+import { STAT_TABLES, CONFERENCE_FRESH } from '../hooks/useGameState.js';
 
 /**
  * UpgradeChooserDialog — appears after a successful publication.
@@ -68,23 +68,21 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade }) {
     {
       key: 'reputation',
       title: 'Reputation',
-      lead: 'Lowers the evidence required to publish articles and books.',
+      lead: 'Powers the "Attend a Conference" action: a bigger pool to draft from and more citation tokens earned.',
+      // The values array holds the citation grant per level (1/2/3/6); the
+      // fresh-card pool bonus comes from CONFERENCE_FRESH.
       values: STAT_TABLES.reputation,
-      // Level-aware label — the underlying values aren't meaningful on their
-      // own, so we describe what each level lets you do.
-      // L1: article ≥ 3, book ≥ 6 (baseline)
-      // L2: article ≥ 2, book ≥ 6
-      // L3: article ≥ 2, book ≥ 5
-      // L4: article ≥ 1, book ≥ 3
       unit: (v, level) => {
-        const thresholds = {
-          1: 'Article ≥ 3 · Book ≥ 6',
-          2: 'Article ≥ 2 · Book ≥ 6',
-          3: 'Article ≥ 2 · Book ≥ 5',
-          4: 'Article ≥ 1 · Book ≥ 3',
-        };
-        return thresholds[level] || thresholds[1];
+        const fresh = CONFERENCE_FRESH[level - 1];
+        return `+${fresh} fresh cards · ${v} citation${v === 1 ? '' : 's'}`;
       },
+    },
+    {
+      key: 'renown',
+      title: 'Renown',
+      lead: 'How much each banked citation token is worth in prestige when you retire.',
+      values: STAT_TABLES.renown,
+      unit: (v) => `Each citation = +${v} prestige`,
     },
   ];
 
@@ -130,8 +128,7 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade }) {
 
           <FleuronDivider className="my-6" />
 
-          {/* The stat options — 5 total, in a 2-column grid. With 5 items
-              the last sits alone on its own row. */}
+          {/* The stat options — 6 total, in a 2-column grid (3 rows). */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {stats.map((stat) => (
               <StatOption

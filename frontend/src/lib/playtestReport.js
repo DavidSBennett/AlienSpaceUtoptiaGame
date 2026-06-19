@@ -82,7 +82,7 @@ export function buildSoloReport({ state, deck }) {
     prestige: Number(state?.prestige ?? 0),
     articles_published: Number(state?.articlesPublished ?? 0),
     books_published: Number(state?.booksPublished ?? 0),
-    citations_received: null, // MP-only mechanic
+    citations_received: Number(state?.citations ?? 0), // solo: earned at conferences
     stage: state?.stage ?? null,
     stage_label: stageLabel(state?.stage),
     game_over_reason: reason,

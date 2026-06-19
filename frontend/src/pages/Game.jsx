@@ -17,6 +17,7 @@ import ProjectRow from '../components/ProjectRow.jsx';
 import PublishResultDialog from '../components/PublishResultDialog.jsx';
 import StageAdvancementToast from '../components/StageAdvancementToast.jsx';
 import UpgradeChooserDialog from '../components/UpgradeChooserDialog.jsx';
+import SoloConferenceModal from '../components/SoloConferenceModal.jsx';
 import Leaderboard from '../components/Leaderboard.jsx';
 import TagsToggle from '../components/TagsToggle.jsx';
 import SignificanceToggle from '../components/SignificanceToggle.jsx';
@@ -25,7 +26,14 @@ import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { exportPublicationsToPDF } from '../lib/publicationsPDF.js';
 import { buildSoloReport, openPlaytestReport } from '../lib/playtestReport.js';
-import { useGameState, TOTAL_YEARS, STAT_TABLES, reputationThresholds } from '../hooks/useGameState.js';
+import {
+  useGameState,
+  TOTAL_YEARS,
+  STAT_TABLES,
+  CONFERENCE_FRESH,
+  conferenceCitations,
+  renownMultiplier,
+} from '../hooks/useGameState.js';
 import { buildTagToConclusionMap } from '../lib/tags.js';
 
 /**
@@ -119,6 +127,8 @@ function GameBoard({ playerName, deck, allCards }) {
     dismissPublishResult,
     dismissStageAdvancement,
     upgradeStat,
+    attendConference,
+    conferenceKeep,
     derived,
   } = useGameState({
     playerName,
@@ -386,6 +396,17 @@ function GameBoard({ playerName, deck, allCards }) {
             {state.prestige}
           </span>
 
+          {state.citations > 0 && (
+            <span
+              className="font-mono text-cream-200 flex-shrink-0 cursor-help"
+              title={`${state.citations} citation token${state.citations === 1 ? '' : 's'} from conferences — worth +${derived.renownMultiplier} each (×${derived.renownMultiplier} renown) at game end.\nProjected final prestige: ${derived.projectedPrestige}`}
+            >
+              <span className="text-gold-400 mr-2">Citations</span>
+              {state.citations}
+              <span className="text-cream-200/60"> → +{state.citations * derived.renownMultiplier}</span>
+            </span>
+          )}
+
           {/* Compact stat strip — current levels visible at a glance.
               Players watch these grow as they publish. */}
           <StatStrip statLevels={state.statLevels} />
@@ -438,6 +459,7 @@ function GameBoard({ playerName, deck, allCards }) {
               showTags={state.showTags} showSignificance={state.showSignificance}
               onCardClick={(card) => setOpenCard({ card, source: 'project' })}
               onPublish={publishArgument}
+              onAttendConference={attendConference}
               onReturnToHand={removeFromProject}
               articleMin={derived.articleMin}
               freePublishing={state.statLevels.workspaces >= 4}
@@ -563,6 +585,18 @@ function GameBoard({ playerName, deck, allCards }) {
           <UpgradeChooserDialog
             statLevels={state.statLevels}
             onUpgrade={upgradeStat}
+          />
+        )}
+
+        {/* Attend-a-Conference draft — pick which fresh cards to bring home. */}
+        {state.conference && !state.gameOver && (
+          <SoloConferenceModal
+            conference={state.conference}
+            capacity={derived.capacity}
+            handCount={state.hand.length}
+            showTags={state.showTags}
+            showSignificance={state.showSignificance}
+            onConfirm={conferenceKeep}
           />
         )}
 
@@ -1036,6 +1070,7 @@ function GameOverOverlay({ state, deck }) {
       influence_level: state.statLevels.influence,
       workspaces_level: state.statLevels.workspaces,
       reputation_level: state.statLevels.reputation || 1,
+      renown_level: state.statLevels.renown || 1,
       year_ended: year,
     };
 
@@ -1082,6 +1117,16 @@ function GameOverOverlay({ state, deck }) {
           <p className="font-mono text-[10px] uppercase tracking-widest text-ink-700 mt-2">
             Final Prestige
           </p>
+
+          {state.citations > 0 && (() => {
+            const mult = renownMultiplier(state.statLevels.renown || 1);
+            const bonus = state.citations * mult;
+            return (
+              <p className="font-mono text-[10px] uppercase tracking-widest text-gold-700 mt-2">
+                includes +{bonus} from {state.citations} citation{state.citations === 1 ? '' : 's'} × {mult} renown
+              </p>
+            );
+          })()}
 
           <p className="font-serif italic text-ink-700 text-sm mt-3">
             {ending.standing}
@@ -1272,8 +1317,16 @@ function StatStrip({ statLevels }) {
     {
       key: 'reputation',       abbr: 'P', label: 'Reputation',
       describe: (lvl) => {
-        const t = reputationThresholds(lvl);
-        return `Articles ≥ ${t.articleMin} · Books ≥ ${t.bookMin}`;
+        const fresh = CONFERENCE_FRESH[lvl - 1];
+        const cites = conferenceCitations(lvl);
+        return `Conference: +${fresh} fresh cards to draft · earn ${cites} citation${cites === 1 ? '' : 's'}`;
+      },
+    },
+    {
+      key: 'renown',           abbr: 'F', label: 'Renown',
+      describe: (lvl) => {
+        const m = renownMultiplier(lvl);
+        return `Each banked citation is worth +${m} prestige at game end`;
       },
     },
   ];
