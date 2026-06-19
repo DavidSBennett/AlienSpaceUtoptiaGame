@@ -25,6 +25,7 @@ import VerifyEmailPage from './pages/VerifyEmailPage.jsx';
 import AccountPage from './pages/AccountPage.jsx';
 import AdminInvitesPage from './pages/AdminInvitesPage.jsx';
 import AdminDecksPage from './pages/AdminDecksPage.jsx';
+import AdminGamesPage from './pages/AdminGamesPage.jsx';
 import RequireAuth from './auth/RequireAuth.jsx';
 
 import DesktopOnlyGate from './components/DesktopOnlyGate.jsx';
@@ -90,6 +91,9 @@ export default function App() {
       } />
       <Route path="/admin/decks" element={
         <RequireAuth admin><AdminDecksPage /></RequireAuth>
+      } />
+      <Route path="/admin/games" element={
+        <RequireAuth admin><AdminGamesPage /></RequireAuth>
       } />
       <Route path="/admin/playtest" element={
         <RequireAuth admin><AdminPlaytestPage /></RequireAuth>

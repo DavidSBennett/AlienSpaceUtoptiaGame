@@ -362,6 +362,14 @@ function GameBoard({ playerName, deck, allCards }) {
                 <TagsToggle showTags={state.showTags} onToggle={toggleTags} />
                 <SignificanceToggle showSignificance={state.showSignificance} onToggle={toggleSignificance} />
 
+                <Link
+                  to="/"
+                  className="font-mono text-xs uppercase tracking-wider text-cream-200 hover:text-gold-300 transition-colors"
+                  title="Leave this game and return to the main lobby"
+                >
+                  ⌂ Lobby
+                </Link>
+
                 <button
                   type="button"
                   onClick={() => setGuideOpen(true)}

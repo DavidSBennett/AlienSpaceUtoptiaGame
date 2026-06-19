@@ -217,6 +217,22 @@ export async function adminWipeMultiplayer() {
   } catch (err) { throw normalizeError(err); }
 }
 
+/**
+ * Admin: purge multiplayer games older than `olderThanDays` (by last activity).
+ * Pass dryRun=true to get the matched count without deleting anything.
+ * @param {{ olderThanDays: number, dryRun?: boolean }} args
+ * @returns {Promise<{ ok, dry_run, older_than_days, cutoff, matched, purged }>}
+ */
+export async function adminPurgeOldGames({ olderThanDays, dryRun = false }) {
+  try {
+    const res = await api.post('/admin_purgeGames.php', {
+      older_than_days: olderThanDays,
+      dry_run: !!dryRun,
+    });
+    return res.data;
+  } catch (err) { throw normalizeError(err); }
+}
+
 
 // ─── Admin: deck management ─────────────────────────────────────────
 

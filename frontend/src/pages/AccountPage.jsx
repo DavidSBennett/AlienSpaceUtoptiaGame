@@ -173,9 +173,14 @@ export default function AccountPage() {
             <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-400 mb-2">
               Administration
             </div>
-            <Link to="/admin/invites" className="btn-ghost inline-block">
-              Manage invite codes
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link to="/admin/invites" className="btn-ghost inline-block">
+                Manage invite codes
+              </Link>
+              <Link to="/admin/games" className="btn-ghost inline-block">
+                Purge old games
+              </Link>
+            </div>
           </section>
         )}
 
