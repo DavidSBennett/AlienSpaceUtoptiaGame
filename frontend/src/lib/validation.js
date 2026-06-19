@@ -99,8 +99,9 @@ export function validateArgument(conclusion, evidence, minEvidence = 2) {
  * Compute the prestige award for a successful publish.
  *
  *   prestige = (evidence_count + total_bonus + influence) × 2 IF a "shared
- *   context tag" exists across all evidence cards (location, author, date,
- *   source_type, or citation). Otherwise no doubling.
+ *   context" exists across all evidence cards — either the same value for
+ *   location, author, date, source_type, or citation, OR at least one common
+ *   context tag (the pipe-separated context_tags field). Otherwise no doubling.
  *
  * The doubling is a separate check from the tag-intersection check above:
  * the argument can be valid (shared argument tag) without sharing context.
@@ -116,6 +117,51 @@ export function validateArgument(conclusion, evidence, minEvidence = 2) {
  *   total: number,
  * }}
  */
+// Single-value context fields — all evidence must share the same non-empty
+// value for the publication to double on that dimension.
+const CONTEXT_FIELDS = ['location', 'author', 'date', 'source_type', 'citation'];
+
+/**
+ * Find the context dimension that all evidence cards share (which triggers the
+ * prestige "doubling"), or null if none.
+ *
+ * Two kinds of dimension:
+ *   - single-value fields (location, author, date, source_type, citation):
+ *     every card has the SAME non-empty value.
+ *   - context_tags: a PIPE-separated list per card (like the title pools);
+ *     every card shares at least one common tag.
+ *
+ * @param {Object[]} evidence
+ * @returns {string|null}  the matched field name, 'context tags', or null
+ */
+export function findSharedContext(evidence) {
+  const list = Array.isArray(evidence) ? evidence : [];
+  if (list.length === 0) return null;
+
+  for (const field of CONTEXT_FIELDS) {
+    const first = (list[0]?.[field] ?? '').toString().trim();
+    if (!first) continue;
+    if (list.every((c) => (c?.[field] ?? '').toString().trim() === first)) {
+      return field;
+    }
+  }
+
+  // context_tags: doubled when every card shares at least one common tag.
+  const parse = (c) =>
+    String(c?.context_tags ?? '')
+      .split('|')
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+  let inter = parse(list[0]);
+  for (let i = 1; i < list.length && inter.length > 0; i++) {
+    const s = new Set(parse(list[i]));
+    inter = inter.filter((t) => s.has(t));
+  }
+  if (inter.length > 0) return 'context tags';
+
+  return null;
+}
+
 export function computePrestige(evidence, conclusion, influenceBonus = 0) {
   const evidenceList = Array.isArray(evidence) ? evidence : [];
 
@@ -129,25 +175,7 @@ export function computePrestige(evidence, conclusion, influenceBonus = 0) {
 
   const base = evidenceList.length + totalBonus + conclusionBonus + (influenceBonus || 0);
 
-  const contextFields = ['location', 'author', 'date', 'source_type', 'citation'];
-
-  let contextField = null;
-  for (const field of contextFields) {
-    if (evidenceList.length === 0) break;
-    const firstValue = (evidenceList[0]?.[field] ?? '').toString().trim();
-    if (!firstValue) continue;
-
-    const allMatch = evidenceList.every((c) => {
-      const v = (c?.[field] ?? '').toString().trim();
-      return v === firstValue;
-    });
-
-    if (allMatch) {
-      contextField = field;
-      break;
-    }
-  }
-
+  const contextField = findSharedContext(evidenceList);
   const doubled = contextField !== null;
   const total = doubled ? base * 2 : base;
 
@@ -216,17 +244,8 @@ export function computePrestigeMpPreview(evidence, citations, influenceLvl, conc
   const lvl = Math.max(1, Math.min(4, Number(influenceLvl) || 1));
   const influenceBonus = INF_TABLE[lvl - 1] * realCount;
 
-  // Doubling check — REAL evidence only.
-  const contextFields = ['location', 'author', 'date', 'source_type', 'citation'];
-  let contextField = null;
-  if (realCount > 0) {
-    for (const field of contextFields) {
-      const first = (evList[0]?.[field] ?? '').toString().trim();
-      if (!first) continue;
-      const all = evList.every((c) => (c?.[field] ?? '').toString().trim() === first);
-      if (all) { contextField = field; break; }
-    }
-  }
+  // Doubling check — REAL evidence only (citations excluded).
+  const contextField = findSharedContext(evList);
   const doubled = contextField !== null;
 
   // Base (real evidence + bonuses + per-card influence) doubles if context

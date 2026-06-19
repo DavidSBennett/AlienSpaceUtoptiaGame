@@ -1651,7 +1651,7 @@ function mp_apply_approval($mysqli, $gameId, $sid, $writerPid, $kind, $evIds, $c
   if (count($evIds) > 0) {
     $placeholders = implode(',', array_fill(0, count($evIds), '?'));
     $types = str_repeat('i', count($evIds));
-    $sql = "SELECT idCard, title, content, location, author, date, source_type, citation, bonus
+    $sql = "SELECT idCard, title, content, location, author, date, source_type, citation, bonus, context_tags
             FROM Cards WHERE idCard IN ($placeholders)";
     $stmt = $mysqli->prepare($sql);
     $stmt->bind_param($types, ...$evIds);
@@ -2392,6 +2392,31 @@ function mp_compute_prestige($evidenceCards, $influenceBonus, $citedEvidenceCoun
         $contextField = $f;
         break;
       }
+    }
+  }
+
+  // Multi-valued context_tags (pipe-separated, like the title pools): also
+  // doubles when every REAL evidence card shares at least one common tag.
+  if (!$doubled && $evCount > 0) {
+    $parseTags = function ($c) {
+      $raw = isset($c['context_tags']) ? (string) $c['context_tags'] : '';
+      $out = [];
+      foreach (explode('|', $raw) as $t) {
+        $t = strtolower(trim($t));
+        if ($t !== '') $out[$t] = true;
+      }
+      return $out;
+    };
+    $inter = $parseTags($evidenceCards[0]);
+    for ($i = 1; $i < $evCount && count($inter) > 0; $i++) {
+      $s = $parseTags($evidenceCards[$i]);
+      foreach (array_keys($inter) as $t) {
+        if (!isset($s[$t])) unset($inter[$t]);
+      }
+    }
+    if (count($inter) > 0) {
+      $doubled = true;
+      $contextField = 'context tags';
     }
   }
 

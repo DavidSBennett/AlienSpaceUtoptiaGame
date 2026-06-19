@@ -16,6 +16,7 @@
  *   F significance     G author   H location     I argument    J sub_argument
  *   K bonus            L citation M image_url     N contributor O type
  *   P description      Q article_titles          R book_titles
+ *   S context_tags    (pipe-separated, like the title pools)
  *
  * Response 200: { idDeck, card_count, nameDeck }
  */
@@ -82,8 +83,8 @@ try {
 $insert = "INSERT INTO Cards
   (idDeck, sequence_number, title, source_type, content, date, author, location,
    significance, image_url, argument, sub_argument, citation, type, bonus,
-   contributor, description, article_titles, book_titles)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+   contributor, description, article_titles, book_titles, context_tags)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
 $SQL->beginTransaction();
 $SQL->query($insert);
@@ -100,7 +101,7 @@ foreach ($sheetData as $row) {
     $row['B'] ?? null, $row['G'] ?? null, $row['H'] ?? null, $row['F'] ?? null,
     $row['M'] ?? null, $row['I'] ?? null, $row['J'] ?? null, $row['L'] ?? null,
     $row['O'] ?? null, $row['K'] ?? null, $row['N'] ?? null, $row['P'] ?? null,
-    $row['Q'] ?? null, $row['R'] ?? null,
+    $row['Q'] ?? null, $row['R'] ?? null, $row['S'] ?? null,
   ]);
   $count++;
 }

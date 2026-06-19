@@ -1261,5 +1261,7 @@ function mp_card_for_you($card) {
     'description'     => $card['description'] ?? '',
     'article_titles'  => $card['article_titles'] ?? '',
     'book_titles'     => $card['book_titles'] ?? '',
+    // Pipe-separated context tags — feeds the prestige doubling check.
+    'context_tags'    => $card['context_tags'] ?? '',
   ];
 }
