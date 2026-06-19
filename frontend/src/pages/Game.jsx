@@ -471,6 +471,7 @@ function GameBoard({ playerName, deck, allCards }) {
                 onPublish={publishArgument}
                 onAttendConference={attendConference}
                 onReturnToHand={removeFromProject}
+                useSpines
                 articleMin={derived.articleMin}
                 freePublishing={state.statLevels.workspaces >= 4}
               />
