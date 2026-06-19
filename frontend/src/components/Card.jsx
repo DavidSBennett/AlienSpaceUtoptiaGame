@@ -480,16 +480,41 @@ export function CardModal({
             {card.title}
           </h2>
 
-          <div className="font-serif italic text-ink-900 text-base mt-3 mb-1">
-            {card.author && <span>{card.author}</span>}
-            {card.author && card.date && <span className="mx-2 text-gold-700">·</span>}
-            {card.date && <span>{card.date}</span>}
-            {card.location && (
-              <>
-                <span className="mx-2 text-gold-700">·</span>
-                <span>{card.location}</span>
-              </>
-            )}
+          <div className="mt-3 mb-1 flex items-start justify-between gap-3">
+            <div className="font-serif italic text-ink-900 text-base min-w-0">
+              {card.author && <span>{card.author}</span>}
+              {card.author && card.date && <span className="mx-2 text-gold-700">·</span>}
+              {card.date && <span>{card.date}</span>}
+              {card.location && (
+                <>
+                  <span className="mx-2 text-gold-700">·</span>
+                  <span>{card.location}</span>
+                </>
+              )}
+            </div>
+
+            {/* Context tags — right-aligned across from the author. These feed
+                the prestige "doubling" check (evidence sharing a common tag). */}
+            {(() => {
+              const contextTags = String(card.context_tags ?? '')
+                .split('|').map((t) => t.trim()).filter(Boolean);
+              if (contextTags.length === 0) return null;
+              return (
+                <div
+                  className="flex flex-wrap justify-end gap-1 shrink-0 max-w-[50%]"
+                  title="Context tags — evidence sharing a tag doubles a publication's prestige"
+                >
+                  {contextTags.map((t) => (
+                    <span
+                      key={t}
+                      className="font-mono text-[10px] uppercase tracking-wider px-1.5 py-0.5 border border-verdigris-500/60 text-verdigris-700 bg-verdigris-500/5"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Tag chips (only when Show Tags is unlocked). Sits in its own
