@@ -164,26 +164,16 @@ export default function ProjectRow({
             <DroppableSlot
               id={`drop-conclusion-${project.id}`}
               data={{ to: { kind: 'projectConclusion', projectId: project.id } }}
-              className={useSpines ? "w-9 flex items-center justify-center" : "w-32 flex items-center justify-center"}
-              style={{ height: useSpines ? '11rem' : '7rem' }}
+              className="w-32 flex items-center justify-center"
+              style={{ height: '7rem' }}
             >
-              {useSpines ? (
-                <p
-                  className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-100 text-center"
-                  style={{
-                    writingMode: 'vertical-rl',
-                    transform: 'rotate(180deg)',
-                  }}
-                >
-                  Conclusion
-                </p>
-              ) : (
-                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-100 text-center">
-                  Conclusion
-                  <br />
-                  tile
-                </p>
-              )}
+              {/* The accepting slot keeps the boxy look even in spine mode —
+                  only the PLACED card turns into a spine. */}
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-100 text-center">
+                Conclusion
+                <br />
+                tile
+              </p>
             </DroppableSlot>
           )}
         </div>
@@ -267,28 +257,16 @@ export default function ProjectRow({
             <DroppableSlot
               id={`drop-evidence-${project.id}`}
               data={{ to: { kind: 'projectEvidence', projectId: project.id } }}
-              className={useSpines
-                ? "w-7 flex items-center justify-center flex-shrink-0"
-                : "w-40 flex items-center justify-center flex-shrink-0"}
-              style={{ height: useSpines ? '11rem' : '8rem' }}
+              className="w-40 flex items-center justify-center flex-shrink-0"
+              style={{ height: '8rem' }}
             >
-              {useSpines ? (
-                <p
-                  className="font-mono text-[8px] uppercase tracking-[0.2em] text-cream-100 text-center"
-                  style={{
-                    writingMode: 'vertical-rl',
-                    transform: 'rotate(180deg)',
-                  }}
-                >
-                  + evidence
-                </p>
-              ) : (
-                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-100 text-center">
-                  Evidence
-                  <br />
-                  card
-                </p>
-              )}
+              {/* The accepting slot keeps the boxy look even in spine mode —
+                  only the PLACED card turns into a spine. */}
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-100 text-center">
+                Evidence
+                <br />
+                card
+              </p>
             </DroppableSlot>
 
           </div>
