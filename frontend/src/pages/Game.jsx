@@ -7,6 +7,8 @@ import {
   useSensor,
   useSensors,
   useDroppable,
+  pointerWithin,
+  rectIntersection,
 } from '@dnd-kit/core';
 
 import { fetchCards, submitScore } from '../api/client.js';
@@ -125,6 +127,7 @@ function GameBoard({ playerName, deck, allCards }) {
     toggleSignificance,
     moveCard,
     removeFromProject,
+    reorderHand,
     publishArgument,
     dismissPublishResult,
     dismissStageAdvancement,
@@ -264,6 +267,25 @@ function GameBoard({ playerName, deck, allCards }) {
   }
 
   /**
+   * Collision strategy. Default (rectIntersection) for everything, EXCEPT:
+   * when dragging a HAND card and the pointer is inside another hand card's
+   * reorder drop-zone, prefer that zone so reordering is precise (otherwise
+   * the big notebook container can win and the card just jumps to the end).
+   * Scoped to hand-originated drags so cross-zone behavior is untouched.
+   */
+  function collisionDetection(args) {
+    const activeFrom = args.active?.data?.current?.from?.kind;
+    if (activeFrom === 'hand') {
+      const within = pointerWithin(args);
+      const reorderHit = within.find(
+        (c) => c?.data?.droppableContainer?.data?.current?.to?.kind === 'handReorder'
+      );
+      if (reorderHit) return [reorderHit];
+    }
+    return rectIntersection(args);
+  }
+
+  /**
    * Drag end handler — fires when the user releases the mouse after a drag.
    * The active.data.current and over.data.current carry the `from`/`to`
    * descriptors we set on the DraggableCard / DroppableSlot.
@@ -281,6 +303,18 @@ function GameBoard({ playerName, deck, allCards }) {
     const from = fromData.from;
     const to = toData.to;
     if (!cardId || !from || !to) return;
+
+    // Dropped onto another hand card's reorder zone.
+    if (to.kind === 'handReorder') {
+      if (from.kind === 'hand') {
+        // Reorder within the hand: place this card before the target.
+        if (cardId !== to.cardId) reorderHand(cardId, to.cardId);
+      } else {
+        // A project/shelf card dropped over the hand → return it to the hand.
+        moveCard(cardId, from, { kind: 'hand' });
+      }
+      return;
+    }
 
     moveCard(cardId, from, to);
   }
@@ -309,6 +343,7 @@ function GameBoard({ playerName, deck, allCards }) {
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
@@ -685,6 +720,30 @@ function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showS
 
 
 /**
+ * HandSlot — a drop target wrapping one hand card, enabling drag-to-reorder
+ * within the Research Notebook. Dropping a hand card onto another card's slot
+ * places it just before that card (handled in handleDragEnd). Highlights while
+ * a card hovers over it.
+ */
+function HandSlot({ index, cardId, children }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `handslot-${cardId}`,
+    data: { to: { kind: 'handReorder', index, cardId } },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-shrink-0 rounded-sm transition-shadow ${
+        isOver ? 'ring-2 ring-gold-400 ring-offset-2 ring-offset-wood-900' : ''
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
+
+/**
  * NotebookArea — bottom bar containing the deck stack + Draw button on the
  * left, and the player's hand (evidence cards) on the right.
  *
@@ -781,23 +840,24 @@ function NotebookArea({
                 Empty. Draw cards from the archive to begin researching.
               </p>
             ) : (
-              hand.map((card) => (
-                <DraggableCard
-                  key={`hand-${card.id}`}
-                  id={`hand-${card.id}`}
-                  data={{ cardId: card.id, from: { kind: 'hand' } }}
-                >
-                  {({ dragHandleProps, isDragging }) => (
-                    <div {...dragHandleProps} className="flex-shrink-0">
-                      <CardThumbnail
-                        card={card}
-                        onClick={() => onCardClick?.(card)}
-                        showTags={showTags} showSignificance={showSignificance}
-                        isDragging={isDragging}
-                      />
-                    </div>
-                  )}
-                </DraggableCard>
+              hand.map((card, i) => (
+                <HandSlot key={`hand-${card.id}`} index={i} cardId={card.id}>
+                  <DraggableCard
+                    id={`hand-${card.id}`}
+                    data={{ cardId: card.id, from: { kind: 'hand' } }}
+                  >
+                    {({ dragHandleProps, isDragging }) => (
+                      <div {...dragHandleProps} className="flex-shrink-0">
+                        <CardThumbnail
+                          card={card}
+                          onClick={() => onCardClick?.(card)}
+                          showTags={showTags} showSignificance={showSignificance}
+                          isDragging={isDragging}
+                        />
+                      </div>
+                    )}
+                  </DraggableCard>
+                </HandSlot>
               ))
             )}
           </div>

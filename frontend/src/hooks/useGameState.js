@@ -513,6 +513,26 @@ function reducer(state, action) {
       return next;
     }
 
+    case 'REORDER_HAND': {
+      // Move a hand card to sit just before another hand card (drag-to-reorder
+      // within the Research Notebook). Free action — no year tick.
+      if (state.gameOver) return state;
+      const { cardId, beforeCardId } = action;
+      if (cardId === beforeCardId) return state;
+
+      const hand = state.hand.slice();
+      const fromIdx = hand.findIndex((c) => c.id === cardId);
+      if (fromIdx === -1) return state;
+      const [moved] = hand.splice(fromIdx, 1);
+
+      // Find the target's position AFTER removal so the index is correct.
+      let toIdx = hand.findIndex((c) => c.id === beforeCardId);
+      if (toIdx === -1) toIdx = hand.length;   // target gone → append
+      hand.splice(toIdx, 0, moved);
+
+      return { ...state, hand };
+    }
+
     // ---- Publishing ----
 
     case 'PUBLISH_ARGUMENT': {
@@ -1106,6 +1126,10 @@ export function useGameState(setup) {
     (cardId, from) => dispatch({ type: 'REMOVE_FROM_PROJECT', cardId, from }),
     []
   );
+  const reorderHand = useCallback(
+    (cardId, beforeCardId) => dispatch({ type: 'REORDER_HAND', cardId, beforeCardId }),
+    []
+  );
   const publishArgument = useCallback(
     (projectId) => dispatch({ type: 'PUBLISH_ARGUMENT', projectId }),
     []
@@ -1171,6 +1195,7 @@ export function useGameState(setup) {
     toggleSignificance,
     moveCard,
     removeFromProject,
+    reorderHand,
     publishArgument,
     dismissPublishResult,
     dismissStageAdvancement,
