@@ -211,12 +211,18 @@ export function ConclusionSpine({
       <div className="absolute inset-1 border border-verdigris-500/30 pointer-events-none" />
 
       {thin ? (
-        // Thin sidebar tile: title on the left, prestige value on the right
-        // (unless hidePrestige — the caller renders it outside the tile).
+        // Thin sidebar tile: title on the left, then (when tags are visible)
+        // the tag chips, then the prestige value on the right — all on the
+        // tile itself. (Prestige omitted when hidePrestige — caller renders it.)
         <div className="flex items-center gap-2 w-full">
           <h3 className="flex-1 min-w-0 font-display text-xs leading-tight font-bold text-ink-900 line-clamp-1">
             {card.title}
           </h3>
+          {showTags && (
+            <div className="shrink-0">
+              <TagChips card={card} surface="paper" size="sm" />
+            </div>
+          )}
           {!hidePrestige && (
             <span
               className="shrink-0 font-mono text-[11px] font-bold text-verdigris-700 tabular-nums"
