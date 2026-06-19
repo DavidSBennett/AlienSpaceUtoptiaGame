@@ -451,14 +451,14 @@ function GameBoard({ playerName, deck, allCards }) {
         {/* ═══════════════════════════════════════════════════
             4. PLAY AREA — conclusions (skinny left rail) + project rows
             ═══════════════════════════════════════════════════ */}
-        <div className="flex flex-1 min-h-0">
+        <div className="flex-1 flex gap-4 p-4 min-h-0">
           <ConclusionSidebar
             conclusionShelf={state.conclusionShelf}
             onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
             showTags={state.showTags} showSignificance={state.showSignificance}
           />
 
-          <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col gap-4 p-6 min-w-0">
+          <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
             {state.projects.map((project, i) => (
               <ProjectRow
                 key={project.id}
@@ -628,10 +628,10 @@ function GameBoard({ playerName, deck, allCards }) {
  * to the hand from wherever it came (a project).
  */
 /**
- * ConclusionSidebar — a skinny vertical rail of conclusion spines on the LEFT
- * of the project workspace. Each conclusion is as thin as possible, with its
- * prestige value sitting OUTSIDE the tile (on the rail's outer edge). Spines
- * stay draggable into a project's conclusion slot.
+ * ConclusionSidebar — conclusions stacked in one thin vertical column on the
+ * LEFT of the project rows, under a single decorated "Conclusions" header.
+ * Mirrors the multiplayer sidebar: each tile is a thin spine showing its
+ * prestige value on the right, and stays draggable into a conclusion slot.
  *
  * Hidden entirely when no conclusions are available (early game).
  */
@@ -641,44 +641,35 @@ function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showS
   }
 
   return (
-    <aside className="surface-binding border-r border-edge-on-dark px-3 py-4 flex flex-col gap-1.5 overflow-y-auto flex-shrink-0">
-      <h2 className="font-display text-sm text-gold-300 text-center tracking-wide">
-        ❧ Conclusions ❧
-      </h2>
-      <FleuronDivider className="mb-1" />
+    <aside className="shrink-0 flex flex-col overflow-y-auto">
+      {/* Fancy header */}
+      <div className="text-center">
+        <span className="font-display text-sm uppercase tracking-[0.3em] text-gold-300">
+          ❧ Conclusions ❧
+        </span>
+        <FleuronDivider className="my-1" />
+      </div>
 
-      {conclusionShelf.map((card) => {
-        const bonus = Number(card?.bonus);
-        const prestige = Number.isFinite(bonus) ? bonus : 0;
-        return (
-          <div key={`shelf-${card.id}`} className="flex items-center gap-1.5">
-            {/* Prestige value OUTSIDE the tile, on the rail's outer (left) edge. */}
-            <span
-              className="w-5 shrink-0 text-right font-mono text-[11px] font-bold text-gold-300 tabular-nums"
-              title="Conclusion prestige value"
-            >
-              +{prestige}
-            </span>
-            <DraggableCard
-              id={`shelf-${card.id}`}
-              data={{ cardId: card.id, from: { kind: 'conclusionShelf' } }}
-            >
-              {({ dragHandleProps, isDragging }) => (
-                <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
-                  <ConclusionSpine
-                    card={card}
-                    onClick={() => onConclusionClick?.(card)}
-                    showTags={showTags} showSignificance={showSignificance}
-                    thin
-                    hidePrestige
-                    widthClass="w-44"
-                  />
-                </div>
-              )}
-            </DraggableCard>
-          </div>
-        );
-      })}
+      <div className="flex flex-col gap-1.5">
+        {conclusionShelf.map((card) => (
+          <DraggableCard
+            key={`shelf-${card.id}`}
+            id={`shelf-${card.id}`}
+            data={{ cardId: card.id, from: { kind: 'conclusionShelf' } }}
+          >
+            {({ dragHandleProps, isDragging }) => (
+              <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
+                <ConclusionSpine
+                  thin
+                  card={card}
+                  onClick={() => onConclusionClick?.(card)}
+                  showTags={showTags} showSignificance={showSignificance}
+                />
+              </div>
+            )}
+          </DraggableCard>
+        ))}
+      </div>
     </aside>
   );
 }
