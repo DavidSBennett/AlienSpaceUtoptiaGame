@@ -6,6 +6,9 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
+  pointerWithin,
+  rectIntersection,
 } from '@dnd-kit/core';
 
 import { useMultiplayerGame } from '../hooks/useMultiplayerGame.js';
@@ -153,6 +156,12 @@ export default function MultiplayerGame() {
   // floating preview that follows the cursor. Without this, drags happen
   // silently (the source card just turns translucent in place).
   const [activeDragId, setActiveDragId] = useState(null);
+
+  // Client-side hand ordering — a preferred order of card ids the player set by
+  // drag-to-reorder. The server hand is re-polled constantly and has no order
+  // of its own, so we re-apply this locally each render (new draws append,
+  // played cards drop out). Never sent to the server — purely cosmetic.
+  const [handOrder, setHandOrder] = useState([]);
 
   // Action history drawer
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -306,6 +315,24 @@ export default function MultiplayerGame() {
     return null;
   }, [activeDragId, state, conclusionShelf]);
 
+  // The hand, reordered by the player's local preference. Cards in handOrder
+  // come first (in that order); any new cards the server added (draws) follow
+  // in server order. Stale ids in handOrder are simply ignored.
+  const orderedHand = useMemo(() => {
+    const hand = state?.you?.hand || [];
+    const byId = new Map(hand.map((c) => [c.id, c]));
+    const seen = new Set();
+    const out = [];
+    for (const id of handOrder) {
+      const c = byId.get(id);
+      if (c && !seen.has(id)) { out.push(c); seen.add(id); }
+    }
+    for (const c of hand) {
+      if (!seen.has(c.id)) { out.push(c); seen.add(c.id); }
+    }
+    return out;
+  }, [state?.you?.hand, handOrder]);
+
   if (!playerToken) return null;
   if (isLoading) {
     return <main className="min-h-screen flex items-center justify-center"><p className="font-serif italic text-cream-200/70">Loading the archive…</p></main>;
@@ -372,6 +399,34 @@ export default function MultiplayerGame() {
     setActiveDragId(null);
   }
 
+  // Reorder within the hand (local-only): place cardId just before beforeCardId.
+  function reorderHand(cardId, beforeCardId) {
+    if (cardId === beforeCardId) return;
+    const ids = orderedHand.map((c) => c.id);
+    const fromIdx = ids.indexOf(cardId);
+    if (fromIdx === -1) return;
+    ids.splice(fromIdx, 1);
+    let toIdx = ids.indexOf(beforeCardId);
+    if (toIdx === -1) toIdx = ids.length;
+    ids.splice(toIdx, 0, cardId);
+    setHandOrder(ids);
+  }
+
+  // Collision strategy — default everywhere, except prefer an in-hand reorder
+  // zone when dragging a HAND card so reordering is precise. Scoped to
+  // hand-originated drags so all cross-zone behavior is untouched.
+  function collisionDetection(args) {
+    const activeFrom = args.active?.data?.current?.from?.kind;
+    if (activeFrom === 'hand') {
+      const within = pointerWithin(args);
+      const reorderHit = within.find(
+        (c) => c?.data?.droppableContainer?.data?.current?.to?.kind === 'handReorder'
+      );
+      if (reorderHit) return [reorderHit];
+    }
+    return rectIntersection(args);
+  }
+
   // Drag end — same shape as single-player. cardId comes from active.data, from/to from the data payloads.
   // Citation drops are a special case: when active.data.isCitation is true,
   // we route to mpAddCitation instead of moveCard.
@@ -394,6 +449,21 @@ export default function MultiplayerGame() {
     const from = fromData.from;
     const to = toData.to;
     if (!cardId || !from || !to) return;
+
+    // Dropped onto another hand card's reorder zone.
+    if (to.kind === 'handReorder') {
+      if (from.kind === 'hand') {
+        if (cardId !== to.cardId) reorderHand(cardId, to.cardId);
+      } else {
+        // A project/shelf card dropped over the hand → return it to the hand.
+        moveCard(cardId, from, { kind: 'hand' });
+      }
+      return;
+    }
+
+    // Hand → empty hand area: nothing to do (avoid a needless server move).
+    if (from.kind === 'hand' && to.kind === 'hand') return;
+
     moveCard(cardId, from, to);
   }
 
@@ -780,6 +850,7 @@ export default function MultiplayerGame() {
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
@@ -985,7 +1056,7 @@ export default function MultiplayerGame() {
 
         {/* ── 6. Notebook (deck stack on left, hand on right) ── */}
         <NotebookArea
-          hand={you.hand}
+          hand={orderedHand}
           capacity={capacity}
           showTags={effTags} showSignificance={effSignificance}
           onCardClick={(card) => setOpenCard({ card, source: 'hand' })}
@@ -1424,6 +1495,29 @@ function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificanc
 
 
 /**
+ * HandSlot — a drop target wrapping one hand card, enabling drag-to-reorder
+ * within the notebook (client-side only). Dropping a hand card onto another
+ * card's slot places it just before that card (handled in handleDragEnd).
+ */
+function HandSlot({ index, cardId, children }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `handslot-${cardId}`,
+    data: { to: { kind: 'handReorder', index, cardId } },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-sm transition-shadow ${
+        isOver ? 'ring-2 ring-gold-400 ring-offset-2 ring-offset-teal-950' : ''
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
+
+/**
  * NotebookArea — bottom bar containing the deck stack (DrawZone) on
  * the left, and the player's hand on the right. Pattern ported from
  * single-player NotebookArea so the two interfaces feel consistent.
@@ -1534,18 +1628,19 @@ function NotebookArea({
                     Notebook empty. Click the archive on the left to draw cards.
                   </p>
                 ) : (
-                  hand.map((card) => (
-                    <DraggableCard
-                      key={`hand-${card.id}`}
-                      id={`hand-${card.id}`}
-                      data={{ cardId: card.id, from: { kind: 'hand' } }}
-                    >
-                      {({ dragHandleProps, isDragging }) => (
-                        <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
-                          <CardThumbnail card={card} onClick={() => onCardClick(card)} showTags={showTags} showSignificance={showSignificance} />
-                        </div>
-                      )}
-                    </DraggableCard>
+                  hand.map((card, i) => (
+                    <HandSlot key={`hand-${card.id}`} index={i} cardId={card.id}>
+                      <DraggableCard
+                        id={`hand-${card.id}`}
+                        data={{ cardId: card.id, from: { kind: 'hand' } }}
+                      >
+                        {({ dragHandleProps, isDragging }) => (
+                          <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
+                            <CardThumbnail card={card} onClick={() => onCardClick(card)} showTags={showTags} showSignificance={showSignificance} />
+                          </div>
+                        )}
+                      </DraggableCard>
+                    </HandSlot>
                   ))
                 )}
               </div>
