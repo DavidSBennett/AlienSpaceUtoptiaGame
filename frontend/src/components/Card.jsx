@@ -177,7 +177,15 @@ export function CardThumbnail({ card, onClick, isDragging = false, showTags = fa
  * Same visual family as ConclusionTile (verdigris border + tint) so the
  * connection between the two reads at a glance.
  */
-export function ConclusionSpine({ card, onClick, showTags = false, showSignificance = false, thin = false }) {
+export function ConclusionSpine({
+  card,
+  onClick,
+  showTags = false,
+  showSignificance = false,
+  thin = false,
+  widthClass = 'w-64',
+  hidePrestige = false,
+}) {
   const bonus = Number(card?.bonus);
   const prestige = Number.isFinite(bonus) ? bonus : 0;
   return (
@@ -186,7 +194,7 @@ export function ConclusionSpine({ card, onClick, showTags = false, showSignifica
       onClick={onClick}
       className={`
         group relative
-        w-64 ${thin ? 'h-9 py-0.5' : 'h-14 py-1'} flex flex-col justify-center
+        ${widthClass} ${thin ? 'h-9 py-0.5' : 'h-14 py-1'} flex flex-col justify-center
         surface-paper
         border border-verdigris-500
         shadow-card hover:shadow-card-hover
@@ -203,17 +211,20 @@ export function ConclusionSpine({ card, onClick, showTags = false, showSignifica
       <div className="absolute inset-1 border border-verdigris-500/30 pointer-events-none" />
 
       {thin ? (
-        // Thin sidebar tile: title on the left, prestige value on the right.
+        // Thin sidebar tile: title on the left, prestige value on the right
+        // (unless hidePrestige — the caller renders it outside the tile).
         <div className="flex items-center gap-2 w-full">
           <h3 className="flex-1 min-w-0 font-display text-xs leading-tight font-bold text-ink-900 line-clamp-1">
             {card.title}
           </h3>
-          <span
-            className="shrink-0 font-mono text-[11px] font-bold text-verdigris-700 tabular-nums"
-            title="Conclusion prestige value"
-          >
-            +{prestige}
-          </span>
+          {!hidePrestige && (
+            <span
+              className="shrink-0 font-mono text-[11px] font-bold text-verdigris-700 tabular-nums"
+              title="Conclusion prestige value"
+            >
+              +{prestige}
+            </span>
+          )}
         </div>
       ) : (
         <>

@@ -22,6 +22,8 @@ import Leaderboard from '../components/Leaderboard.jsx';
 import TagsToggle from '../components/TagsToggle.jsx';
 import SignificanceToggle from '../components/SignificanceToggle.jsx';
 import Bookshelf from '../components/Bookshelf.jsx';
+import Tooltip from '../components/Tooltip.jsx';
+import FleuronDivider from '../components/FleuronDivider.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { exportPublicationsToPDF } from '../lib/publicationsPDF.js';
@@ -437,35 +439,44 @@ function GameBoard({ playerName, deck, allCards }) {
         </div>
 
         {/* ═══════════════════════════════════════════════════
-            3. CONCLUSION RAIL (top of play area)
+            3. PUBLICATION SHELF — moved above the play area so the
+               player's published work sits over the workspace.
             ═══════════════════════════════════════════════════ */}
-        <ConclusionRail
-          conclusionShelf={state.conclusionShelf}
-          onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
-          showTags={state.showTags} showSignificance={state.showSignificance}
+        <Bookshelf
+          publications={state.publications || []}
+          playerName={state.playerName}
+          deck={state.deck}
         />
 
         {/* ═══════════════════════════════════════════════════
-            4. PROJECT ROWS (workspace)
+            4. PLAY AREA — conclusions (skinny left rail) + project rows
             ═══════════════════════════════════════════════════ */}
-        <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col gap-4 p-6 min-w-0">
-          {state.projects.map((project, i) => (
-            <ProjectRow
-              key={project.id}
-              project={project}
-              locked={i >= derived.workspaces}
-              collapsed={collapsedProjects.has(project.id)}
-              onToggleCollapse={() => toggleProjectCollapse(project.id)}
-              showTags={state.showTags} showSignificance={state.showSignificance}
-              onCardClick={(card) => setOpenCard({ card, source: 'project' })}
-              onPublish={publishArgument}
-              onAttendConference={attendConference}
-              onReturnToHand={removeFromProject}
-              articleMin={derived.articleMin}
-              freePublishing={state.statLevels.workspaces >= 4}
-            />
-          ))}
-        </main>
+        <div className="flex flex-1 min-h-0">
+          <ConclusionSidebar
+            conclusionShelf={state.conclusionShelf}
+            onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
+            showTags={state.showTags} showSignificance={state.showSignificance}
+          />
+
+          <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col gap-4 p-6 min-w-0">
+            {state.projects.map((project, i) => (
+              <ProjectRow
+                key={project.id}
+                project={project}
+                locked={i >= derived.workspaces}
+                collapsed={collapsedProjects.has(project.id)}
+                onToggleCollapse={() => toggleProjectCollapse(project.id)}
+                showTags={state.showTags} showSignificance={state.showSignificance}
+                onCardClick={(card) => setOpenCard({ card, source: 'project' })}
+                onPublish={publishArgument}
+                onAttendConference={attendConference}
+                onReturnToHand={removeFromProject}
+                articleMin={derived.articleMin}
+                freePublishing={state.statLevels.workspaces >= 4}
+              />
+            ))}
+          </main>
+        </div>
 
         {/* ═══════════════════════════════════════════════════
             5. RESEARCH NOTEBOOK (drop target + draggable cards)
@@ -481,16 +492,6 @@ function GameBoard({ playerName, deck, allCards }) {
           drawCount={derived.drawCount}
           onDraw={drawCards}
           disabled={!!state.gameOver}
-        />
-
-        {/* ═══════════════════════════════════════════════════
-            7. BOOKSHELF (collapsible — Phase 10.8)
-                Player's published work appears here as spines.
-            ═══════════════════════════════════════════════════ */}
-        <Bookshelf
-          publications={state.publications || []}
-          playerName={state.playerName}
-          deck={state.deck}
         />
 
         {openCard && (() => {
@@ -627,25 +628,38 @@ function GameBoard({ playerName, deck, allCards }) {
  * to the hand from wherever it came (a project).
  */
 /**
- * ConclusionRail — horizontal rail of conclusion spines at the top of the
- * play area (Phase 10 layout). Wraps each spine in DraggableCard so they
- * can still be dragged into a project's conclusion slot, just like the
- * old vertical archive shelf.
+ * ConclusionSidebar — a skinny vertical rail of conclusion spines on the LEFT
+ * of the project workspace. Each conclusion is as thin as possible, with its
+ * prestige value sitting OUTSIDE the tile (on the rail's outer edge). Spines
+ * stay draggable into a project's conclusion slot.
  *
  * Hidden entirely when no conclusions are available (early game).
  */
-function ConclusionRail({ conclusionShelf, onConclusionClick, showTags, showSignificance }) {
+function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showSignificance }) {
   if (!conclusionShelf || conclusionShelf.length === 0) {
     return null;
   }
 
   return (
-    <section className="surface-binding border-b border-edge-on-dark px-8 py-3">
-      <div className="overflow-x-auto py-1">
-        <div className="flex gap-2 w-max mx-auto">
-          {conclusionShelf.map((card) => (
+    <aside className="surface-binding border-r border-edge-on-dark px-3 py-4 flex flex-col gap-1.5 overflow-y-auto flex-shrink-0">
+      <h2 className="font-display text-sm text-gold-300 text-center tracking-wide">
+        ❧ Conclusions ❧
+      </h2>
+      <FleuronDivider className="mb-1" />
+
+      {conclusionShelf.map((card) => {
+        const bonus = Number(card?.bonus);
+        const prestige = Number.isFinite(bonus) ? bonus : 0;
+        return (
+          <div key={`shelf-${card.id}`} className="flex items-center gap-1.5">
+            {/* Prestige value OUTSIDE the tile, on the rail's outer (left) edge. */}
+            <span
+              className="w-5 shrink-0 text-right font-mono text-[11px] font-bold text-gold-300 tabular-nums"
+              title="Conclusion prestige value"
+            >
+              +{prestige}
+            </span>
             <DraggableCard
-              key={`shelf-${card.id}`}
               id={`shelf-${card.id}`}
               data={{ cardId: card.id, from: { kind: 'conclusionShelf' } }}
             >
@@ -655,14 +669,17 @@ function ConclusionRail({ conclusionShelf, onConclusionClick, showTags, showSign
                     card={card}
                     onClick={() => onConclusionClick?.(card)}
                     showTags={showTags} showSignificance={showSignificance}
+                    thin
+                    hidePrestige
+                    widthClass="w-44"
                   />
                 </div>
               )}
             </DraggableCard>
-          ))}
-        </div>
-      </div>
-    </section>
+          </div>
+        );
+      })}
+    </aside>
   );
 }
 
@@ -1337,19 +1354,26 @@ function StatStrip({ statLevels }) {
         const level = statLevels[stat.key] || 1;
         const current = stat.describe(level);
         const next = level < 4 ? stat.describe(level + 1) : null;
-        const title = next
-          ? `${stat.label} (L${level})\n${current}\n→ L${level + 1}: ${next}`
-          : `${stat.label} (L${level}) — MAXED\n${current}`;
+
+        const content = (
+          <div className="text-left">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-gold-300">
+              {stat.label} · L{level}{level >= 4 ? ' · maxed' : ''}
+            </p>
+            <p className="text-cream-50 mt-1">{current}</p>
+            {next && (
+              <p className="text-cream-200/70 mt-1">→ L{level + 1}: {next}</p>
+            )}
+          </div>
+        );
 
         return (
-          <span
-            key={stat.key}
-            title={title}
-            className="flex items-center gap-1.5 font-mono text-cream-200 cursor-help"
-          >
-            <span className="text-gold-400 text-[11px]">{stat.abbr}</span>
-            <SmallPips level={level} />
-          </span>
+          <Tooltip key={stat.key} content={content} side="bottom" width="w-60">
+            <span className="flex items-center gap-1.5 font-mono text-cream-200 cursor-help">
+              <span className="text-gold-400 text-[11px]">{stat.abbr}</span>
+              <SmallPips level={level} />
+            </span>
+          </Tooltip>
         );
       })}
     </div>
