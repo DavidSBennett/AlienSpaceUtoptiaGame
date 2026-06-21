@@ -17,7 +17,8 @@ import { CardThumbnail, CardModal, ConclusionTile, ConclusionSpine } from '../co
 import DraggableCard from '../components/DraggableCard.jsx';
 import ProjectRow from '../components/ProjectRow.jsx';
 import PublishResultDialog from '../components/PublishResultDialog.jsx';
-import StageAdvancementToast from '../components/StageAdvancementToast.jsx';
+import NarrativeModal from '../components/NarrativeModal.jsx';
+import NarrativeToggle from '../components/NarrativeToggle.jsx';
 import UpgradeChooserDialog from '../components/UpgradeChooserDialog.jsx';
 import SoloConferenceModal from '../components/SoloConferenceModal.jsx';
 import Leaderboard from '../components/Leaderboard.jsx';
@@ -30,6 +31,8 @@ import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { exportPublicationsToPDF } from '../lib/publicationsPDF.js';
 import { buildSoloReport, openPlaytestReport } from '../lib/playtestReport.js';
+import { stageLabel } from '../lib/career.js';
+import { useNarrativeEnabled } from '../lib/narrativeSetting.js';
 import {
   useGameState,
   TOTAL_YEARS,
@@ -180,6 +183,7 @@ function GameBoard({ playerName, deck, allCards }) {
 
   // "How to Play" actions reference overlay.
   const [guideOpen, setGuideOpen] = useState(false);
+  const [narrativeOn, toggleNarrative] = useNarrativeEnabled();
 
   /**
    * Handle a "Place in Project N" click from inside the card modal.
@@ -396,6 +400,8 @@ function GameBoard({ playerName, deck, allCards }) {
               <div className="flex items-center gap-6 text-sm">
                 <TagsToggle showTags={state.showTags} onToggle={toggleTags} />
                 <SignificanceToggle showSignificance={state.showSignificance} onToggle={toggleSignificance} />
+
+                <NarrativeToggle enabled={narrativeOn} onToggle={toggleNarrative} />
 
                 <Link
                   to="/"
@@ -626,10 +632,12 @@ function GameBoard({ playerName, deck, allCards }) {
             lastPublishResult is null first. We also skip it when the
             game is over — the player can't benefit from upgrades after
             retirement or career failure. */}
-        {!state.lastPublishResult && state.pendingUpgrade && !state.gameOver && (
+        {!state.lastPublishResult && state.pendingUpgrades > 0 && !state.gameOver && (
           <UpgradeChooserDialog
             statLevels={state.statLevels}
             onUpgrade={upgradeStat}
+            reason={state.pendingUpgradeReasons?.[0] || 'biennial'}
+            stage={state.stage}
           />
         )}
 
@@ -645,10 +653,14 @@ function GameBoard({ playerName, deck, allCards }) {
           />
         )}
 
-        {state.lastStageAdvancement && (
-          <StageAdvancementToast
-            advancement={state.lastStageAdvancement}
-            onDismiss={dismissStageAdvancement}
+        {/* Career narrative beat on a promotion — shown unless the player
+            has turned story prompts off. Either way it's cleared on dismiss
+            (or immediately, if prompts are off). */}
+        {state.lastStageAdvancement && narrativeOn && !state.gameOver && (
+          <NarrativeModal
+            stage={state.lastStageAdvancement.to}
+            year={state.lastStageAdvancement.year}
+            onClose={dismissStageAdvancement}
           />
         )}
 
@@ -1281,25 +1293,25 @@ function endingCopyFor(reason, state) {
   switch (reason) {
     case 'failed-comps':
       return {
-        headline: 'Career Ended',
+        headline: 'Left Academia',
         body:
-          'Your graduate program has terminated your candidacy. Without ' +
-          'a published article or book by year five, the committee was ' +
-          'unable to recommend you for further study.',
-        standing: 'Did not pass comprehensive exams.',
+          'Three years out of your doctoral program and still nothing in ' +
+          'print. With no published article to your name, the doors of the ' +
+          'profession quietly closed, and you left academia behind.',
+        standing: 'Never published; left academia by year three.',
       };
 
     case 'tenure-denied':
       return {
-        headline: 'Tenure Denied',
+        headline: 'No Permanent Post',
         body:
-          'The tenure committee has declined to advance your case. Without ' +
-          'a published book by year twelve, the dossier was insufficient ' +
-          'to justify a permanent appointment.',
+          'Six years on, and no book to show for it. Without one, no ' +
+          'university would offer you a permanent, tenure-track appointment, ' +
+          'and your time in the field came to an end.',
         standing:
           articleCount > 0
-            ? `Departed academia with ${articleCount} article${articleCount === 1 ? '' : 's'} published.`
-            : 'Departed academia.',
+            ? `Left with ${articleCount} article${articleCount === 1 ? '' : 's'} published, but no book.`
+            : 'Left without a book to your name.',
       };
 
     case 'retired':
@@ -1327,18 +1339,7 @@ function standingSummary(articles, books) {
 
 
 function labelForStage(stage) {
-  const labels = {
-    'graduate-student': 'Graduate Student',
-    'abd': 'ABD',
-    'assistant-professor': 'Assistant Professor',
-    'associate-professor': 'Associate Professor',
-    'full-professor': 'Full Professor',
-    'endowed-professor': 'Endowed Professor',
-    'retired': 'Retired',
-    'failed-comps': 'Withdrew',
-    'tenure-denied': 'Tenure Denied',
-  };
-  return labels[stage] || stage;
+  return stageLabel(stage);
 }
 
 
@@ -1469,43 +1470,27 @@ function SmallPips({ level }) {
  * pursue at their leisure).
  */
 function currentGoal(state) {
-  const { year, stage, articlesPublished, booksPublished } = state;
+  const { year, booksPublished } = state;
+  const published = state.articlesPublished + state.booksPublished;
 
-  // Pre-comps: tell the player what comps requires
-  if (year <= 2 && stage === 'graduate-student') {
-    return 'Goal: Pass comprehensive exams (year 3)';
+  // Deadline 1: publish at least one article by year 3 (to get hired).
+  if (published === 0) {
+    const yearsLeft = 3 - year + 1;
+    return `Goal: Publish an article by year 3 to get hired — ${yearsLeft} year${yearsLeft === 1 ? '' : 's'} left`;
   }
 
-  // ABD: must publish article OR book by year 5 to graduate
-  if (stage === 'abd') {
-    if (articlesPublished + booksPublished > 0) {
-      return 'Goal: Build dissertation toward year 5';
+  // Deadline 2: publish a book by year 6 (to make Assistant Professor).
+  if (booksPublished === 0) {
+    const yearsLeft = 6 - year + 1;
+    if (yearsLeft > 0) {
+      return `Goal: Publish a book by year 6 for a tenure-track post — ${yearsLeft} year${yearsLeft === 1 ? '' : 's'} left`;
     }
-    const yearsLeft = 5 - year + 1;
-    return `Goal: Publish 1 article (3–5 evidence) or book by year 5 — ${yearsLeft} year${yearsLeft === 1 ? '' : 's'} left`;
+    return 'Goal: Publish your first book to make Assistant Professor';
   }
 
-  // Assistant professor: must publish a BOOK by year 12
-  if (stage === 'assistant-professor') {
-    if (booksPublished > 0) {
-      return 'Goal: Build toward associate professor';
-    }
-    const yearsLeft = 12 - year + 1;
-    return `Goal: Publish 1 book (6+ evidence) by year 12 — ${yearsLeft} year${yearsLeft === 1 ? '' : 's'} left`;
-  }
-
-  // Post-tenure: count books toward the next promotion
-  if (stage === 'associate-professor') {
-    const need = 3 - booksPublished;
-    return `Goal: ${need} more book${need === 1 ? '' : 's'} for Full Professor`;
-  }
-  if (stage === 'full-professor') {
-    const need = 5 - booksPublished;
-    return `Goal: ${need} more book${need === 1 ? '' : 's'} for Endowed Chair`;
-  }
-  if (stage === 'endowed-professor') {
-    return 'Continue building your legacy until retirement';
-  }
-
-  return '';
+  // Promotions by book count (1 → Assistant, 2 → Associate, 4 → Full, 7 → Endowed).
+  if (booksPublished < 2) return `Goal: ${2 - booksPublished} more book for Associate Professor`;
+  if (booksPublished < 4) return `Goal: ${4 - booksPublished} more book${4 - booksPublished === 1 ? '' : 's'} for Full Professor`;
+  if (booksPublished < 7) return `Goal: ${7 - booksPublished} more book${7 - booksPublished === 1 ? '' : 's'} for an Endowed Chair`;
+  return 'Continue building your legacy until retirement';
 }

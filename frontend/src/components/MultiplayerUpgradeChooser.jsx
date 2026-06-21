@@ -1,5 +1,6 @@
 import CornerOrnament from './CornerOrnament.jsx';
 import FleuronDivider from './FleuronDivider.jsx';
+import { upgradeReasonText } from '../lib/career.js';
 
 /**
  * MultiplayerUpgradeChooser — modal that opens whenever the player has
@@ -28,6 +29,7 @@ import FleuronDivider from './FleuronDivider.jsx';
 export default function MultiplayerUpgradeChooser({
   statLevels,
   reason,
+  stage = 'recent-graduate',
   onChoose,
   onClose,
   busy,
@@ -77,9 +79,7 @@ export default function MultiplayerUpgradeChooser({
     },
   ];
 
-  const flavor = {
-    'biennial': "New money has come your way — a raise (once you're tenure-track), a bonus, or a grant. How you invest it shapes the research you'll be able to do.",
-  }[reason] || "New money has come your way — a raise, a bonus, or a grant. How you invest it shapes the research you'll be able to do.";
+  const flavor = upgradeReasonText(reason, stage);
 
   const allMaxed = STATS.every((s) => (statLevels[s.key] || 1) >= 4);
 

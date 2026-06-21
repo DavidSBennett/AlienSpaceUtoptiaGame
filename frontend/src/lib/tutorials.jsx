@@ -61,14 +61,16 @@ export const TUTORIALS = [
     body: (
       <>
         <p>
-          You're a budding historian. You start grad school with a few
-          evidence cards already in your notebook below — the interests
-          that brought you to the field.
+          You're a newly minted PhD — a recent graduate of a prestigious
+          doctoral program, looking for your first job. You start with a few
+          evidence cards already in your notebook below: the interests that
+          brought you to the field.
         </p>
         <p className="mt-2">
-          Each year you may take ONE action: draw research, develop a
-          project, or peer-review someone's work. To draw, click the deck
-          of cards to mark your action as "Draw," then click "End Year" to
+          Publish your first article to get hired (by year 3), and your first
+          book to win a tenure-track post (by year 6). Each year you take ONE
+          action: draw research, develop a project, or peer-review someone's
+          work. To draw, click the deck to mark "Draw," then "End Year" to
           advance — fresh evidence flows into your notebook.
         </p>
       </>
@@ -172,10 +174,8 @@ export const TUTORIALS = [
       if (!you) return false;
       if (you.game_over_reason) return false;
       // A project meets the minimum publish criteria, AND the player
-      // hasn't submitted anything yet this game.
-      const stat = you.stat_levels;
-      const repLevel = stat?.reputation ?? 1;
-      const articleMin = repLevel >= 4 ? 1 : repLevel >= 2 ? 2 : 3;
+      // hasn't submitted anything yet this game. (Fixed threshold: 2 evidence.)
+      const articleMin = 2;
       const ready = (you.projects || []).some((p) =>
         p.conclusion && (p.evidence?.length ?? 0) >= articleMin
       );

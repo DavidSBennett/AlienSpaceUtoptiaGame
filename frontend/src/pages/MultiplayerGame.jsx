@@ -62,6 +62,10 @@ import AftermathPhaseModal from '../components/AftermathPhaseModal.jsx';
 import { isTutorialEnabled, setTutorialEnabled as persistTutorialEnabled } from '../lib/tutorialStorage.js';
 import useUserSetting from '../auth/useUserSetting.js';
 import GoalLine from '../components/GoalLine.jsx';
+import NarrativeModal from '../components/NarrativeModal.jsx';
+import NarrativeToggle from '../components/NarrativeToggle.jsx';
+import { stageLabel, rankIndex } from '../lib/career.js';
+import { useNarrativeEnabled } from '../lib/narrativeSetting.js';
 import YearProgressBar from '../components/YearProgressBar.jsx';
 import StatsStrip from '../components/StatsStrip.jsx';
 import DrawZone from '../components/DrawZone.jsx';
@@ -185,6 +189,12 @@ export default function MultiplayerGame() {
   // "How to Play" actions reference overlay
   const [guideOpen, setGuideOpen] = useState(false);
 
+  // Career narrative modal — show a story beat when YOUR rank rises. The hand
+  // is server-polled, so we detect promotions by watching your stage change.
+  const [narrativeOn, toggleNarrative] = useNarrativeEnabled();
+  const [narrativeStage, setNarrativeStage] = useState(null);
+  const prevStageRef = useRef(null);
+
   // Transient state for showing the outcome banner after a player spends
   // an objection token. Cleared when the result dialog is dismissed.
   const [objectionOutcome, setObjectionOutcome] = useState(null);
@@ -220,6 +230,22 @@ export default function MultiplayerGame() {
       navigate(`/multiplayer/lobby/${gameId}`);
     }
   }, [state?.game?.status, gameId, navigate]);
+
+  // Detect YOUR promotions across polls and pop the narrative beat. We seed the
+  // ref on first load so a refresh mid-game doesn't replay the last promotion.
+  useEffect(() => {
+    const stage = state?.you?.stage;
+    if (!stage) return;
+    if (prevStageRef.current === null) {
+      prevStageRef.current = stage;
+      return;
+    }
+    if (stage !== prevStageRef.current) {
+      const wentUp = rankIndex(stage) > rankIndex(prevStageRef.current);
+      prevStageRef.current = stage;
+      if (wentUp && narrativeOn) setNarrativeStage(stage);
+    }
+  }, [state?.you?.stage, narrativeOn]);
 
   // Toast watcher — react to NEW events from each poll. The seenRef
   // bootstraps on first call (suppresses toasts for already-existing
@@ -887,6 +913,7 @@ export default function MultiplayerGame() {
               <div className="flex items-center gap-6 text-sm">
                 <TagsToggle showTags={showTags} onToggle={() => setShowTags((v) => !v)} />
                 <SignificanceToggle showSignificance={showSignificance} onToggle={handleToggleSignificance} />
+                <NarrativeToggle enabled={narrativeOn} onToggle={toggleNarrative} />
                 <button
                   onClick={() => setGuideOpen(true)}
                   className="font-mono text-xs uppercase tracking-wider text-cream-200 hover:text-gold-300"
@@ -1275,7 +1302,8 @@ export default function MultiplayerGame() {
         {you.pending_upgrade && !liveResult && (
           <MultiplayerUpgradeChooser
             statLevels={you.stat_levels}
-            reason={you.pending_upgrade_reason || 'publish'}
+            reason={you.pending_upgrade_reason || 'biennial'}
+            stage={you.stage}
             onChoose={handleUpgrade}
             onClose={() => handleUpgrade('research')}
             busy={busy}
@@ -1315,6 +1343,16 @@ export default function MultiplayerGame() {
             you={you}
             busy={busy}
             onTake={handleConferenceTake}
+          />
+        )}
+
+        {/* Career narrative beat — pops when your rank rises (unless story
+            prompts are off). */}
+        {narrativeStage && narrativeOn && (
+          <NarrativeModal
+            stage={narrativeStage}
+            year={game.current_year}
+            onClose={() => setNarrativeStage(null)}
           />
         )}
 
@@ -1896,18 +1934,7 @@ function ConcedeConfirmModal({ onConfirm, onCancel, busy }) {
 
 
 function labelForStage(stage) {
-  const labels = {
-    'graduate-student': 'Graduate Student',
-    'abd': 'ABD',
-    'assistant-professor': 'Assistant Professor',
-    'associate-professor': 'Associate Professor',
-    'full-professor': 'Full Professor',
-    'endowed-professor': 'Endowed Professor',
-    'retired': 'Retired',
-    'failed-comps': 'Withdrew',
-    'tenure-denied': 'Tenure Denied',
-  };
-  return labels[stage] || stage;
+  return stageLabel(stage);
 }
 
 

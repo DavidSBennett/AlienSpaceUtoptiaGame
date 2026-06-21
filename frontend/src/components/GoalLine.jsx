@@ -23,116 +23,59 @@ export default function GoalLine({ state, year, stage, articlesPublished, booksP
   );
 }
 
-function computeGoal({ state, year, stage, articlesPublished, booksPublished, totalYears = 25 }) {
-  // Short games end before the year-12 tenure gate, so there's no tenure
-  // review and no post-tenure promotions. We detect that and, once the
-  // comps gate is cleared, pivot to a "build prestige before retirement"
-  // goal instead of pointing at a tenure review the game never reaches.
-  const hasTenureGate = totalYears > 12;
+function computeGoal({ state, year, stage, articlesPublished, booksPublished }) {
   // ──── Game-over states first ───────────────────────────────────────
-  // The server sets `stage` to a failure value when a hard gate is
-  // missed or the player concedes. Show a clear end-of-game line in
-  // those cases so the goal text doesn't pretend the game is ongoing.
   if (stage === 'failed-comps') {
-    return <>You were kicked out of grad school. The game has ended for you.</>;
+    return <>No published article by year 3 — you never got a foot in the door. The game has ended for you.</>;
   }
-  if (stage === 'denied-tenure') {
-    return <>You were denied tenure. The game has ended for you.</>;
+  if (stage === 'tenure-denied') {
+    return <>No book by year 6 meant no permanent post. The game has ended for you.</>;
   }
   if (stage === 'retired' || stage === 'conceded') {
     return <>Your career as a historian has ended.</>;
   }
 
-  // ──── Stage gate #1: publish an article by end of year 5 ───────────
-  if (year <= 5 && articlesPublished === 0) {
-    const yearsLeft = 5 - year + 1;
+  const published = articlesPublished + booksPublished;
+
+  // ──── Deadline #1: an article by year 3 (to get hired) ─────────────
+  if (published === 0) {
+    const yearsLeft = Math.max(0, 3 - year + 1);
     return (
       <>
-        Publish at least <strong className="not-italic text-cream-50">one article</strong> by year 5
-        {' '}({yearsLeft} year{yearsLeft === 1 ? '' : 's'} left)
-        {" — otherwise you'll be kicked out of grad school and the game ends."}
+        Publish <strong className="not-italic text-cream-50">one article</strong> by year 3
+        {' '}({yearsLeft} year{yearsLeft === 1 ? '' : 's'} left) to get hired
+        {" — otherwise you leave academia and the game ends."}
       </>
     );
   }
 
-  // ──── Stage gate #2: publish a book by end of year 12 ──────────────
-  if (hasTenureGate && year <= 12 && booksPublished === 0) {
-    const yearsLeft = 12 - year + 1;
+  // ──── Deadline #2: a book by year 6 (a tenure-track post) ──────────
+  if (booksPublished === 0) {
+    const yearsLeft = Math.max(0, 6 - year + 1);
     return (
       <>
-        Publish at least <strong className="not-italic text-cream-50">one book</strong> by year 12
-        {' '}({yearsLeft} year{yearsLeft === 1 ? '' : 's'} left)
-        {" — otherwise you'll be denied tenure and the game ends."}
+        Publish <strong className="not-italic text-cream-50">one book</strong> by year 6
+        {' '}({yearsLeft} year{yearsLeft === 1 ? '' : 's'} left) for a tenure-track post
+        {" — otherwise you leave academia and the game ends."}
       </>
     );
   }
 
-  // ──── Short mode: no tenure gate. Once comps is behind you, play for
-  //      prestige and end-of-game awards until retirement. ─────────────
-  if (!hasTenureGate) {
-    const yearsLeft = Math.max(0, totalYears - year + 1);
-    return awardsGoalText(
-      state,
-      `Build prestige before retirement at year ${totalYears} (${yearsLeft} year${yearsLeft === 1 ? '' : 's'} left):`,
-    );
+  // ──── Promotions by book count (Assistant 1 · Associate 2 · Full 4 · Endowed 7) ──
+  if (booksPublished < 2) {
+    return <>Publish <strong className="not-italic text-cream-50">1 more book</strong> (total 2) to make Associate Professor.</>;
+  }
+  if (booksPublished < 4) {
+    const need = 4 - booksPublished;
+    return <>Publish <strong className="not-italic text-cream-50">{need} more book{need === 1 ? '' : 's'}</strong> (total 4) to make Full Professor.</>;
+  }
+  if (booksPublished < 7) {
+    const need = 7 - booksPublished;
+    return <>Publish <strong className="not-italic text-cream-50">{need} more book{need === 1 ? '' : 's'}</strong> (total 7) for an Endowed Chair.</>;
   }
 
-  // ──── Assistant professor who already has a tenure book ────────────
-  // Gate #2 is met. They survive until year 13 to be promoted to
-  // Associate Professor automatically (book count carries them).
-  if (stage === 'assistant-professor') {
-    const yearsLeft = 13 - year;
-    return (
-      <>
-        You have <strong className="not-italic text-cream-50">{booksPublished}</strong>{' '}
-        book{booksPublished === 1 ? '' : 's'} published. Survive {yearsLeft} more year{yearsLeft === 1 ? '' : 's'}{' '}
-        to tenure review at year 13 — promotion to{' '}
-        <strong className="not-italic text-cream-50">Associate Professor</strong> awaits.
-      </>
-    );
-  }
-
-  // ──── Associate Professor → Full Professor (3 books total) ─────────
-  if (stage === 'associate-professor') {
-    const need = Math.max(0, 3 - booksPublished);
-    if (need === 0) {
-      // Edge case: 3+ books but still 'associate' (server hasn't
-      // re-evaluated yet, or this is the moment between book #3
-      // publishing and the rank advancing).
-      return <>You've reached the criteria for Full Professor. Promotion pending.</>;
-    }
-    return (
-      <>
-        Publish {need} more book{need === 1 ? '' : 's'} (total: 3) to be promoted to{' '}
-        <strong className="not-italic text-cream-50">Full Professor</strong>.
-      </>
-    );
-  }
-
-  // ──── Full Professor → Endowed Professor (5 books total) ───────────
-  if (stage === 'full-professor') {
-    const need = Math.max(0, 5 - booksPublished);
-    if (need === 0) {
-      return <>You've reached the criteria for Endowed Professor. Promotion pending.</>;
-    }
-    return (
-      <>
-        Publish {need} more book{need === 1 ? '' : 's'} (total: 5) to be promoted to{' '}
-        <strong className="not-italic text-cream-50">Endowed Professor</strong>.
-      </>
-    );
-  }
-
-  // ──── Endowed Professor — top rank, pivot to awards as the goal ───
-  if (stage === 'endowed-professor') {
-    return awardsGoalText(state, 'You have reached the highest rank.');
-  }
-
-  // ──── Truly unknown stage — also show awards rather than a debug
-  //      message, since the player still benefits from playing for
-  //      end-of-game recognition. The stage name appears in dev console
-  //      logging via the data-tutorial pass-through if needed for debug.
-  return awardsGoalText(state, 'Aim for end-of-game recognition:');
+  // ──── Top rank — pivot to end-of-game awards as the goal ───────────
+  return awardsGoalText(state, 'You have reached the highest rank.');
 }
 
 

@@ -7,6 +7,7 @@ import { loadSession, clearSession } from '../api/mpSession.js';
 import FleuronDivider from '../components/FleuronDivider.jsx';
 import CornerOrnament from '../components/CornerOrnament.jsx';
 import { AWARDS, computeAwardStandings, awardPrestigeByPlayer } from '../lib/awards.js';
+import { stageLabel } from '../lib/career.js';
 import { buildMultiplayerReport, openPlaytestReport } from '../lib/playtestReport.js';
 import { labelForRounds } from '../lib/gameModes.js';
 
@@ -174,19 +175,10 @@ export default function MultiplayerResults() {
 }
 
 function labelForStage(stage, gameOver) {
-  if (gameOver === 'failed-comps')  return 'Failed comps';
-  if (gameOver === 'tenure-denied') return 'Tenure denied';
-  if (gameOver === 'conceded')      return 'Conceded';
-  switch (stage) {
-    case 'graduate-student':    return 'Grad student';
-    case 'abd':                 return 'ABD';
-    case 'assistant-professor': return 'Assistant professor';
-    case 'associate-professor': return 'Associate professor';
-    case 'full-professor':      return 'Full professor';
-    case 'endowed-professor':   return 'Endowed professor';
-    case 'retired':             return 'Retired';
-    default: return stage;
-  }
+  if (gameOver === 'failed-comps')  return stageLabel('failed-comps');
+  if (gameOver === 'tenure-denied') return stageLabel('tenure-denied');
+  if (gameOver === 'conceded')      return stageLabel('conceded');
+  return stageLabel(stage);
 }
 
 

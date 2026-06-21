@@ -441,14 +441,12 @@ function mp_finish_round_tail($mysqli, $gameId, $game) {
     $stmt->execute();
     $stmt->close();
 
-    // Per-player stage progression (positive transitions).
-    mp_apply_stage_progression($mysqli, $gameId, $newYear);
-
-    // ── Automatic upgrade drip ──────────────────────────────────────────
-    // Every player gets one stat upgrade every other year, no matter what
-    // they did. This is the ONLY source of upgrades (publishing/reviewing
-    // grant none) and is independent of publications, reviews, and player
-    // count. Granted when the just-finished year is odd (years 1,3,5,…).
+    // ── Regular every-other-year upgrade (a grant or a pay raise) ──────────
+    // Every live player gets one stat upgrade every other year. Run BEFORE the
+    // promotion pass so that if a player both promotes AND gets the regular
+    // drip the same year, the more salient 'promotion' reason wins the (single)
+    // reason column. The count is additive either way. Granted when the
+    // just-finished year is odd (years 1,3,5,…).
     $finishedYear = (int) $game['current_year'];
     if ($finishedYear % 2 === 1) {
       $stmt = $mysqli->prepare("
@@ -462,6 +460,10 @@ function mp_finish_round_tail($mysqli, $gameId, $game) {
       $stmt->close();
       mp_log_event($mysqli, $gameId, null, 'upgrade_drip', ['after_year' => $finishedYear]);
     }
+
+    // Per-player stage progression — promotions advance the rank and grant a
+    // bonus upgrade (reason 'promotion').
+    mp_apply_stage_progression($mysqli, $gameId, $newYear);
 
     mp_log_event($mysqli, $gameId, null, 'year_advanced', ['new_year' => $newYear]);
   }
@@ -1932,22 +1934,19 @@ function mp_apply_rejection($mysqli, $gameId, $sid, $writerPid, $evIds, $current
 
 
 /**
- * Apply hard stage gates at year boundaries.
- *   Year 6 (just finished year 5): each player must have published at least
- *     one article or book, OR have at least one submission still under review,
- *     else game-over with reason 'failed-comps'.
- *   Year 13 (just finished year 12): each player must have published at
- *     least one book, OR have at least one book-kind submission still under
- *     review, else game-over with reason 'tenure-denied'.
+ * Apply hard career deadlines at year boundaries.
+ *   Year 4 (just finished year 3): each player must have published at least
+ *     one article or book, OR have a submission still under review, else
+ *     game-over with reason 'failed-comps' (never got hired).
+ *   Year 7 (just finished year 6): each player must have published at least
+ *     one book, OR have a book-kind submission still under review, else
+ *     game-over with reason 'tenure-denied' (no permanent post).
  *
- * The "or pending submission" clause is essential. A player who submits at
- * year 5 will not be credited for the publication until a peer reviewer
- * approves it (the soonest possible review is year 6), so without this
- * clause the year-6 gate would fail anyone who submitted in year 5 and
- * was waiting on review. Same logic at year 12 for books.
+ * The "or pending submission" clause covers a manuscript still awaiting its
+ * verdict at the boundary so a late submitter isn't unfairly failed.
  */
 function mp_apply_stage_gates($mysqli, $gameId, $newYear) {
-  if ($newYear === 6) {
+  if ($newYear === 4) {
     $stmt = $mysqli->prepare("
       UPDATE mp_game_players p
       SET game_over_reason = 'failed-comps', stage = 'failed-comps'
@@ -1965,7 +1964,7 @@ function mp_apply_stage_gates($mysqli, $gameId, $newYear) {
     $stmt->execute();
     $stmt->close();
   }
-  if ($newYear === 13) {
+  if ($newYear === 7) {
     $stmt = $mysqli->prepare("
       UPDATE mp_game_players p
       SET game_over_reason = 'tenure-denied', stage = 'tenure-denied'
@@ -1987,50 +1986,42 @@ function mp_apply_stage_gates($mysqli, $gameId, $newYear) {
 
 
 /**
- * Update each player's stage label based on current year + books.
- * Also fires the year-3 comps event for any player who hasn't seen it.
+ * Recompute each live player's career stage from their publications. Stages
+ * only ever rise, so any change IS a promotion: advance the stage, grant a
+ * bonus upgrade (reason 'promotion'), and log a 'rank_up' event the client
+ * turns into a narrative beat.
  */
 function mp_apply_stage_progression($mysqli, $gameId, $newYear) {
-  // Compute new stages
   $stmt = $mysqli->prepare("
-    SELECT player_id, books_published, comps_event_fired, game_over_reason, stage
+    SELECT player_id, articles_published, books_published, game_over_reason, stage
     FROM mp_game_players WHERE game_id = ?
   ");
   $stmt->bind_param('i', $gameId);
   $stmt->execute();
   $res = $stmt->get_result();
-  while ($p = $res->fetch_assoc()) {
-    if ($p['game_over_reason']) continue;
-    $books = (int) $p['books_published'];
-    $newStage = mp_compute_stage($newYear, $books);
-
-    $updates = [];
-    $values  = [];
-    $types   = '';
-
-    if ($newStage !== $p['stage']) {
-      $updates[] = 'stage = ?';
-      $values[]  = $newStage;
-      $types    .= 's';
-    }
-    if ($newYear === 3 && !$p['comps_event_fired']) {
-      $updates[] = 'comps_event_fired = 1';
-    }
-    if (count($updates) > 0) {
-      $pid = (int) $p['player_id'];
-      $values[] = $pid;
-      $types   .= 'i';
-      $sql = "UPDATE mp_game_players SET " . implode(',', $updates) . " WHERE player_id = ?";
-      $stmt2 = $mysqli->prepare($sql);
-      $stmt2->bind_param($types, ...$values);
-      $stmt2->execute();
-      $stmt2->close();
-    }
-  }
-  // Note: $stmt is the SELECT statement here, but we've already iterated
-  // its result set. No close-then-prepare collision since $stmt2 is a
-  // separate handle.
+  $rows = [];
+  while ($p = $res->fetch_assoc()) $rows[] = $p;
   $stmt->close();
+
+  foreach ($rows as $p) {
+    if ($p['game_over_reason']) continue;
+    $articles = (int) $p['articles_published'];
+    $books    = (int) $p['books_published'];
+    $newStage = mp_compute_stage($articles, $books);
+    if ($newStage === $p['stage']) continue;
+
+    $pid = (int) $p['player_id'];
+    $u = $mysqli->prepare("
+      UPDATE mp_game_players
+      SET stage = ?, pending_upgrade = pending_upgrade + 1, pending_upgrade_reason = 'promotion'
+      WHERE player_id = ?
+    ");
+    $u->bind_param('si', $newStage, $pid);
+    $u->execute();
+    $u->close();
+
+    mp_log_event($mysqli, $gameId, $pid, 'rank_up', ['stage' => $newStage]);
+  }
 }
 
 
@@ -2094,13 +2085,15 @@ function mp_reputation_book_min($level) {
   }
 }
 
-function mp_compute_stage($year, $books) {
-  if ($year <= 2) return 'graduate-student';
-  if ($year <= 5) return 'abd';
-  if ($year <= 12) return 'assistant-professor';
-  if ($books >= 5) return 'endowed-professor';
-  if ($books >= 3) return 'full-professor';
-  return 'associate-professor';
+function mp_compute_stage($articles, $books) {
+  // Publication-driven career ladder (no more grad student). Articles get you
+  // hired; books drive the professor ranks. Mirrors lib/career.js computeStage.
+  if ($books >= 7) return 'endowed-professor';
+  if ($books >= 4) return 'full-professor';
+  if ($books >= 2) return 'associate-professor';
+  if ($books >= 1) return 'assistant-professor';
+  if ($articles >= 1) return 'visiting-assistant-professor';
+  return 'recent-graduate';
 }
 
 function mp_array_set_equal($a, $b) {

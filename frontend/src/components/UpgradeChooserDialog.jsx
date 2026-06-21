@@ -1,6 +1,7 @@
 import CornerOrnament from './CornerOrnament.jsx';
 import FleuronDivider from './FleuronDivider.jsx';
 import { STAT_TABLES, CONFERENCE_FRESH } from '../hooks/useGameState.js';
+import { upgradeReasonText } from '../lib/career.js';
 
 /**
  * UpgradeChooserDialog — appears after a successful publication.
@@ -20,7 +21,7 @@ import { STAT_TABLES, CONFERENCE_FRESH } from '../hooks/useGameState.js';
  * @param {Object}   props.statLevels  current state.statLevels
  * @param {Function} props.onUpgrade   (statName) => void
  */
-export default function UpgradeChooserDialog({ statLevels, onUpgrade }) {
+export default function UpgradeChooserDialog({ statLevels, onUpgrade, reason = 'biennial', stage = 'recent-graduate' }) {
   const stats = [
     {
       key: 'research',
@@ -122,9 +123,7 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade }) {
             Money to Invest
           </h2>
           <p className="font-serif italic text-ink-700 text-center text-base mt-2 leading-relaxed">
-            New money has come your way — a raise (once you're on the tenure
-            track), a bonus, or a grant. How you invest it shapes the kind of
-            historical research you'll be able to do.
+            {upgradeReasonText(reason, stage)}
           </p>
 
           <FleuronDivider className="my-6" />

@@ -2,6 +2,7 @@ import { useReducer, useCallback, useMemo } from 'react';
 
 import { shuffle } from '../lib/shuffle.js';
 import { validateArgument, computePrestige, critiqueArgument } from '../lib/validation.js';
+import { computeStage, isPromotion } from '../lib/career.js';
 
 /**
  * useGameState — the central state machine for The Historians.
@@ -305,10 +306,9 @@ function initialState({ playerName, deck, allCards }) {
     // Career
     year: 1,
     prestige: 0,
-    stage: 'graduate-student',           // see computeStage() for transitions
+    stage: 'recent-graduate',            // see computeStage() in lib/career.js
     articlesPublished: 0,
     booksPublished: 0,
-    compsEventFired: false,              // so the year-3 comps event only fires once
 
     // Stat levels (1..4)
     statLevels: {
@@ -350,8 +350,11 @@ function initialState({ playerName, deck, allCards }) {
     showSignificance: false,             // global significance-visibility toggle (gated)
     gameOver: null,                      // null | { reason, year }
     lastPublishResult: null,             // null | full result object — shown in result dialog
-    lastStageAdvancement: null,          // null | { from, to, year, kind? } — drives advancement banner
-    pendingUpgrade: false,               // true when a successful publish has earned an upgrade choice
+    lastStageAdvancement: null,          // null | { from, to, year } — drives the narrative modal on a promotion
+    // Upgrades you've earned but not yet spent. Count + a parallel FIFO queue
+    // of reasons ('promotion' | 'biennial') so the chooser can explain each.
+    pendingUpgrades: 0,
+    pendingUpgradeReasons: [],
 
     // Bookshelf (Phase 10.8) — each successful publication produces a
     // record here. Used by the bookshelf UI and the end-of-game PDF.
@@ -620,12 +623,6 @@ function reducer(state, action) {
         );
       }
 
-      // Successful publication earns the player an upgrade choice — UNLESS
-      // every stat is already at max level. The UpgradeChooserDialog will
-      // show only the upgradable stats; if none, we skip the dialog entirely
-      // by leaving pendingUpgrade false.
-      const hasUpgradableStat = validation.ok && Object.values(state.statLevels).some((lvl) => lvl < 4);
-
       // Build a publication record for the bookshelf (Phase 10.8). Only
       // successful publishes go on the shelf — failures vanish without trace
       // (they're already represented by the critique dialog).
@@ -689,9 +686,8 @@ function reducer(state, action) {
         projects,
         discard: newDiscard,
         prestige: state.prestige + (prestigeResult?.total || 0),
-        // Track articles and books separately. Per design, the stage gates
-        // care about books specifically (tenure requires a book), but
-        // articles count for graduate-student advancement.
+        // Track articles and books separately. Articles get you hired; books
+        // drive the professor ranks (see lib/career.js computeStage).
         articlesPublished:
           validation.ok && publicationKind === 'article'
             ? state.articlesPublished + 1
@@ -701,24 +697,18 @@ function reducer(state, action) {
             ? state.booksPublished + 1
             : state.booksPublished,
         lastPublishResult: result,
-        pendingUpgrade: hasUpgradableStat,
         publications: nextPublications,
         usedTitles: nextUsedTitles,
       };
 
-      // After publishing, the state may have crossed stage thresholds —
-      // advanceYear handles that gate logic and may also set gameOver.
+      // Upgrades are no longer earned per-publication — they come from the
+      // every-other-year drip and from promotions (handled in advanceYear).
       //
-      // Phase 10.4: Workspaces L4 grants "free publishing" — submitting for
-      // review no longer costs a year (success or failure). We skip the
-      // advanceYear call in that case, but we still must check stage gates
-      // since publishing can change publishable counts that affect career
-      // stage. For now we simply return the state without year-advance —
-      // stage checks fire the next time the player draws (which still
-      // costs a year). This matches the design goal: drawing is the
-      // remaining year-cost activity at this level.
+      // Phase 10.4: Workspaces L4 grants "free publishing" — submitting no
+      // longer costs a year. We skip advanceYear in that case, but a book
+      // can still trigger a promotion, so we apply stage progression directly.
       const freePublishing = state.statLevels.workspaces >= 4;
-      return freePublishing ? next : advanceYear(next);
+      return freePublishing ? applyStageProgression(next, state.stage) : advanceYear(next);
     }
 
     case 'DISMISS_PUBLISH_RESULT': {
@@ -817,15 +807,18 @@ function reducer(state, action) {
     // ---- Stat upgrades ----
 
     case 'UPGRADE_STAT': {
-      // Player has chosen which stat to upgrade after a successful publication.
-      // Increment that stat by one level (capped at 4) and clear pendingUpgrade.
-      // The player's notebook capacity / draw count / influence bonus / workspace
-      // count update immediately — the UI re-renders with the new derived values.
+      // Player has chosen which stat to raise with one pending upgrade.
+      // Increment that stat by one level (capped at 4) and consume one pending
+      // upgrade from the queue (count + its reason).
       const { stat } = action;
       const currentLevel = state.statLevels[stat];
+      const remaining = Math.max(0, (state.pendingUpgrades || 0) - 1);
+      const reasons = (state.pendingUpgradeReasons || []).slice(1);
+
       if (typeof currentLevel !== 'number' || currentLevel >= 4) {
-        // Defensive: don't upgrade an already-maxed stat or an unknown stat
-        return { ...state, pendingUpgrade: false };
+        // Defensive: don't upgrade an already-maxed/unknown stat, but still
+        // consume the pending upgrade so the dialog closes.
+        return { ...state, pendingUpgrades: remaining, pendingUpgradeReasons: reasons };
       }
 
       return {
@@ -834,7 +827,8 @@ function reducer(state, action) {
           ...state.statLevels,
           [stat]: currentLevel + 1,
         },
-        pendingUpgrade: false,
+        pendingUpgrades: remaining,
+        pendingUpgradeReasons: reasons,
       };
     }
 
@@ -853,22 +847,45 @@ function reducer(state, action) {
 }
 
 /**
- * Helper: advance the year by 1 and check for game-over conditions
- * AND career-stage advancement.
+ * Grant one pending upgrade with a reason ('promotion' | 'biennial'), unless
+ * every stat is already maxed (then there's nothing to spend it on).
+ */
+function grantUpgrade(state, reason) {
+  const hasUpgradable = Object.values(state.statLevels).some((lvl) => lvl < 4);
+  if (!hasUpgradable) return state;
+  return {
+    ...state,
+    pendingUpgrades: (state.pendingUpgrades || 0) + 1,
+    pendingUpgradeReasons: [...(state.pendingUpgradeReasons || []), reason],
+  };
+}
+
+/**
+ * Recompute the player's career stage from their publications. On a promotion
+ * (stages only ever rise), record it for the narrative modal and grant a bonus
+ * upgrade. Returns the (possibly updated) state.
+ */
+function applyStageProgression(state, previousStage) {
+  const newStage = computeStage(state.articlesPublished, state.booksPublished);
+  if (newStage === previousStage) return state;
+
+  let next = { ...state, stage: newStage };
+  if (isPromotion(previousStage, newStage)) {
+    next.lastStageAdvancement = { from: previousStage, to: newStage, year: next.year };
+    next = grantUpgrade(next, 'promotion');
+  }
+  return next;
+}
+
+/**
+ * Helper: advance the year by 1, then apply career deadlines, retirement,
+ * promotions, and the regular every-other-year upgrade.
  *
- * Centralized so all year-ticking actions go through the same gate.
- * The order of checks matters:
- *   1. Bump the year counter.
- *   2. Check for game-over by stage failure (failed comps at year 5,
- *      tenure denied at year 12). These are HARD failures — game ends.
- *   3. Check for stage advancement (positive transitions): the comps
- *      event at year 3, ABD → Assistant at year 6 (after passing year 5),
- *      and post-tenure book-count advancements (Associate → Full → Endowed).
- *   4. Check for retirement at year 25.
- *
- * Stage state is derived from year + publication counts. We compute the
- * appropriate stage label and write it into state, plus set
- * `lastStageAdvancement` if it changed (so the UI can fire a banner).
+ * Deadlines (hard game-over):
+ *   - End of year 3: must have published at least one article (or book).
+ *   - End of year 6: must have published at least one book.
+ * Retirement at year 25. Promotions and the biennial upgrade only matter while
+ * the career continues.
  */
 function advanceYear(state) {
   const nextYear = state.year + 1;
@@ -881,27 +898,23 @@ function advanceYear(state) {
   const citationBonus = (state.citations || 0) * renownMultiplier(state.statLevels.renown || 1);
   const finalPrestige = state.prestige + citationBonus;
 
-  // ----- HARD GATE: Year 5 — must have published at least one (article or book) -----
-  // Per design: "Year 5 failure = Game Over"
-  // We check this when ENDING year 5, i.e. when nextYear becomes 6.
-  if (nextYear === 6 && state.articlesPublished === 0 && state.booksPublished === 0) {
+  // ----- DEADLINE: by the end of year 3, publish at least one article -----
+  if (nextYear === 4 && state.articlesPublished === 0 && state.booksPublished === 0) {
     return {
       ...next,
       prestige: finalPrestige,
       stage: 'failed-comps',
-      gameOver: { reason: 'failed-comps', year: 5 },
+      gameOver: { reason: 'failed-comps', year: 3 },
     };
   }
 
-  // ----- HARD GATE: Year 12 — Assistant Professor must have published a book -----
-  // Per design: "Must publish 1 book by year 12. Failure = Game Over."
-  // We check this when ENDING year 12, i.e. when nextYear becomes 13.
-  if (nextYear === 13 && state.booksPublished === 0) {
+  // ----- DEADLINE: by the end of year 6, publish at least one book -----
+  if (nextYear === 7 && state.booksPublished === 0) {
     return {
       ...next,
       prestige: finalPrestige,
       stage: 'tenure-denied',
-      gameOver: { reason: 'tenure-denied', year: 12 },
+      gameOver: { reason: 'tenure-denied', year: 6 },
     };
   }
 
@@ -916,62 +929,16 @@ function advanceYear(state) {
     };
   }
 
-  // ----- STAGE PROGRESSION: positive advancements -----
-  // Compute what stage the player SHOULD be in given current state, then
-  // check if it differs from previous so we can fire an advancement banner.
-  const computedStage = computeStage(nextYear, state.booksPublished);
-  if (computedStage !== previousStage) {
-    next.stage = computedStage;
-    next.lastStageAdvancement = {
-      from: previousStage,
-      to: computedStage,
-      year: nextYear,
-    };
-  }
+  // ----- Promotions (rank-ups grant a bonus upgrade + a narrative beat) -----
+  next = applyStageProgression(next, previousStage);
 
-  // ----- COMPS EVENT: at start of year 3, fire a one-time celebratory banner -----
-  // The design calls this "Year 2: Dialogue praising comps → ABD"; in our
-  // implementation, the player advances to ABD when nextYear becomes 3
-  // (i.e., they've completed years 1 and 2 of coursework).
-  if (nextYear === 3 && !state.compsEventFired) {
-    next.compsEventFired = true;
-    next.lastStageAdvancement = {
-      from: previousStage,
-      to: 'abd',
-      year: nextYear,
-      kind: 'comps',  // tells UI to use celebratory copy specific to comps
-    };
-    next.stage = 'abd';
+  // ----- Regular every-other-year upgrade (a grant or a raise) -----
+  // Granted when the just-finished year is odd (years 1, 3, 5, …).
+  if (state.year % 2 === 1) {
+    next = grantUpgrade(next, 'biennial');
   }
 
   return next;
-}
-
-/**
- * Pure function: given current year and book count, what stage SHOULD
- * the player be in (assuming they're still in the game)?
- *
- * Stages are mostly year-driven up through year 12, then book-count-driven
- * post-tenure. Comps advancement (graduate-student → ABD at year 3) is
- * handled separately because it's a one-time event.
- */
-function computeStage(year, booksPublished) {
-  // Years 1–2: graduate student (years 3+ are ABD, but only after comps
-  // event fires; computeStage assumes comps has fired at year 3)
-  if (year <= 2) return 'graduate-student';
-  if (year <= 5) return 'abd';
-
-  // Year 6 onward — assistant professor until tenure check at year 12.
-  // (At year 13 we either advance to associate professor or game-over.)
-  if (year <= 12) return 'assistant-professor';
-
-  // Post-tenure: book count drives advancement
-  // 1 book published (the tenure book) = Associate
-  // 1 + 2 = 3 books = Full
-  // 3 + 2 = 5 books = Endowed
-  if (booksPublished >= 5) return 'endowed-professor';
-  if (booksPublished >= 3) return 'full-professor';
-  return 'associate-professor';
 }
 
 // ===== Card-movement helpers =====

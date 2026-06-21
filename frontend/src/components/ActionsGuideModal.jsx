@@ -49,7 +49,7 @@ const GUIDE = {
       glyph: '🎯',
       label: 'Your goal',
       where:
-        'Survive the career gates: pass comps, publish toward tenure by year 12, then build your legacy until retirement at year 25.',
+        'Start as a recent PhD: publish an article by year 3 to get hired, a book by year 6 for a tenure-track post, then climb the ranks (Associate, Full, Endowed) by publishing more books until retirement at year 25.',
     },
   ],
   multiplayer: [
