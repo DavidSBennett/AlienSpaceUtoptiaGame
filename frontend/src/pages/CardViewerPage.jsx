@@ -175,9 +175,16 @@ export default function CardViewerPage() {
 
         {!loading && !error && mode === 'image' && (
           <div className="flex flex-wrap gap-4 justify-center sm:justify-start">
-            {filtered.map((card) => (
-              <CardImageCell key={`${card.idDeck}-${card.id}`} card={card} onOpen={() => setOpenCard(card)} />
-            ))}
+            {filtered.flatMap((card) =>
+              cardFaces(card).map((face, i) => (
+                <CardImageCell
+                  key={`${card.idDeck}-${card.id}-${face.label || i}`}
+                  card={card}
+                  face={face}
+                  onOpen={() => setOpenCard(card)}
+                />
+              ))
+            )}
           </div>
         )}
 
@@ -231,21 +238,25 @@ function CardTable({ cards, sort, onSort, onOpen }) {
 
 /* ── Image mode ─────────────────────────────────────────────────────────── */
 
-function CardImageCell({ card, onOpen }) {
-  // Show the first face that actually has a front image (so a conclusion with
-  // only a book image still shows it); fall back to the first face.
-  const faces = cardFaces(card);
-  const primary = faces.find((f) => f.front) || faces[0];
-  const front = primary?.front;
-  const back = primary?.back;
+function CardImageCell({ card, face, onOpen }) {
+  const front = face?.front;
+  const back = face?.back;
+  const titleSuffix = face?.label ? ` (${face.label})` : '';
 
   return (
     <button
       type="button"
       onClick={onOpen}
-      title={`${card.title || 'Untitled'} — click for details`}
+      title={`${card.title || 'Untitled'}${titleSuffix} — click for details`}
       className="group relative w-48 aspect-[5/7] flex-shrink-0 border border-gold-500/30 bg-teal-950/40 overflow-hidden hover:border-gold-400 hover:-translate-y-1 transition-all duration-200"
     >
+      {/* Article / Book badge for conclusions */}
+      {face?.label && (
+        <span className="absolute top-1 left-1 z-10 font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 bg-teal-950/85 text-gold-300 border border-gold-500/40">
+          {face.label}
+        </span>
+      )}
+
       {front ? (
         <img src={front} alt={card.title || 'Card'} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
       ) : (
