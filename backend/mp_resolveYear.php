@@ -1777,6 +1777,13 @@ function mp_apply_approval($mysqli, $gameId, $sid, $writerPid, $kind, $evIds, $c
       'title'  => $card['title'],
       'author' => $card['author'] ?? '',
       'tags'   => array_values(array_unique($tags)),
+      // Full study-guide fields so the player can export "Collected Works"
+      // as a print-ready review sheet. (Shown only to the work's author in
+      // their own export; the in-game publication modal still hides these.)
+      'date'         => $card['date'] ?? '',
+      'content'      => $card['content'] ?? '',
+      'significance' => $card['significance'] ?? '',
+      'citation'     => $card['citation'] ?? '',
     ];
   }
   // Append citations to the snapshot

@@ -75,3 +75,46 @@ export function exportPublicationsToPDF({ publications, playerName, deck }) {
     );
   }
 }
+
+/**
+ * Multiplayer variant. The multiplayer `published_works` entries have a
+ * different shape than the single-player `publications` array (work_id,
+ * publication_title, conclusion_title, evidence_snapshot, …), so we map
+ * them into the same payload the WorksPage expects, then reuse the
+ * single-player export.
+ *
+ * Only the calling player's own works should be passed in — each student
+ * exports their own collected works as a study guide.
+ *
+ * @param {Object[]} works      entries from state.published_works (already
+ *                              filtered to the current player)
+ * @param {string}   playerName the player's display name
+ * @param {string}   deckName   optional deck title for the cover
+ */
+export function exportMultiplayerWorks({ works, playerName, deckName }) {
+  const publications = (works || []).map((w) => ({
+    kind: w.kind,
+    title: w.publication_title,
+    // The conclusion's thesis stands in for the single-player "description".
+    description: w.conclusion_title || '',
+    year: w.year_published,
+    prestige: w.prestige_granted,
+    // The snapshot holds both evidence cards and citations; keep only the
+    // real evidence cards for the study-guide table.
+    evidence: (w.evidence_snapshot || [])
+      .filter((s) => (s.kind ?? 'card') === 'card')
+      .map((ev) => ({
+        date: ev.date || '',
+        title: ev.title || '',
+        content: ev.content || '',
+        significance: ev.significance || '',
+        citation: ev.citation || '',
+      })),
+  }));
+
+  exportPublicationsToPDF({
+    publications,
+    playerName,
+    deck: deckName ? { nameDeck: deckName } : null,
+  });
+}

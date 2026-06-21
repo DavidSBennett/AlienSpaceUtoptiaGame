@@ -9,6 +9,7 @@ import CornerOrnament from '../components/CornerOrnament.jsx';
 import { AWARDS, computeAwardStandings, awardPrestigeByPlayer } from '../lib/awards.js';
 import { stageLabel } from '../lib/career.js';
 import { buildMultiplayerReport, openPlaytestReport } from '../lib/playtestReport.js';
+import { exportMultiplayerWorks } from '../lib/publicationsPDF.js';
 import { labelForRounds } from '../lib/gameModes.js';
 
 /**
@@ -57,6 +58,10 @@ export default function MultiplayerResults() {
   if (!state) return null;
 
   const roster = [state.you, ...state.opponents].filter(Boolean);
+  // The current player's own published works — exported as a study guide.
+  const myWorks = (state.published_works || []).filter(
+    (w) => w.writer_player_id === state.you?.player_id
+  );
   // Award prestige is granted at game end on top of base prestige. Compute it
   // here (awards are a frontend concept) and rank by the combined total.
   const awardBonus = awardPrestigeByPlayer(roster, {
@@ -151,6 +156,19 @@ export default function MultiplayerResults() {
           <div className="mt-6 flex flex-wrap gap-3 justify-between items-center">
             <div className="flex flex-wrap gap-3 items-center">
               <Link to="/leaderboard" className="btn-ghost">View Hall of Scholars →</Link>
+              {myWorks.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => exportMultiplayerWorks({
+                    works: myWorks,
+                    playerName: state.you?.player_name,
+                  })}
+                  className="btn-ghost"
+                  title="Open your collected works in a new tab — print or save as a PDF study guide"
+                >
+                  ⎙ View / Print My Works
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => openPlaytestReport(buildMultiplayerReport({ state, awards: AWARDS, computeStandings: computeAwardStandings }))}

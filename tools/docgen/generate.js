@@ -157,6 +157,7 @@ const assignment = [
   bullet([{ t: 'Turn on "Significance." ', bold: true }, { t: 'In the game header, click the Significance button, then click a card to open it and read the historical-significance note behind each source — a quick way to learn the history (and to judge which evidence fits your argument).' }]),
   bullet('Read the cards. The evidence only counts toward a thesis when it shares a tag (theme) with the conclusion — and grouping evidence that shares the same author, place, date, or source type can double your prestige.'),
   bullet('Publish early to get hired (an article by year 3) and keep your career alive (a book by year 6).'),
+  bullet([{ t: 'Keep a study guide. ', bold: true }, { t: 'When your game ends, click "View / Print My Works" on the results screen (in multiplayer, the Final Standings screen) to open your published articles and books as a printable document. Each one lists its thesis and a table of all its evidence with the historical-significance notes — save it as a PDF and you have a ready-made review sheet for the deck’s material.' }]),
   bullet('Turn on tutorial hints from the header if you want step-by-step guidance, and open "How to Play" any time for a quick reference.'),
 
   p([{ t: 'Need help getting in? ', bold: true }, { t: 'If you do not have an invite code, contact your instructor.' }]),
@@ -195,7 +196,7 @@ const guide = [
   bullet([{ t: 'Conclusions rail (left): ', bold: true }, { t: 'your library of theses. Drag one into a project’s conclusion slot.' }]),
   bullet([{ t: 'Project rows (center): ', bold: true }, { t: 'your workspaces. Drop a conclusion and evidence here, then Submit for Review (publish) or Attend Conference.' }]),
   bullet([{ t: 'Research Notebook (bottom): ', bold: true }, { t: 'your hand of evidence and the Archive deck. Click the deck to draw. Drag cards within the hand to reorder them.' }]),
-  bullet([{ t: 'Bookshelf: ', bold: true }, { t: 'your published works.' }]),
+  bullet([{ t: 'Bookshelf: ', bold: true }, { t: 'your published works. You can print or save them as a study guide — see "Save Your Works as a Study Guide" below.' }]),
 
   // ── SOLO ──
   new Paragraph({ children: [new PageBreak()] }),
@@ -261,6 +262,12 @@ const guide = [
   bullet([{ t: 'Citing others: ', bold: true }, { t: 'drag a published work from the library into your project to cite it. You gain prestige; the cited author gains a citation token.' }]),
   bullet([{ t: 'Conferences: ', bold: true }, { t: 'attendees draft cards from a shared pool in order of Association Memberships, and everyone earns citation tokens.' }]),
   bullet([{ t: 'End of game: ', bold: true }, { t: 'banked citations pay out (tokens × Publicist), and five awards grant bonus prestige (e.g., most publications, most citations, first to publish a book). Final scores post to a Hall of Scholars leaderboard kept separately for each game length.' }]),
+
+  h1('Save Your Works as a Study Guide'),
+  p('Everything you publish is collected into a printable "Collected Works" document. Each publication appears with its thesis and a table of every piece of evidence behind it — the date, title, content, historical-significance note, and citation. Because it gathers the sources and their significance in one place, it doubles as a ready-made review sheet for the material you covered.'),
+  bullet([{ t: 'Solo: ', bold: true }, { t: 'click "View / Print Works" on the Bookshelf during the game, or "View / Print My Works" on the final results screen.' }]),
+  bullet([{ t: 'Multiplayer: ', bold: true }, { t: 'on the Final Standings screen, click "View / Print My Works" to export your own publications.' }]),
+  p([{ t: 'The document opens in a new browser tab. ', bold: true }, { t: 'Use your browser’s Print command and choose "Save as PDF" as the destination to download it. The significance notes are included automatically, so the saved PDF works as a study guide for the topics in your deck.' }]),
 
   h1('Tips for a High Score'),
   bullet('Focus your arguments — all evidence sharing one place, author, date, source type, or context tag doubles the prestige.'),
