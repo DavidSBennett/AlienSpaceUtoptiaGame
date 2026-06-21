@@ -7,7 +7,6 @@ import WorksPage from './pages/WorksPage.jsx';
 import PlaytestReportPage from './pages/PlaytestReportPage.jsx';
 import AdminPlaytestPage from './pages/AdminPlaytestPage.jsx';
 import DeckListPage from './pages/DeckListPage.jsx';
-import CardViewerPage from './pages/CardViewerPage.jsx';
 
 // Multiplayer pages — the lobby ENTRY was merged into Home; /multiplayer
 // now lands on Home with the MP panel pre-expanded. Sub-routes
@@ -41,8 +40,8 @@ export default function App() {
           Your Games widget. */}
       <Route path="/" element={<Home />} />
 
-      {/* Card archive — public, no login required. */}
-      <Route path="/decks" element={<DeckListPage />} />
+      {/* Card Library — signed-in. /cards is kept as an alias of /decks. */}
+      <Route path="/decks" element={<RequireAuth><DeckListPage /></RequireAuth>} />
 
       {/* All gameplay surfaces require login. RequireAuth nests inside
           DesktopOnlyGate (gate first, then auth) so mobile visitors
@@ -54,7 +53,7 @@ export default function App() {
         <RequireAuth><LeaderboardPage /></RequireAuth>
       } />
       <Route path="/cards" element={
-        <RequireAuth><CardViewerPage /></RequireAuth>
+        <RequireAuth><DeckListPage /></RequireAuth>
       } />
       <Route path="/works" element={
         <RequireAuth><WorksPage /></RequireAuth>

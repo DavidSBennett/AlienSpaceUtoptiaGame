@@ -537,10 +537,7 @@ export default function Home() {
               Hall of Scholars
             </Link>
             <Link to="/decks" className="btn-primary inline-block">
-              Deck List
-            </Link>
-            <Link to="/cards" className="btn-primary inline-block">
-              Card Viewer
+              Card Library
             </Link>
           </div>
 

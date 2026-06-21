@@ -334,6 +334,11 @@ export function CardModal({
   onPrev = null,
   onNext = null,
   position = null,
+  // Optional extras for the Card Library viewer (not used in-game):
+  //   faces   — [{ label, front, back }] rendered as a card-faces gallery
+  //   details — [{ label, value, isUrl }] rendered as a styled data section
+  faces = null,
+  details = null,
 }) {
   // Keyboard navigation — wire up arrow keys when either handler is present.
   // We listen at the window level so the keys work anywhere on the page
@@ -569,6 +574,53 @@ export function CardModal({
             </div>
           )}
 
+          {/* Card-faces gallery — the whole-card front/back images (Library
+              viewer only). Renders only faces that actually have an image. */}
+          {Array.isArray(faces) && faces.some((f) => f.front || f.back) && (
+            <>
+              <FleuronDivider className="my-5" />
+              <h3 className="font-display text-base font-bold uppercase tracking-widest text-ink-900 mb-3">
+                Card Faces
+              </h3>
+              <div className="flex flex-col gap-4">
+                {faces.filter((f) => f.front || f.back).map((f, i) => (
+                  <div key={f.label || i}>
+                    {f.label && (
+                      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 mb-1">{f.label}</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                      <ModalFace url={f.front} label="Front" />
+                      <ModalFace url={f.back} label="Back" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Full card data — every remaining saved field, in the document's
+              own style (Library viewer only). */}
+          {Array.isArray(details) && details.length > 0 && (
+            <>
+              <FleuronDivider className="my-5" />
+              <h3 className="font-display text-base font-bold uppercase tracking-widest text-ink-900 mb-3">
+                Card Data
+              </h3>
+              <dl className="space-y-1.5">
+                {details.map(({ label, value, isUrl }) => (
+                  <div key={label} className="flex gap-3 text-sm">
+                    <dt className="w-36 shrink-0 font-mono text-[10px] uppercase tracking-wider text-gold-700 pt-0.5">{label}</dt>
+                    <dd className="flex-1 font-serif text-ink-900 break-words whitespace-pre-wrap">
+                      {isUrl && value
+                        ? <a href={value} target="_blank" rel="noreferrer" className="text-verdigris-700 underline break-all">{value}</a>
+                        : (value || '—')}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          )}
+
           {/* Optional actions block — renders the in-modal place buttons.
               When actions are present, that block also shows the card's
               sequence # and bonus inline alongside the buttons, so we
@@ -599,6 +651,25 @@ export function CardModal({
           )}
         </div>
       </article>
+      </div>
+    </div>
+  );
+}
+
+/** A single card-face image inside the CardModal faces gallery. */
+function ModalFace({ url, label }) {
+  return (
+    <div className="w-full">
+      <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-gold-700 text-center mb-1">{label}</p>
+      <div className="relative aspect-[5/7] border border-gold-500/30 overflow-hidden bg-cream-100">
+        {url ? (
+          <img src={url} alt={label} className="absolute inset-0 w-full h-full object-contain" loading="lazy"
+               onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center font-mono text-[9px] uppercase tracking-wider text-ink-500">
+            no image
+          </div>
+        )}
       </div>
     </div>
   );
