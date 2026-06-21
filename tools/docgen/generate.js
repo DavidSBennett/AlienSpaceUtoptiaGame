@@ -115,8 +115,16 @@ const assignment = [
   h1('What To Do'),
   step([{ t: 'Get access. ', bold: true }, { t: `Go to ${SITE.replace('https://','')} and create an account using the invite code your instructor provides, then sign in. (Save your username — you will need it visible in your screenshot.)` }]),
   step([{ t: 'Choose the deck. ', bold: true }, { t: 'On the home screen, select the "Early American History Study Guide" deck from the deck dropdown.' }]),
-  step([{ t: 'Play the game. ', bold: true }, { t: 'Start a solo game and play through a full career. Use the in-game tutorial hints and the "How to Play" handout if you get stuck. Aim for the highest prestige you can.' }]),
-  step([{ t: 'Capture your score. ', bold: true }, { t: 'When your career ends, your Final Prestige is shown on the results screen, and your score is recorded in the Hall of Scholars leaderboard for the deck. Take a screenshot that clearly shows BOTH your score and your username.' }]),
+  step([{ t: 'Play the game. ', bold: true }, { t: 'Play through a full career. You may play on your own (Solo) or, if you can find a classmate to play with, as a Multiplayer game (see "Play With a Classmate" below). Use the in-game tutorial hints and the "How to Play" handout if you get stuck, and aim for the highest prestige you can.' }]),
+  step([{ t: 'Capture your score. ', bold: true }, { t: 'When your career ends, your Final Prestige is shown on the results screen, and your score is recorded in the Hall of Scholars leaderboard. Take a screenshot that clearly shows BOTH your score and your username.' }]),
+
+  h1('Play With a Classmate (Optional)'),
+  p('You are welcome to experience the multiplayer mode instead of — or in addition to — a solo game. Multiplayer needs 2 to 5 players, so you will need to coordinate with classmates.'),
+  bullet([{ t: 'Find a partner on D2L. ', bold: true }, { t: 'Use the D2L discussion forum to find one or more classmates to play with and agree on a time to meet online.' }]),
+  bullet([{ t: 'Use the same deck. ', bold: true }, { t: 'Whoever hosts should create the game with the Early American History Study Guide deck. The others join the open game from the multiplayer panel on the home screen.' }]),
+  bullet([{ t: 'Pick a length. ', bold: true }, { t: 'A Short (10-year) game is the quickest way to experience peer review, conferences, and the end-of-game awards together.' }]),
+  bullet([{ t: 'Same deliverable. ', bold: true }, { t: 'A multiplayer game still produces a final score with your username, recorded on the multiplayer leaderboard for the length you played — screenshot it the same way.' }]),
+  p([{ t: 'Either mode satisfies the assignment. ', bold: true }, { t: 'A solo game is always enough; multiplayer is an option for those who want the full experience.' }]),
 
   h1('Required Deliverable'),
   p([{ t: 'A single image (screenshot) of your high score with your username clearly visible.', bold: true }]),
