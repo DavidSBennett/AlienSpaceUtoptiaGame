@@ -7,6 +7,7 @@ import WorksPage from './pages/WorksPage.jsx';
 import PlaytestReportPage from './pages/PlaytestReportPage.jsx';
 import AdminPlaytestPage from './pages/AdminPlaytestPage.jsx';
 import DeckListPage from './pages/DeckListPage.jsx';
+import CardViewerPage from './pages/CardViewerPage.jsx';
 
 // Multiplayer pages — the lobby ENTRY was merged into Home; /multiplayer
 // now lands on Home with the MP panel pre-expanded. Sub-routes
@@ -51,6 +52,9 @@ export default function App() {
       } />
       <Route path="/leaderboard" element={
         <RequireAuth><LeaderboardPage /></RequireAuth>
+      } />
+      <Route path="/cards" element={
+        <RequireAuth><CardViewerPage /></RequireAuth>
       } />
       <Route path="/works" element={
         <RequireAuth><WorksPage /></RequireAuth>

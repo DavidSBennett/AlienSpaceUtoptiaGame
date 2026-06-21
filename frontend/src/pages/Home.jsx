@@ -539,6 +539,9 @@ export default function Home() {
             <Link to="/decks" className="btn-primary inline-block">
               Deck List
             </Link>
+            <Link to="/cards" className="btn-primary inline-block">
+              Card Viewer
+            </Link>
           </div>
 
           {isAdmin && (
