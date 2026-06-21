@@ -113,23 +113,23 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade, reason = '
           <CornerOrnament corner="br" size={24} />
         </div>
 
-        <div className="px-12 py-10">
+        <div className="px-8 py-6">
 
           {/* Header */}
-          <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-gold-700 mb-3 text-center">
+          <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-gold-700 mb-1 text-center">
             Career Development
           </p>
-          <h2 className="font-display text-3xl font-bold text-ink-900 text-center leading-tight">
+          <h2 className="font-display text-2xl font-bold text-ink-900 text-center leading-tight">
             Money to Invest
           </h2>
-          <p className="font-serif italic text-ink-700 text-center text-base mt-2 leading-relaxed">
+          <p className="font-serif italic text-ink-700 text-center text-sm mt-1 leading-snug">
             {upgradeReasonText(reason, stage)}
           </p>
 
-          <FleuronDivider className="my-6" />
+          <FleuronDivider className="my-3" />
 
           {/* The stat options — 6 total, in a 2-column grid (3 rows). */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {stats.map((stat) => (
               <StatOption
                 key={stat.key}
@@ -140,7 +140,7 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade, reason = '
             ))}
           </div>
 
-          <p className="font-serif italic text-ink-700 text-xs text-center mt-6">
+          <p className="font-serif italic text-ink-700 text-xs text-center mt-3">
             Selecting an option is permanent — investments cannot be undone.
           </p>
         </div>
@@ -167,7 +167,7 @@ function StatOption({ stat, level, onUpgrade }) {
       disabled={isMaxed}
       onClick={() => !isMaxed && onUpgrade(stat.key)}
       className={`
-        text-left p-4 border-2 transition-all duration-200 ease-desk
+        text-left p-3 border-2 transition-all duration-200 ease-desk
         ${isMaxed
           ? 'border-cream-300 bg-cream-200/40 cursor-not-allowed opacity-60'
           : 'border-gold-500/40 bg-cream-50 hover:border-gold-500 hover:shadow-card-hover hover:-translate-y-0.5 cursor-pointer'
@@ -175,15 +175,15 @@ function StatOption({ stat, level, onUpgrade }) {
       `}
     >
       {/* Title + level pips */}
-      <div className="flex items-baseline justify-between mb-2">
-        <h3 className="font-display text-lg font-bold text-ink-900">
+      <div className="flex items-baseline justify-between mb-1">
+        <h3 className="font-display text-base font-bold text-ink-900">
           {stat.title}
         </h3>
         <LevelPips level={level} />
       </div>
 
       {/* Description */}
-      <p className="font-serif text-sm text-ink-700 leading-snug mb-3">
+      <p className="font-serif text-xs text-ink-700 leading-snug mb-2">
         {stat.lead}
       </p>
 
