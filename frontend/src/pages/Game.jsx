@@ -19,6 +19,9 @@ import ProjectRow from '../components/ProjectRow.jsx';
 import PublishResultDialog from '../components/PublishResultDialog.jsx';
 import NarrativeModal from '../components/NarrativeModal.jsx';
 import NarrativeToggle from '../components/NarrativeToggle.jsx';
+import TutorialManager from '../components/TutorialManager.jsx';
+import { SOLO_TUTORIALS } from '../lib/soloTutorials.jsx';
+import useUserSetting from '../auth/useUserSetting.js';
 import UpgradeChooserDialog from '../components/UpgradeChooserDialog.jsx';
 import SoloConferenceModal from '../components/SoloConferenceModal.jsx';
 import Leaderboard from '../components/Leaderboard.jsx';
@@ -184,6 +187,7 @@ function GameBoard({ playerName, deck, allCards }) {
   // "How to Play" actions reference overlay.
   const [guideOpen, setGuideOpen] = useState(false);
   const [narrativeOn, toggleNarrative] = useNarrativeEnabled();
+  const [tutorialEnabled, setTutorialEnabledState] = useUserSetting('tutorial_enabled', true);
 
   /**
    * Handle a "Place in Project N" click from inside the card modal.
@@ -402,6 +406,15 @@ function GameBoard({ playerName, deck, allCards }) {
                 <SignificanceToggle showSignificance={state.showSignificance} onToggle={toggleSignificance} />
 
                 <NarrativeToggle enabled={narrativeOn} onToggle={toggleNarrative} />
+
+                <button
+                  type="button"
+                  onClick={() => setTutorialEnabledState(!tutorialEnabled)}
+                  className={`font-mono text-xs uppercase tracking-wider transition-colors ${tutorialEnabled ? 'text-gold-300 hover:text-gold-100' : 'text-cream-200/50 hover:text-cream-100'}`}
+                  title={tutorialEnabled ? 'Disable tutorial hints' : 'Enable tutorial hints'}
+                >
+                  Tutorial: {tutorialEnabled ? 'On' : 'Off'}
+                </button>
 
                 <Link
                   to="/"
@@ -670,6 +683,14 @@ function GameBoard({ playerName, deck, allCards }) {
         {guideOpen && (
           <ActionsGuideModal mode="single" onClose={() => setGuideOpen(false)} />
         )}
+
+        {/* First-time tutorial hints — pointed at the relevant controls. */}
+        <TutorialManager
+          state={state}
+          playerToken="solo"
+          enabled={tutorialEnabled && !state.gameOver}
+          tutorials={SOLO_TUTORIALS}
+        />
       </div>
     </DndContext>
   );
@@ -697,7 +718,7 @@ function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showS
   }
 
   return (
-    <aside className="shrink-0 flex flex-col overflow-y-auto">
+    <aside data-tutorial="conclusion-rail" className="shrink-0 flex flex-col overflow-y-auto">
       {/* Fancy header */}
       <div className="text-center">
         <span className="font-display text-sm uppercase tracking-[0.3em] text-gold-300">
@@ -810,6 +831,7 @@ function NotebookArea({
             type="button"
             onClick={onDraw}
             disabled={!canDraw}
+            data-tutorial="draw-zone"
             className={`
               relative h-[12.5rem] w-32 group
               transition-transform duration-200 ease-desk

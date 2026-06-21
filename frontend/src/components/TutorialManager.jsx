@@ -17,7 +17,7 @@ import { pickNextTutorial } from '../lib/tutorials.jsx';
 import { loadDismissed, markDismissed } from '../lib/tutorialStorage.js';
 import TutorialModal from './TutorialModal.jsx';
 
-export default function TutorialManager({ state, playerToken, enabled }) {
+export default function TutorialManager({ state, playerToken, enabled, tutorials }) {
   // Set of tutorial ids the player has dismissed. We load from
   // localStorage once per token, then keep an in-memory copy to avoid
   // re-reading on every render.
@@ -40,7 +40,7 @@ export default function TutorialManager({ state, playerToken, enabled }) {
       return;
     }
     if (!state) return;
-    const next = pickNextTutorial(state, new Set([...dismissed, ...sessionSuppressed]));
+    const next = pickNextTutorial(state, new Set([...dismissed, ...sessionSuppressed]), tutorials);
     setCurrent(next);
   }, [state, dismissed, sessionSuppressed, enabled]);
 

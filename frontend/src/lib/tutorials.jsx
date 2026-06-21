@@ -282,9 +282,9 @@ export const TUTORIALS = [
  * Return the first tutorial whose condition is true and which hasn't
  * been dismissed yet. Sorted by `order` to give a stable rotation.
  */
-export function pickNextTutorial(state, dismissedIds) {
+export function pickNextTutorial(state, dismissedIds, tutorials = TUTORIALS) {
   if (!state) return null;
-  const candidates = TUTORIALS
+  const candidates = tutorials
     .filter((t) => !dismissedIds.has(t.id))
     .filter((t) => {
       try {

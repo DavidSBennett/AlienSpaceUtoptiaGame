@@ -25,7 +25,7 @@ const GUIDE = {
       glyph: '🧩',
       label: 'Build a project',
       where:
-        'Drag evidence cards from your notebook into a project row. Drag a conclusion tile from the rail at the top into the project’s conclusion slot. (Or open a card and use the "Place in Project" buttons.)',
+        'Drag evidence cards from your notebook into a project row. Drag a conclusion tile from the rail on the left into the project’s conclusion slot. (Or open a card and use the "Place in Project" buttons.)',
     },
     {
       glyph: '📰',
