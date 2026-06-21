@@ -182,7 +182,7 @@ function GameBoard({ playerName, deck, allCards }) {
   // the timeline strip below remains visible and provides at-a-glance
   // status info. Player can expand to access the Reset link or change
   // tags-visibility.
-  const [headerCollapsed, setHeaderCollapsed] = useState(true);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
   // "How to Play" actions reference overlay.
   const [guideOpen, setGuideOpen] = useState(false);
@@ -403,7 +403,9 @@ function GameBoard({ playerName, deck, allCards }) {
 
               <div className="flex items-center gap-6 text-sm">
                 <TagsToggle showTags={state.showTags} onToggle={toggleTags} />
-                <SignificanceToggle showSignificance={state.showSignificance} onToggle={toggleSignificance} />
+                <span data-tutorial="significance-toggle">
+                  <SignificanceToggle showSignificance={state.showSignificance} onToggle={toggleSignificance} />
+                </span>
 
                 <NarrativeToggle enabled={narrativeOn} onToggle={toggleNarrative} />
 

@@ -52,6 +52,28 @@ export const SOLO_TUTORIALS = [
     condition: (s) => !over(s) && s?.year === 1,
   },
 
+  // ── Significance toggle (teaching notes) ─────────────────────────────
+  {
+    id: 'solo-significance',
+    order: 12,
+    targetAttr: 'significance-toggle',
+    title: 'Read the History',
+    body: (
+      <>
+        <p>
+          Turn on <strong>Significance</strong> (in the header) to reveal the
+          historical-significance note behind each source.
+        </p>
+        <p className="mt-2">
+          With it on, click any card to open it and read why that piece of
+          evidence matters — a great way to learn the history as you play. Use
+          <strong> Tags</strong> the same way to see each card’s themes.
+        </p>
+      </>
+    ),
+    condition: (s) => !over(s) && (s?.year ?? 1) === 1,
+  },
+
   // ── Build a project ──────────────────────────────────────────────────
   {
     id: 'solo-build-project',
