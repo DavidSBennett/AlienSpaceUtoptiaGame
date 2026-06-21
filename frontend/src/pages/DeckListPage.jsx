@@ -50,7 +50,7 @@ export default function DeckListPage() {
   const [cardType, setCardType] = useState('archive');   // 'archive' | 'conclusion'
   const [search, setSearch] = useState('');
   const [view, setView] = useState('cards');             // 'cards' | 'table'
-  const [cardStyle, setCardStyle] = useState('rendered'); // 'rendered' | 'png'
+  const [cardStyle, setCardStyle] = useState('png'); // 'rendered' | 'png'
   const [sortKey, setSortKey] = useState('id');
   const [sortDir, setSortDir] = useState('asc');
   const [openIndex, setOpenIndex] = useState(null);
