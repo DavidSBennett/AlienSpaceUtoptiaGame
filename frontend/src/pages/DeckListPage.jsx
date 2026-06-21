@@ -40,26 +40,6 @@ function cardFaces(card) {
   return [{ label: '', front: card.image_front, back: card.image_back }];
 }
 
-/** Remaining saved fields for the modal's "Card Data" section. */
-function cardDetails(card, deckName) {
-  return [
-    { label: 'Deck', value: deckName },
-    { label: 'Type', value: card.type },
-    { label: 'Bonus', value: card.bonus },
-    { label: 'Contributor', value: card.contributor },
-    { label: 'Description', value: card.description },
-    { label: 'Article titles', value: card.article_titles },
-    { label: 'Book titles', value: card.book_titles },
-    { label: 'Inner image URL', value: card.image_url, isUrl: true },
-    { label: 'Front image URL', value: card.image_front, isUrl: true },
-    { label: 'Back image URL', value: card.image_back, isUrl: true },
-    { label: 'Article front URL', value: card.image_article_front, isUrl: true },
-    { label: 'Article back URL', value: card.image_article_back, isUrl: true },
-    { label: 'Book front URL', value: card.image_book_front, isUrl: true },
-    { label: 'Book back URL', value: card.image_book_back, isUrl: true },
-  ];
-}
-
 export default function DeckListPage() {
   const [decks, setDecks] = useState([]);
   const [selectedDeckId, setSelectedDeckId] = useState('all');
@@ -261,7 +241,6 @@ export default function DeckListPage() {
           onNext={onNext}
           position={{ current: openIndex + 1, total: displayed.length }}
           faces={cardFaces(openCard)}
-          details={cardDetails(openCard, deckName.get(String(openCard.idDeck)) || `Deck ${openCard.idDeck}`)}
         />
       )}
     </>

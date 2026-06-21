@@ -334,11 +334,10 @@ export function CardModal({
   onPrev = null,
   onNext = null,
   position = null,
-  // Optional extras for the Card Library viewer (not used in-game):
-  //   faces   — [{ label, front, back }] rendered as a card-faces gallery
-  //   details — [{ label, value, isUrl }] rendered as a styled data section
+  // Card Library viewer only (not used in-game): the whole-card images, shown
+  // as hover-to-flip cards in a column beside the document.
+  //   faces — [{ label, front, back }]
   faces = null,
-  details = null,
 }) {
   // Keyboard navigation — wire up arrow keys when either handler is present.
   // We listen at the window level so the keys work anywhere on the page
@@ -370,6 +369,10 @@ export function CardModal({
 
   if (!card) return null;
 
+  // Library viewer: whole-card images to show as flip-cards beside the document.
+  const faceList = Array.isArray(faces) ? faces.filter((f) => f.front || f.back) : [];
+  const hasFaces = faceList.length > 0;
+
   return (
     <div
       className="fixed inset-0 z-[70] bg-teal-950/80 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in"
@@ -379,7 +382,7 @@ export function CardModal({
           use `left-full` / `right-full` to sit just outside the modal's
           edges, so they track the modal's position as the viewport
           resizes rather than hugging the screen edges. */}
-      <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <div className={hasFaces ? 'relative flex items-stretch gap-4' : 'relative'} onClick={(e) => e.stopPropagation()}>
 
         {/* Left chevron — anchored to the modal's left edge, sized ~3x
             the previous text-5xl. Hidden when there's no previous card. */}
@@ -435,6 +438,14 @@ export function CardModal({
         >
           ✕ Close
         </button>
+
+        {/* Card image(s) — adjacent to the document; hover to flip to the back.
+            Library viewer only. */}
+        {hasFaces && (
+          <div className="hidden md:flex flex-col gap-3 shrink-0 w-56 max-h-[95vh] overflow-y-auto py-1 pr-0.5">
+            {faceList.map((f, i) => <FlipCard key={f.label || i} face={f} />)}
+          </div>
+        )}
 
         <article
           className="relative surface-paper max-w-5xl w-full max-h-[95vh] overflow-y-auto animate-fade-up"
@@ -574,53 +585,6 @@ export function CardModal({
             </div>
           )}
 
-          {/* Card-faces gallery — the whole-card front/back images (Library
-              viewer only). Renders only faces that actually have an image. */}
-          {Array.isArray(faces) && faces.some((f) => f.front || f.back) && (
-            <>
-              <FleuronDivider className="my-5" />
-              <h3 className="font-display text-base font-bold uppercase tracking-widest text-ink-900 mb-3">
-                Card Faces
-              </h3>
-              <div className="flex flex-col gap-4">
-                {faces.filter((f) => f.front || f.back).map((f, i) => (
-                  <div key={f.label || i}>
-                    {f.label && (
-                      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 mb-1">{f.label}</p>
-                    )}
-                    <div className="grid grid-cols-2 gap-3">
-                      <ModalFace url={f.front} label="Front" />
-                      <ModalFace url={f.back} label="Back" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* Full card data — every remaining saved field, in the document's
-              own style (Library viewer only). */}
-          {Array.isArray(details) && details.length > 0 && (
-            <>
-              <FleuronDivider className="my-5" />
-              <h3 className="font-display text-base font-bold uppercase tracking-widest text-ink-900 mb-3">
-                Card Data
-              </h3>
-              <dl className="space-y-1.5">
-                {details.map(({ label, value, isUrl }) => (
-                  <div key={label} className="flex gap-3 text-sm">
-                    <dt className="w-36 shrink-0 font-mono text-[10px] uppercase tracking-wider text-gold-700 pt-0.5">{label}</dt>
-                    <dd className="flex-1 font-serif text-ink-900 break-words whitespace-pre-wrap">
-                      {isUrl && value
-                        ? <a href={value} target="_blank" rel="noreferrer" className="text-verdigris-700 underline break-all">{value}</a>
-                        : (value || '—')}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </>
-          )}
-
           {/* Optional actions block — renders the in-modal place buttons.
               When actions are present, that block also shows the card's
               sequence # and bonus inline alongside the buttons, so we
@@ -656,21 +620,43 @@ export function CardModal({
   );
 }
 
-/** A single card-face image inside the CardModal faces gallery. */
-function ModalFace({ url, label }) {
+/**
+ * FlipCard — a whole-card image beside the CardModal document. Shows the front;
+ * hovering reveals the back. A small badge marks the Article/Book face for
+ * conclusions.
+ */
+function FlipCard({ face }) {
+  const { front, back, label } = face;
   return (
-    <div className="w-full">
-      <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-gold-700 text-center mb-1">{label}</p>
-      <div className="relative aspect-[5/7] border border-gold-500/30 overflow-hidden bg-cream-100">
-        {url ? (
-          <img src={url} alt={label} className="absolute inset-0 w-full h-full object-contain" loading="lazy"
-               onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+    <div
+      className="group relative aspect-[5/7] w-full border border-gold-500/40 overflow-hidden bg-cream-100 shadow-card"
+      title={back ? 'Hover to see the back' : undefined}
+    >
+      {label && (
+        <span className="absolute top-1 left-1 z-10 font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 bg-teal-950/85 text-gold-300 border border-gold-500/40">
+          {label}
+        </span>
+      )}
+      {front ? (
+        <img src={front} alt={label ? `${label} front` : 'Card front'} className="absolute inset-0 w-full h-full object-contain" loading="lazy" />
+      ) : (
+        <FaceMissing text="no front" />
+      )}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        {back ? (
+          <img src={back} alt={label ? `${label} back` : 'Card back'} className="w-full h-full object-contain bg-cream-100" loading="lazy" />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center font-mono text-[9px] uppercase tracking-wider text-ink-500">
-            no image
-          </div>
+          <FaceMissing text="no back" />
         )}
       </div>
+    </div>
+  );
+}
+
+function FaceMissing({ text }) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center font-mono text-[9px] uppercase tracking-wider text-ink-500 bg-cream-100">
+      {text}
     </div>
   );
 }
