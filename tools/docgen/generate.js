@@ -154,6 +154,7 @@ const assignment = [
   spacer(),
 
   h1('Tips'),
+  bullet([{ t: 'Turn on "Significance." ', bold: true }, { t: 'In the game header, click the Significance button, then click a card to open it and read the historical-significance note behind each source — a quick way to learn the history (and to judge which evidence fits your argument).' }]),
   bullet('Read the cards. The evidence only counts toward a thesis when it shares a tag (theme) with the conclusion — and grouping evidence that shares the same author, place, date, or source type can double your prestige.'),
   bullet('Publish early to get hired (an article by year 3) and keep your career alive (a book by year 6).'),
   bullet('Turn on tutorial hints from the header if you want step-by-step guidance, and open "How to Play" any time for a quick reference.'),
@@ -179,7 +180,7 @@ const guide = [
   h1('The Cards'),
   p([{ t: 'Evidence cards (the "archive"). ', bold: true }, { t: 'Historical sources you draw into your hand and place into your projects. Each carries hidden properties: one or more tags (its themes), context fields (location, author, date, source type, citation, and "context tags"), and sometimes a small bonus.' }]),
   p([{ t: 'Conclusion cards (your theses). ', bold: true }, { t: 'The questions or claims your research answers. These live in a library on the left and can be reused. Each conclusion has exactly one tag — its theme.' }]),
-  p('Toggle "Tags" in the header to reveal each card’s tags, and "Significance" to reveal the teaching notes.'),
+  p([{ t: 'Tip: turn on "Significance" in the header, then click a card to open it and read the historical-significance note behind that source. ', bold: true }, { t: 'Turn on "Tags" the same way to reveal each card’s themes. Both are great for learning the history as you play.' }]),
 
   h1('Building & Publishing an Argument'),
   p('A project needs a conclusion plus several pieces of evidence. To publish, three things must be true:'),
