@@ -24,7 +24,7 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade }) {
   const stats = [
     {
       key: 'research',
-      title: 'Research',
+      title: 'Research Funding',
       lead: 'How many archive cards you draw at a time. The final upgrade draws a full notebook.',
       values: STAT_TABLES.research,
       // Research L4 is dynamic — it draws cards equal to the player's
@@ -35,14 +35,14 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade }) {
     },
     {
       key: 'notebookCapacity',
-      title: 'Notebook Capacity',
-      lead: 'How many cards you can hold in the Research Notebook.',
+      title: 'Personal Archive',
+      lead: 'How many cards you can keep in your Research Notebook at once.',
       values: STAT_TABLES.notebookCapacity,
       unit: (v) => `Hold ${v} cards`,
     },
     {
       key: 'influence',
-      title: 'Influence',
+      title: 'Literary Agent',
       lead: 'Bonus prestige added to every successful publication. The final upgrade is per-card.',
       values: STAT_TABLES.influence,
       // L1: 0 (no bonus); L2-L3: flat +N; L4: +3 PER CARD in the argument.
@@ -67,7 +67,7 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade }) {
     },
     {
       key: 'reputation',
-      title: 'Reputation',
+      title: 'Association Memberships',
       lead: 'Powers the "Attend a Conference" action: a bigger pool to draft from and more citation tokens earned.',
       // The values array holds the citation grant per level (1/2/3/6); the
       // fresh-card pool bonus comes from CONFERENCE_FRESH.
@@ -79,7 +79,7 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade }) {
     },
     {
       key: 'renown',
-      title: 'Renown',
+      title: 'Publicist',
       lead: 'How much each banked citation token is worth in prestige when you retire.',
       values: STAT_TABLES.renown,
       unit: (v) => `Each citation = +${v} prestige`,
@@ -119,11 +119,12 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade }) {
             Career Development
           </p>
           <h2 className="font-display text-3xl font-bold text-ink-900 text-center leading-tight">
-            Refine Your Practice
+            Money to Invest
           </h2>
           <p className="font-serif italic text-ink-700 text-center text-base mt-2 leading-relaxed">
-            The recognition of your published work has opened a new opportunity.
-            Choose where to invest your scholarly growth.
+            New money has come your way — a raise (once you're on the tenure
+            track), a bonus, or a grant. How you invest it shapes the kind of
+            historical research you'll be able to do.
           </p>
 
           <FleuronDivider className="my-6" />

@@ -223,6 +223,38 @@ export const TUTORIALS = [
     },
   },
 
+  // ─── First upgrade — "money to invest" ────────────────────────────
+  {
+    id: 'first-upgrade',
+    order: 60,
+    targetAttr: null,
+    title: 'Money to Invest',
+    body: (
+      <>
+        <p>
+          You've come into some money — a raise (once you're on the tenure
+          track), a bonus, or a grant. Every couple of years brings more.
+        </p>
+        <p className="mt-2">
+          Invest it in one upgrade — <strong>Research Funding</strong> (draw
+          more), <strong>Personal Archive</strong> (hold more),{' '}
+          <strong>Literary Agent</strong> (prestige per publication),{' '}
+          <strong>Workspaces</strong> (more projects at once),{' '}
+          <strong>Association Memberships</strong> (your payoff at conferences),
+          or <strong>Publicist</strong> (what your citations are worth at game
+          end). How you invest the money shapes the kind of historical research
+          you'll achieve.
+        </p>
+      </>
+    ),
+    condition: (state) => {
+      const you = state?.you;
+      if (!you) return false;
+      if (you.game_over_reason) return false;
+      return (you.pending_upgrade ?? 0) > 0;
+    },
+  },
+
   // ─── History button ───────────────────────────────────────────────
   {
     id: 'history-button',

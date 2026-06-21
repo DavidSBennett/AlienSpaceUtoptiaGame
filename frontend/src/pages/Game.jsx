@@ -1359,7 +1359,7 @@ function StatStrip({ statLevels }) {
   // so the player sees both their current ability and what's coming next.
   const stats = [
     {
-      key: 'research',         abbr: 'R', label: 'Research',
+      key: 'research',         abbr: 'R', label: 'Research Funding',
       describe: (lvl) => {
         const v = STAT_TABLES.research[lvl - 1];
         if (v === 'capacity') return 'Draw a full notebook (cards = your notebook capacity)';
@@ -1367,14 +1367,14 @@ function StatStrip({ statLevels }) {
       },
     },
     {
-      key: 'notebookCapacity', abbr: 'N', label: 'Notebook Capacity',
+      key: 'notebookCapacity', abbr: 'A', label: 'Personal Archive',
       describe: (lvl) => {
         const v = STAT_TABLES.notebookCapacity[lvl - 1];
         return v ? `Hold up to ${v} cards in hand` : '';
       },
     },
     {
-      key: 'influence',        abbr: 'I', label: 'Influence',
+      key: 'influence',        abbr: 'L', label: 'Literary Agent',
       describe: (lvl) => {
         const v = STAT_TABLES.influence[lvl - 1];
         if (v === undefined) return '';
@@ -1392,7 +1392,7 @@ function StatStrip({ statLevels }) {
       },
     },
     {
-      key: 'reputation',       abbr: 'P', label: 'Reputation',
+      key: 'reputation',       abbr: 'M', label: 'Association Memberships',
       describe: (lvl) => {
         const fresh = CONFERENCE_FRESH[lvl - 1];
         const cites = conferenceCitations(lvl);
@@ -1400,7 +1400,7 @@ function StatStrip({ statLevels }) {
       },
     },
     {
-      key: 'renown',           abbr: 'F', label: 'Renown',
+      key: 'renown',           abbr: 'P', label: 'Publicist',
       describe: (lvl) => {
         const m = renownMultiplier(lvl);
         return `Each banked citation is worth +${m} prestige at game end`;

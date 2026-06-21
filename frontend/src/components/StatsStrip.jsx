@@ -11,12 +11,12 @@ import { MP_STAT_TABLES } from '../lib/mpStats.js';
 import Tooltip from './Tooltip.jsx';
 
 const STAT_LABELS = {
-  research:         'Research',
-  notebookCapacity: 'Notebook',
-  influence:        'Influence',
+  research:         'Research Funding',
+  notebookCapacity: 'Personal Archive',
+  influence:        'Literary Agent',
   workspaces:       'Workspaces',
-  reputation:       'Reputation',
-  renown:           'Renown',
+  reputation:       'Association Memberships',
+  renown:           'Publicist',
 };
 
 const STAT_ORDER = ['research', 'notebookCapacity', 'influence', 'workspaces', 'reputation', 'renown'];
@@ -25,7 +25,7 @@ const STAT_ORDER = ['research', 'notebookCapacity', 'influence', 'workspaces', '
 const STAT_TOOLTIPS = {
   research: (level) => (
     <>
-      <strong className="block font-display text-sm text-gold-300 mb-1">Research</strong>
+      <strong className="block font-display text-sm text-gold-300 mb-1">Research Funding</strong>
       <span>How many cards you draw per Draw action.</span>
       <span className="block mt-1 text-cream-200/70">
         Levels: 3 → 5 → 7 → full notebook. Currently L{level}.
@@ -34,7 +34,7 @@ const STAT_TOOLTIPS = {
   ),
   notebookCapacity: (level) => (
     <>
-      <strong className="block font-display text-sm text-gold-300 mb-1">Notebook</strong>
+      <strong className="block font-display text-sm text-gold-300 mb-1">Personal Archive</strong>
       <span>Your hand limit — how many cards you can hold at once.</span>
       <span className="block mt-1 text-cream-200/70">
         Levels: 7 → 9 → 11 → 15. Currently L{level}.
@@ -43,7 +43,7 @@ const STAT_TOOLTIPS = {
   ),
   influence: (level) => (
     <>
-      <strong className="block font-display text-sm text-gold-300 mb-1">Influence</strong>
+      <strong className="block font-display text-sm text-gold-300 mb-1">Literary Agent</strong>
       <span>A prestige bonus added to <em>every</em> evidence card in a publication, so it grows with article size.</span>
       <span className="block mt-1 text-cream-200/70">
         Levels: +0 → +1 → +2 → +4 per card. Currently L{level}.
@@ -61,7 +61,7 @@ const STAT_TOOLTIPS = {
   ),
   reputation: (level) => (
     <>
-      <strong className="block font-display text-sm text-gold-300 mb-1">Reputation</strong>
+      <strong className="block font-display text-sm text-gold-300 mb-1">Association Memberships</strong>
       <span>Your payoff at a conference: citation tokens earned and fresh cards added to the pool.</span>
       <span className="block mt-1 text-cream-200/70">
         Citations: 1 → 2 → 3 → 6 · Fresh cards: 1 → 2 → 3 → 4. Currently L{level}.
@@ -74,7 +74,7 @@ const STAT_TOOLTIPS = {
     const pending = citationsReceived * mult;
     return (
       <>
-        <strong className="block font-display text-sm text-gold-300 mb-1">Renown</strong>
+        <strong className="block font-display text-sm text-gold-300 mb-1">Publicist</strong>
         <span>At end of game, your total citation tokens pay out × this multiplier.</span>
         <span className="block mt-1 text-cream-200/70">
           Levels: ×1 → ×2 → ×3 → ×5. Currently L{level} (×{mult}).

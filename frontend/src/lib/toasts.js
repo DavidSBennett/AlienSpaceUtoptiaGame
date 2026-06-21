@@ -219,9 +219,9 @@ function _eventToToast(ev, youPid) {
     case 'renown_bonus_awarded':
       if (!isSelf) return null;
       return {
-        eyebrow: 'Renown',
-        title: `+${d.bonus ?? 0} prestige from renown!`,
-        body: `${d.citations_received ?? 0} citations × renown L${d.renown_level ?? 1}.`,
+        eyebrow: 'Publicist',
+        title: `+${d.bonus ?? 0} prestige from your publicist!`,
+        body: `${d.citations_received ?? 0} citations × Publicist L${d.renown_level ?? 1}.`,
         variant: 'success',
       };
 

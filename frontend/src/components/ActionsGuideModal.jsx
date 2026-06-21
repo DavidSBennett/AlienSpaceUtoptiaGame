@@ -35,9 +35,9 @@ const GUIDE = {
     },
     {
       glyph: '⭐',
-      label: 'Upgrade a stat',
+      label: 'Invest new funding',
       where:
-        'After a successful publication you’ll be asked to raise one of your stats (research, notebook, influence, workspaces, reputation).',
+        'Every so often money comes your way — a raise (once you’re tenure-track), a bonus, or a grant. You invest it in one upgrade: Research Funding, Personal Archive, Literary Agent, Workspaces, Association Memberships, or Publicist. How you invest shapes the kind of research you’ll do.',
     },
     {
       glyph: '▾',
@@ -81,7 +81,13 @@ const GUIDE = {
       glyph: '🎤',
       label: 'Attend a conference',
       where:
-        'Stage cards into a project and click "Attend Conference" on that row. After the year ends, you swap your cards for others from a shared pool and earn citation tokens by your reputation.',
+        'Stage cards into a project and click "Attend Conference" on that row. After the year ends, you swap your cards for others from a shared pool and earn citation tokens by your Association Memberships.',
+    },
+    {
+      glyph: '⭐',
+      label: 'Invest new funding',
+      where:
+        'Every couple of years money comes your way — a raise (once you’re tenure-track), a bonus, or a grant. You invest it in one upgrade: Research Funding, Personal Archive, Literary Agent, Workspaces, Association Memberships, or Publicist. How you invest shapes the kind of research you’ll do.',
     },
     {
       glyph: '📚',

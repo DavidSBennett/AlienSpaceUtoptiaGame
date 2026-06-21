@@ -143,7 +143,7 @@ export default function Leaderboard({
             <SortHeader label="Prestige"  myKey="prestige"           activeKey={sortKey} dir={sortDir} onSort={handleSort} align="right" />
             <SortHeader label="Art"       myKey="articles_published" activeKey={sortKey} dir={sortDir} onSort={handleSort} align="center" title="Articles published" />
             <SortHeader label="Bk"        myKey="books_published"    activeKey={sortKey} dir={sortDir} onSort={handleSort} align="center" title="Books published" />
-            <SortHeader label="Stats"     myKey={null}               activeKey={sortKey} dir={sortDir} onSort={null} align="center" title="Ending stat levels: Research / Notebook / Influence / Workspaces / Reputation" />
+            <SortHeader label="Stats"     myKey={null}               activeKey={sortKey} dir={sortDir} onSort={null} align="center" title="Ending stat levels: Research Funding / Personal Archive / Literary Agent / Workspaces / Association Memberships" />
             <SortHeader label="Date"      myKey="submitted_at"       activeKey={sortKey} dir={sortDir} onSort={handleSort} align="right" />
           </tr>
         </thead>

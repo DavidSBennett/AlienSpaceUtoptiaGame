@@ -38,19 +38,19 @@ export default function MultiplayerUpgradeChooser({
   const STATS = [
     {
       key: 'research',
-      title: 'Research',
+      title: 'Research Funding',
       lead: 'How many archive cards you draw at a time. The final upgrade draws a full notebook.',
       table: ['Draw 3 cards', 'Draw 5 cards', 'Draw 7 cards', 'Draw a full notebook'],
     },
     {
       key: 'notebookCapacity',
-      title: 'Notebook Capacity',
-      lead: 'Your hand limit — how many cards you can hold in the Research Notebook.',
+      title: 'Personal Archive',
+      lead: 'Your hand limit — how many cards you can keep in your Research Notebook.',
       table: ['Hold 7 cards', 'Hold 9 cards', 'Hold 11 cards', 'Hold 15 cards'],
     },
     {
       key: 'influence',
-      title: 'Influence',
+      title: 'Literary Agent',
       lead: 'A prestige bonus added to every evidence card in a publication, so it grows with article size.',
       table: ['No bonus', '+1 prestige per card', '+2 prestige per card', '+4 prestige per card'],
     },
@@ -62,24 +62,24 @@ export default function MultiplayerUpgradeChooser({
     },
     {
       key: 'reputation',
-      title: 'Reputation',
+      title: 'Association Memberships',
       lead: 'Your payoff at a conference: citation tokens earned and fresh cards added to the pool.',
       table: ['1 citation · 1 fresh card', '2 citations · 2 fresh', '3 citations · 3 fresh', '6 citations · 4 fresh'],
     },
     {
-      // Renown rewards the holder of citation tokens. At end of game your total
-      // citation tokens (earned by being cited and by attending conferences)
-      // pay out × this multiplier into your final prestige.
+      // The Publicist rewards the holder of citation tokens. At end of game your
+      // total citation tokens (earned by being cited and by attending
+      // conferences) pay out × this multiplier into your final prestige.
       key: 'renown',
-      title: 'Renown',
+      title: 'Publicist',
       lead: 'At game end, your total citation tokens pay out at this multiplier.',
       table: ['×1 per citation', '×2 per citation', '×3 per citation', '×5 per citation'],
     },
   ];
 
   const flavor = {
-    'biennial': 'Two years of steady work have matured your practice. Choose where to invest your scholarly growth.',
-  }[reason] || 'You earned an advancement. Choose where to invest your scholarly growth.';
+    'biennial': "New money has come your way — a raise (once you're tenure-track), a bonus, or a grant. How you invest it shapes the research you'll be able to do.",
+  }[reason] || "New money has come your way — a raise, a bonus, or a grant. How you invest it shapes the research you'll be able to do.";
 
   const allMaxed = STATS.every((s) => (statLevels[s.key] || 1) >= 4);
 
