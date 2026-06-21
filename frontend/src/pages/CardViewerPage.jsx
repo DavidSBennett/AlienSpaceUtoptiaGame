@@ -32,6 +32,21 @@ const COLUMNS = [
   { key: 'context_tags',    label: 'Context tags' },
 ];
 
+/**
+ * The card "faces" to show. Evidence/archive cards have one front+back pair.
+ * Conclusions can be published as an article OR a book, so they have two
+ * labelled pairs (Article, Book).
+ */
+function cardFaces(card) {
+  if (String(card.type || '').toLowerCase() === 'conclusion') {
+    return [
+      { label: 'Article', front: card.image_article_front, back: card.image_article_back },
+      { label: 'Book',    front: card.image_book_front,    back: card.image_book_back },
+    ];
+  }
+  return [{ label: '', front: card.image_front, back: card.image_back }];
+}
+
 export default function CardViewerPage() {
   const [decks, setDecks] = useState([]);
   const [cards, setCards] = useState([]);
@@ -217,8 +232,12 @@ function CardTable({ cards, sort, onSort, onOpen }) {
 /* ── Image mode ─────────────────────────────────────────────────────────── */
 
 function CardImageCell({ card, onOpen }) {
-  const front = card.image_front;
-  const back = card.image_back;
+  // Show the first face that actually has a front image (so a conclusion with
+  // only a book image still shows it); fall back to the first face.
+  const faces = cardFaces(card);
+  const primary = faces.find((f) => f.front) || faces[0];
+  const front = primary?.front;
+  const back = primary?.back;
 
   return (
     <button
@@ -284,6 +303,10 @@ const FIELDS = [
   ['image_url', 'Inner image URL'],
   ['image_front', 'Front image URL'],
   ['image_back', 'Back image URL'],
+  ['image_article_front', 'Article front URL'],
+  ['image_article_back', 'Article back URL'],
+  ['image_book_front', 'Book front URL'],
+  ['image_book_back', 'Book back URL'],
 ];
 
 function CardViewerModal({ card, onClose }) {
@@ -305,10 +328,21 @@ function CardViewerModal({ card, onClose }) {
           ✕ Close
         </button>
 
-        {/* Left: front + back card images */}
-        <div className="p-6 bg-teal-950/30 flex flex-col items-center gap-4 border-r border-gold-500/20">
-          <CardFace url={card.image_front} card={card} label="Front" face="front" />
-          <CardFace url={card.image_back} card={card} label="Back" face="back" />
+        {/* Left: card faces — front+back per face (Article + Book for conclusions). */}
+        <div className="p-6 bg-teal-950/30 flex flex-col gap-5 border-r border-gold-500/20 max-h-[80vh] overflow-y-auto">
+          {cardFaces(card).map((f, i) => (
+            <div key={f.label || i}>
+              {f.label && (
+                <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-300 text-center mb-2">
+                  {f.label}
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <CardFace url={f.front} card={card} label="Front" face="front" />
+                <CardFace url={f.back} card={card} label="Back" face="back" />
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Right: full card data */}
@@ -347,7 +381,7 @@ function CardViewerModal({ card, onClose }) {
 
 function CardFace({ url, card, label, face }) {
   return (
-    <div className="w-full max-w-[18rem]">
+    <div className="w-full">
       <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-gold-300 text-center mb-1">{label}</p>
       <div className="relative aspect-[5/7] border border-gold-500/30 overflow-hidden bg-teal-950/40">
         {url ? (
