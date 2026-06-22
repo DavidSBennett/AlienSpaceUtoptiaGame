@@ -65,22 +65,26 @@ if ($playerCount < 2) {
 
 // ----- Pull archive cards for the deck -----
 //
-// Mirror the single-player split: archive cards have type='archive',
-// conclusion cards have type='conclusion'. We only shuffle archive cards;
-// conclusions are always available (handled client-side via the conclusion
-// shelf, same as single-player — the data is fetched fresh by the React
-// app via the existing listCards.php).
+// Mirror the single-player split: archive cards are flagged 'archive',
+// conclusion cards 'conclusion'. We only shuffle archive cards; conclusions
+// are always available (handled client-side via the conclusion shelf, same as
+// single-player — the data is fetched fresh by the React app via listCards.php).
+//
+// The flag column was renamed `type` → `card_identifier` (migration 26). We
+// SELECT * and filter in PHP so this works whichever name the column has.
 
 $stmt = $mysqli->prepare("
-  SELECT idCard FROM Cards
-  WHERE idDeck = ? AND type = 'archive'
+  SELECT * FROM Cards WHERE idDeck = ?
 ");
 $stmt->bind_param('i', $idDeck);
 $stmt->execute();
 $res = $stmt->get_result();
 $archiveCardIds = [];
 while ($row = $res->fetch_assoc()) {
-  $archiveCardIds[] = (int) $row['idCard'];
+  $ident = $row['card_identifier'] ?? $row['type'] ?? '';
+  if ($ident === 'archive') {
+    $archiveCardIds[] = (int) $row['idCard'];
+  }
 }
 $stmt->close();
 

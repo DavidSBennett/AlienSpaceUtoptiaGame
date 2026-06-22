@@ -4,6 +4,7 @@ import CornerOrnament from './CornerOrnament.jsx';
 import FleuronDivider from './FleuronDivider.jsx';
 import { parseTagField } from '../lib/tags.js';
 import { colorForSeat } from '../lib/playerColors.js';
+import { isConclusionCard } from '../lib/cardIdentifier.js';
 
 /**
  * ReviewSubmissionDialog — peer review modal, rendered in the cream
@@ -83,7 +84,7 @@ export default function ReviewSubmissionDialog({
   );
   const writerCol = colorForSeat(submission.writer_seat ?? 0);
   const handAddable = (Array.isArray(yourHand) ? yourHand : [])
-    .filter((c) => c && c.type !== 'conclusion');
+    .filter((c) => c && !isConclusionCard(c));
 
   return (
     <div

@@ -3,6 +3,7 @@ import { useReducer, useCallback, useMemo } from 'react';
 import { shuffle } from '../lib/shuffle.js';
 import { validateArgument, computePrestige, critiqueArgument } from '../lib/validation.js';
 import { computeStage, isPromotion } from '../lib/career.js';
+import { cardIdentifier } from '../lib/cardIdentifier.js';
 
 /**
  * useGameState — the central state machine for The Historians.
@@ -286,8 +287,8 @@ function pickPublicationTitle(conclusion, kind, currentUsed, evidence = []) {
  * Splits archive vs conclusion, shuffles archive, sets stats to level 1.
  */
 function initialState({ playerName, deck, allCards, totalYears }) {
-  const archiveCards = allCards.filter((c) => c.type === 'archive');
-  const conclusionCards = allCards.filter((c) => c.type === 'conclusion');
+  const archiveCards = allCards.filter((c) => cardIdentifier(c) === 'archive');
+  const conclusionCards = allCards.filter((c) => cardIdentifier(c) === 'conclusion');
 
   // Deal a small starting hand. Each historian begins grad school with a few
   // evidence cards already in their Research Notebook to represent the
@@ -1023,7 +1024,7 @@ function addCardTo(state, loc, card) {
       // the notebook, treat it as removal-only (reducer dropped it from
       // its previous slot, but we don't add it here). It's still available
       // on the conclusion shelf because the shelf is a read-only library.
-      if (card.type === 'conclusion') return state;
+      if (cardIdentifier(card) === 'conclusion') return state;
       // Don't double-add if it's already in the hand (defensive)
       if (state.hand.find((c) => c.id === card.id)) return state;
       return { ...state, hand: [...state.hand, card] };
@@ -1040,7 +1041,7 @@ function addCardTo(state, loc, card) {
       // Conversely, conclusions shouldn't go in evidence slots — those are
       // only for archive cards. Phase 5's publish gate would reject this
       // anyway, but block at placement time for cleaner UX.
-      if (card.type === 'conclusion') return state;
+      if (cardIdentifier(card) === 'conclusion') return state;
       return {
         ...state,
         projects: state.projects.map((p, i) => {

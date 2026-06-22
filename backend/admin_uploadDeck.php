@@ -14,8 +14,11 @@
  * Column map (letter-keyed, header row skipped):
  *   A sequence_number  B date     C source_type  D title       E content
  *   F significance     G author   H location     I argument    J sub_argument
- *   K bonus            L citation M image_url     N contributor O type
+ *   K bonus            L citation M image_url     N contributor O card_identifier
  *   P description      Q article_titles          R book_titles
+ *
+ *   (Column O — "card_identifier" — holds 'archive' or 'conclusion'. It was
+ *    formerly the `type` column; the importer maps by position, not header.)
  *   S context_tags    (pipe-separated, like the title pools)
  *   T image_front     U image_back   (evidence/archive card image URLs)
  *   V image_article_front  W image_article_back   (conclusion-as-article)
@@ -83,9 +86,16 @@ try {
 }
 
 // 4) Bulk-insert cards (skip the header row, skip empty rows).
+//
+// The archive/conclusion column was renamed `type` → `card_identifier`
+// (migration 26). Detect which name the database currently uses so an upload
+// works whether or not the migration has been applied yet.
+$SQL->query("SHOW COLUMNS FROM Cards LIKE 'card_identifier'");
+$identCol = count($SQL->resultset()) > 0 ? 'card_identifier' : 'type';
+
 $insert = "INSERT INTO Cards
   (idDeck, sequence_number, title, source_type, content, date, author, location,
-   significance, image_url, argument, sub_argument, citation, type, bonus,
+   significance, image_url, argument, sub_argument, citation, {$identCol}, bonus,
    contributor, description, article_titles, book_titles, context_tags,
    image_front, image_back,
    image_article_front, image_article_back, image_book_front, image_book_back)

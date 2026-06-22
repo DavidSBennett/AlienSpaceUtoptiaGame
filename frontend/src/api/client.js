@@ -87,7 +87,8 @@ export async function fetchDecks() {
  * Returns: array of card rows. Each card has at least:
  *   id, idDeck, title, source_type, sequence_number, content, date,
  *   author, location, significance, image_url, argument, sub_argument,
- *   citation, bonus, type, contributor
+ *   citation, bonus, card_identifier (archive/conclusion; also mirrored as
+ *   `type` for backward compatibility), contributor
  */
 export async function fetchCards(idDeck) {
   try {

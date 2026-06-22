@@ -61,15 +61,17 @@ if ($cardId <= 0 || !$from || !$to) mp_error('card_id, from, to all required', 4
 
 $pid = (int) $player['player_id'];
 
-// Fetch the card to know its type
-$stmt = $mysqli->prepare("SELECT idCard, type FROM Cards WHERE idCard = ? LIMIT 1");
+// Fetch the card to know whether it is archive or conclusion. SELECT * so we
+// read whichever the identifier column is currently named — `card_identifier`
+// (after migration 26) or the older `type`.
+$stmt = $mysqli->prepare("SELECT * FROM Cards WHERE idCard = ? LIMIT 1");
 $stmt->bind_param('i', $cardId);
 $stmt->execute();
 $res = $stmt->get_result();
 $card = $res->fetch_assoc();
 $stmt->close();
 if (!$card) mp_error('Card not found', 404);
-$cardType = $card['type'];
+$cardType = $card['card_identifier'] ?? $card['type'] ?? '';
 
 // Reject illegal type/zone combinations early
 if ($cardType === 'conclusion' && in_array($to['kind'], ['hand','projectEvidence'], true)) {

@@ -33,6 +33,7 @@ import FleuronDivider from '../components/FleuronDivider.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import UpgradeCountdown from '../components/UpgradeCountdown.jsx';
 import SkipLink from '../components/SkipLink.jsx';
+import { isConclusionCard } from '../lib/cardIdentifier.js';
 import { exportPublicationsToPDF } from '../lib/publicationsPDF.js';
 import { buildSoloReport, openPlaytestReport } from '../lib/playtestReport.js';
 import { stageLabel } from '../lib/career.js';
@@ -363,7 +364,7 @@ function GameBoard({ playerName, deck, allCards, totalYears }) {
     >
       <DragOverlay dropAnimation={null} zIndex={9999}>
         {activeCard ? (
-          activeCard.type === 'conclusion'
+          isConclusionCard(activeCard)
             ? <ConclusionTile card={activeCard} showTags={state.showTags} showSignificance={state.showSignificance} />
             : <CardThumbnail card={activeCard} showTags={state.showTags} showSignificance={state.showSignificance} size="sm" />
         ) : null}

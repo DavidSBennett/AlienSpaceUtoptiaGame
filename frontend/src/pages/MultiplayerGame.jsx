@@ -69,6 +69,7 @@ import { useNarrativeEnabled } from '../lib/narrativeSetting.js';
 import YearProgressBar from '../components/YearProgressBar.jsx';
 import StatsStrip from '../components/StatsStrip.jsx';
 import UpgradeCountdown from '../components/UpgradeCountdown.jsx';
+import { isConclusionCard } from '../lib/cardIdentifier.js';
 import DrawZone from '../components/DrawZone.jsx';
 import Tooltip from '../components/Tooltip.jsx';
 import FleuronDivider from '../components/FleuronDivider.jsx';
@@ -268,7 +269,7 @@ export default function MultiplayerGame() {
     let cancelled = false;
     fetchCards(state.game.idDeck)
       .then((rows) => {
-        if (!cancelled) setConclusionShelf(rows.filter((c) => c.type === 'conclusion'));
+        if (!cancelled) setConclusionShelf(rows.filter((c) => isConclusionCard(c)));
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -884,7 +885,7 @@ export default function MultiplayerGame() {
     >
       <DragOverlay dropAnimation={null} zIndex={9999}>
         {activeCard ? (
-          activeCard.type === 'conclusion'
+          isConclusionCard(activeCard)
             ? <ConclusionTile card={activeCard} showTags={effTags} showSignificance={effSignificance} />
             : <CardThumbnail card={activeCard} showTags={effTags} showSignificance={effSignificance} size="sm" />
         ) : null}

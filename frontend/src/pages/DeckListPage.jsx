@@ -23,8 +23,9 @@ import { Link } from 'react-router-dom';
 import { fetchDecks, fetchCards, fetchAllCards } from '../api/client.js';
 import { CardModal } from '../components/Card.jsx';
 import SkipLink from '../components/SkipLink.jsx';
+import { cardIdentifier, isConclusionCard } from '../lib/cardIdentifier.js';
 
-const isConclusion = (c) => String(c?.type || '').toLowerCase() === 'conclusion';
+const isConclusion = (c) => isConclusionCard(c);
 
 /**
  * The card "faces" to show as images. Evidence cards have one front/back pair;
@@ -328,7 +329,7 @@ function FacePlaceholder({ card, back }) {
 
 const COLS = [
   { key: 'id', label: 'Deck–№' },
-  { key: 'type', label: 'Type' },
+  { key: 'card_identifier', label: 'Card Identifier' },
   { key: 'title', label: 'Title' },
   { key: 'source_type', label: 'Source' },
   { key: 'author', label: 'Author' },
@@ -361,7 +362,7 @@ function CardTable({ rows, sortKey, sortDir, onSort, onRowClick }) {
             <tr key={`${card.idDeck}-${card.idCard}`} onClick={() => onRowClick(i)}
                 className="border-t border-gold-500/15 hover:bg-cream-50/5 cursor-pointer">
               <td className="py-2 px-3 font-mono text-cream-200/70 whitespace-nowrap">{card.idDeck}-{card.idCard}</td>
-              <td className="py-2 px-3 text-cream-200/80">{card.type || '—'}</td>
+              <td className="py-2 px-3 text-cream-200/80">{cardIdentifier(card) || '—'}</td>
               <td className="py-2 px-3 font-display text-cream-50">{card.title || '—'}</td>
               <td className="py-2 px-3 text-cream-200/80">{card.source_type || '—'}</td>
               <td className="py-2 px-3 text-cream-200/80">{card.author || '—'}</td>

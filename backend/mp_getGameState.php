@@ -1255,7 +1255,10 @@ function mp_card_for_you($card) {
     'sub_argument'    => $card['sub_argument'] ?? '',
     'citation'        => $card['citation'] ?? '',
     'bonus'           => isset($card['bonus']) ? (int) $card['bonus'] : 0,
-    'type'            => $card['type'] ?? '',
+    // Archive/conclusion flag — renamed `type` → `card_identifier` (migration
+    // 26). Read whichever column exists and surface it under both names.
+    'card_identifier' => $card['card_identifier'] ?? $card['type'] ?? '',
+    'type'            => $card['card_identifier'] ?? $card['type'] ?? '',
     'contributor'     => $card['contributor'] ?? '',
     // Conclusion-specific fields
     'description'     => $card['description'] ?? '',
