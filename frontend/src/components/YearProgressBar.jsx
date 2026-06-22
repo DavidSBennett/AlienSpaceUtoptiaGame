@@ -1,18 +1,17 @@
 /**
  * YearProgressBar — a horizontal bar showing year N / total with markers
- * at the two hard gates (year 5: comps; year 12: tenure).
+ * at the two hard gates (year 3: first article; year 6: first book).
  *
- * The total length depends on the game's mode (short=10, medium=18,
- * long=25). The gate rounds are fixed, so a marker is only drawn when it
- * falls within this game's length (e.g. a Short game never reaches the
- * year-12 tenure gate, so that marker is hidden).
+ * The total length depends on the game's mode (short=8, medium=12,
+ * long=15). The gate rounds are fixed, so a marker is only drawn when it
+ * falls within this game's length.
  *
  * The filled portion uses gold; the un-filled is dark teal.
  */
-const GATE_YEARS = [5, 12];
+const GATE_YEARS = [3, 6];
 
-export default function YearProgressBar({ currentYear, totalYears = 25 }) {
-  const total = totalYears > 0 ? totalYears : 25;
+export default function YearProgressBar({ currentYear, totalYears = 15 }) {
+  const total = totalYears > 0 ? totalYears : 15;
   const progress = Math.min(Math.max((currentYear - 1) / total, 0), 1);
 
   return (

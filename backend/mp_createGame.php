@@ -54,7 +54,7 @@ if ($maxPlayers < 2 || $maxPlayers > 5) {
 
 // Game-length mode → total rounds. Keep this map in sync with the frontend
 // (src/lib/gameModes.js).
-$modeYears = ['short' => 10, 'medium' => 18, 'long' => 25];
+$modeYears = ['short' => 8, 'medium' => 12, 'long' => 15];
 $mode = isset($body['mode']) ? strtolower(trim((string) $body['mode'])) : 'long';
 if (!isset($modeYears[$mode])) {
   mp_error('mode must be short, medium, or long', 400);

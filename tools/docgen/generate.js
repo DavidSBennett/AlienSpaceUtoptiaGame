@@ -122,7 +122,7 @@ const assignment = [
   p('You are welcome to experience the multiplayer mode instead of — or in addition to — a solo game. Multiplayer needs 2 to 5 players, so you will need to coordinate with classmates.'),
   bullet([{ t: 'Find a partner on D2L. ', bold: true }, { t: 'Use the D2L discussion forum to find one or more classmates to play with and agree on a time to meet online.' }]),
   bullet([{ t: 'Use the same deck. ', bold: true }, { t: 'Whoever hosts should create the game with the Early American History Study Guide deck. The others join the open game from the multiplayer panel on the home screen.' }]),
-  bullet([{ t: 'Pick a length. ', bold: true }, { t: 'A Short (10-year) game is the quickest way to experience peer review, conferences, and the end-of-game awards together.' }]),
+  bullet([{ t: 'Pick a length. ', bold: true }, { t: 'A Short (8-year) game is the quickest way to experience peer review, conferences, and the end-of-game awards together.' }]),
   bullet([{ t: 'Same deliverable. ', bold: true }, { t: 'A multiplayer game still produces a final score with your username, recorded on the multiplayer leaderboard for the length you played — screenshot it the same way.' }]),
   p([{ t: 'Either mode satisfies the assignment. ', bold: true }, { t: 'A solo game is always enough; multiplayer is an option for those who want the full experience.' }]),
 
@@ -201,7 +201,7 @@ const guide = [
   // ── SOLO ──
   new Paragraph({ children: [new PageBreak()] }),
   h1('Playing Solo'),
-  p('A solo career runs 25 years. Time only passes when you take one of these actions:'),
+  p('A solo career runs 15 years. Time only passes when you take one of these actions:'),
   bullet([{ t: 'Draw', bold: true }, { t: ' — refill your hand from the Archive (costs 1 year).' }]),
   bullet([{ t: 'Publish', bold: true }, { t: ' — submit a project (costs 1 year, whether it succeeds or not).' }]),
   bullet([{ t: 'Attend a Conference', bold: true }, { t: ' — stage a project’s evidence and swap it for a fresh selection from the archive, banking citation tokens (costs 1 year).' }]),
@@ -243,7 +243,7 @@ const guide = [
   // ── MULTIPLAYER ──
   new Paragraph({ children: [new PageBreak()] }),
   h1('Playing Multiplayer'),
-  p('2 to 5 historians share one archive and compete. From the home screen you can create a game (pick a deck and a length — Short 10 years, Medium 18, or Long 25) or join an open lobby. The host starts the game once everyone is in.'),
+  p('2 to 5 historians share one archive and compete. From the home screen you can create a game (pick a deck and a length — Short 8 years, Medium 12, or Long 15) or join an open lobby. The host starts the game once everyone is in.'),
 
   h2('The Year and Its Phases'),
   p('Unlike solo, everyone acts at the same time. Each year runs through up to three phases:'),

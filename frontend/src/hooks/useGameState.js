@@ -76,7 +76,7 @@ export function renownMultiplier(level) {
   return STAT_TABLES.renown[Math.max(0, Math.min(3, (level || 1) - 1))];
 }
 
-export const TOTAL_YEARS = 25;
+export const TOTAL_YEARS = 15;
 
 // ===== Initial state factory =====
 

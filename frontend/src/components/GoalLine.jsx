@@ -12,7 +12,7 @@
  */
 import { awardsForPlayer } from '../lib/awards.js';
 
-export default function GoalLine({ state, year, stage, articlesPublished, booksPublished, totalYears = 25, className }) {
+export default function GoalLine({ state, year, stage, articlesPublished, booksPublished, totalYears = 15, className }) {
   const goal = computeGoal({ state, year, stage, articlesPublished, booksPublished, totalYears });
 
   return (

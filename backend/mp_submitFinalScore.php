@@ -47,8 +47,8 @@ $idDeck = (int) $game['idDeck'];
 
 // Game-length mode this score belongs to, so each length keeps its own
 // leaderboard. Keep in sync with mp_createGame.php / src/lib/gameModes.js.
-$totalYears = (int) ($game['total_years'] ?? 25);
-$gameMode = $totalYears <= 10 ? 'short' : ($totalYears <= 18 ? 'medium' : 'long');
+$totalYears = (int) ($game['total_years'] ?? 15);
+$gameMode = $totalYears <= 8 ? 'short' : ($totalYears <= 12 ? 'medium' : 'long');
 
 // Fetch all players to score
 $stmt = $mysqli->prepare("

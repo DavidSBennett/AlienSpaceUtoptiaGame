@@ -395,7 +395,7 @@ function mp_finish_round_tail($mysqli, $gameId, $game) {
   // The game length is per-game (short=10, medium=18, long=25). The career
   // gate rounds below stay fixed (comps at 5 → year-6 gate, tenure at 12 →
   // year-13 gate); only the end-of-game round scales with the mode.
-  $totalYears = (int) ($game['total_years'] ?? 25);
+  $totalYears = (int) ($game['total_years'] ?? 15);
   $newYear = (int) $game['current_year'] + 1;
 
   if ($newYear > $totalYears) {
