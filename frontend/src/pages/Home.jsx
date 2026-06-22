@@ -9,7 +9,7 @@ import CornerOrnament from '../components/CornerOrnament.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import useUserSetting from '../auth/useUserSetting.js';
-import { GAME_MODES, DEFAULT_MODE, labelForRounds } from '../lib/gameModes.js';
+import { GAME_MODES, DEFAULT_MODE, labelForRounds, roundsForMode } from '../lib/gameModes.js';
 
 /**
  * Home — the unified landing page. Hosts BOTH the solo and multiplayer
@@ -44,6 +44,9 @@ export default function Home() {
 
   // ── Shared form state ────────────────────────────────────────────
   const [selectedDeckId, setSelectedDeckId] = useState('');
+  // Solo career length (Short 8 / Medium 12 / Long 15). Separate from the
+  // multiplayer gameMode below.
+  const [soloMode, setSoloMode] = useState(DEFAULT_MODE);
 
   // ── Multiplayer panel state ──────────────────────────────────────
   const [mpOpen, setMpOpen] = useState(() => location.pathname === '/multiplayer');
@@ -131,7 +134,7 @@ export default function Home() {
     if (!raw) return;
     const deck = { idDeck: raw.value, nameDeck: raw.label };
     // Note: no playerName in nav state. Game.jsx pulls from useAuth.
-    navigate('/game', { state: { deck } });
+    navigate('/game', { state: { deck, totalYears: roundsForMode(soloMode) } });
   }
 
   async function handleCreateLobby() {
@@ -308,6 +311,41 @@ export default function Home() {
                       The archive returned no decks.
                     </p>
                   )}
+                </div>
+
+                {/* Solo career length — Short 8 / Medium 12 / Long 15.
+                    Mirrors the multiplayer length picker below. */}
+                <div>
+                  <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-gold-400 mb-2">
+                    Career length
+                  </label>
+                  <div
+                    role="group"
+                    aria-label="Career length"
+                    className="inline-flex rounded-full border border-gold-500/40 bg-ink-900/40 p-1"
+                  >
+                    {GAME_MODES.map((m) => (
+                      <button
+                        key={m.key}
+                        type="button"
+                        onClick={() => setSoloMode(m.key)}
+                        aria-pressed={soloMode === m.key}
+                        title={`${m.rounds} years — ${m.blurb}`}
+                        className={`px-4 py-1.5 rounded-full font-mono text-[11px] uppercase tracking-[0.18em] transition-colors ${
+                          soloMode === m.key
+                            ? 'bg-gold-500 text-ink-900'
+                            : 'text-cream-200 hover:text-gold-400'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="font-serif italic text-cream-200/60 text-xs mt-1.5">
+                    {roundsForMode(soloMode)} years
+                    {' · '}
+                    {GAME_MODES.find((m) => m.key === soloMode)?.blurb}
+                  </p>
                 </div>
 
                 {/* Start row — Solo (form submit) and Multiplayer toggle.

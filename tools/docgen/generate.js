@@ -201,7 +201,7 @@ const guide = [
   // ── SOLO ──
   new Paragraph({ children: [new PageBreak()] }),
   h1('Playing Solo'),
-  p('A solo career runs 15 years. Time only passes when you take one of these actions:'),
+  p('Before you start, pick a career length on the home screen — Short (8 years), Medium (12), or Long (15). After that, time only passes when you take one of these actions:'),
   bullet([{ t: 'Draw', bold: true }, { t: ' — refill your hand from the Archive (costs 1 year).' }]),
   bullet([{ t: 'Publish', bold: true }, { t: ' — submit a project (costs 1 year, whether it succeeds or not).' }]),
   bullet([{ t: 'Attend a Conference', bold: true }, { t: ' — stage a project’s evidence and swap it for a fresh selection from the archive, banking citation tokens (costs 1 year).' }]),

@@ -285,7 +285,7 @@ function pickPublicationTitle(conclusion, kind, currentUsed, evidence = []) {
  * Build the initial game state from a list of cards (loaded from API).
  * Splits archive vs conclusion, shuffles archive, sets stats to level 1.
  */
-function initialState({ playerName, deck, allCards }) {
+function initialState({ playerName, deck, allCards, totalYears }) {
   const archiveCards = allCards.filter((c) => c.type === 'archive');
   const conclusionCards = allCards.filter((c) => c.type === 'conclusion');
 
@@ -302,6 +302,9 @@ function initialState({ playerName, deck, allCards }) {
     // Setup
     playerName,
     deck,                             // { idDeck, nameDeck, ... }
+    // Career length in years. Chosen on the home screen (Short 8 / Medium 12
+    // / Long 15); falls back to the full career if unset.
+    totalYears: Number(totalYears) > 0 ? Number(totalYears) : TOTAL_YEARS,
 
     // Career
     year: 1,
@@ -890,6 +893,7 @@ function applyStageProgression(state, previousStage) {
 function advanceYear(state) {
   const nextYear = state.year + 1;
   const previousStage = state.stage;
+  const totalYears = state.totalYears || TOTAL_YEARS;
   let next = { ...state, year: nextYear };
 
   // Banked citation tokens cash in at game end: each is worth the renown
@@ -918,14 +922,14 @@ function advanceYear(state) {
     };
   }
 
-  // ----- END OF GAME: Year 25 — retirement -----
-  if (nextYear > TOTAL_YEARS) {
+  // ----- END OF GAME: final year — retirement -----
+  if (nextYear > totalYears) {
     return {
       ...next,
-      year: TOTAL_YEARS,
+      year: totalYears,
       prestige: finalPrestige,
       stage: 'retired',
-      gameOver: { reason: 'retired', year: TOTAL_YEARS },
+      gameOver: { reason: 'retired', year: totalYears },
     };
   }
 

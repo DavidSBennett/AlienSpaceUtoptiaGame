@@ -67,6 +67,9 @@ export default function Game() {
   // nav state only carries the deck choice from Home.jsx.
   const playerName = user?.username;
   const deck = location.state?.deck;
+  // Career length chosen on the home screen (Short 8 / Medium 12 / Long 15).
+  // Falls back inside useGameState when absent (e.g. a direct nav).
+  const totalYears = location.state?.totalYears;
 
   useEffect(() => {
     if (!playerName || !deck) {
@@ -118,7 +121,7 @@ export default function Game() {
   }
 
   return (
-    <GameBoard playerName={playerName} deck={deck} allCards={allCards} />
+    <GameBoard playerName={playerName} deck={deck} allCards={allCards} totalYears={totalYears} />
   );
 }
 
@@ -126,7 +129,7 @@ export default function Game() {
 /**
  * GameBoard — actual board, mounted only once cards are loaded.
  */
-function GameBoard({ playerName, deck, allCards }) {
+function GameBoard({ playerName, deck, allCards, totalYears }) {
   const {
     state,
     drawCards,
@@ -146,6 +149,7 @@ function GameBoard({ playerName, deck, allCards }) {
     playerName,
     deck,
     allCards,
+    totalYears,
   });
 
   // Currently-open card modal. Shape: null | { card, source }
@@ -347,7 +351,7 @@ function GameBoard({ playerName, deck, allCards }) {
     return all.find((c) => activeDragId.includes(`-${c.id}`) || activeDragId === `shelf-${c.id}`) || null;
   }, [activeDragId, state.hand, state.projects, state.conclusionShelf]);
 
-  const yearProgress = Math.min(state.year / TOTAL_YEARS, 1);
+  const yearProgress = Math.min(state.year / (state.totalYears || TOTAL_YEARS), 1);
 
   return (
     <DndContext
@@ -492,12 +496,12 @@ function GameBoard({ playerName, deck, allCards }) {
           <span className="font-mono text-cream-200 flex-shrink-0">
             <span className="text-gold-400 mr-2">Year</span>
             {state.year}
-            <span className="text-cream-200">/{TOTAL_YEARS}</span>
+            <span className="text-cream-200">/{state.totalYears || TOTAL_YEARS}</span>
           </span>
 
           <UpgradeCountdown
             year={state.year}
-            totalYears={TOTAL_YEARS}
+            totalYears={state.totalYears || TOTAL_YEARS}
             pending={state.pendingUpgrades}
           />
         </section>
@@ -1214,7 +1218,7 @@ function GameOverOverlay({ state, deck }) {
         <div className="absolute inset-2 border border-gold-500/30 pointer-events-none" />
 
         <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-gold-700 mb-3">
-          Year {year} of {TOTAL_YEARS}
+          Year {year} of {state.totalYears || TOTAL_YEARS}
         </p>
 
         <h2
