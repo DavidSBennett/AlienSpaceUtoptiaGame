@@ -9,7 +9,7 @@ import CornerOrnament from '../components/CornerOrnament.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import useUserSetting from '../auth/useUserSetting.js';
-import { GAME_MODES, DEFAULT_MODE, labelForRounds, roundsForMode } from '../lib/gameModes.js';
+import { GAME_MODES, DEFAULT_MODE, labelForRounds, roundsForMode, labelForMode } from '../lib/gameModes.js';
 
 /**
  * Home — the unified landing page. Hosts BOTH the solo and multiplayer
@@ -44,14 +44,13 @@ export default function Home() {
 
   // ── Shared form state ────────────────────────────────────────────
   const [selectedDeckId, setSelectedDeckId] = useState('');
-  // Solo career length (Short 8 / Medium 12 / Long 15). Separate from the
-  // multiplayer gameMode below.
-  const [soloMode, setSoloMode] = useState(DEFAULT_MODE);
+  // Game length (Short 8 / Medium 12 / Long 15) — shared by both solo and
+  // multiplayer. The picker sits above the Solo/Multiplayer choice.
+  const [gameMode, setGameMode] = useState(DEFAULT_MODE);
 
   // ── Multiplayer panel state ──────────────────────────────────────
   const [mpOpen, setMpOpen] = useState(() => location.pathname === '/multiplayer');
   const [maxPlayers, setMaxPlayers] = useState(5);
-  const [gameMode, setGameMode] = useState(DEFAULT_MODE);
   const [lobbies, setLobbies] = useState([]);
   const [myGames, setMyGames] = useState([]);
 
@@ -134,7 +133,7 @@ export default function Home() {
     if (!raw) return;
     const deck = { idDeck: raw.value, nameDeck: raw.label };
     // Note: no playerName in nav state. Game.jsx pulls from useAuth.
-    navigate('/game', { state: { deck, totalYears: roundsForMode(soloMode) } });
+    navigate('/game', { state: { deck, totalYears: roundsForMode(gameMode) } });
   }
 
   async function handleCreateLobby() {
@@ -313,26 +312,26 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Solo career length — Short 8 / Medium 12 / Long 15.
-                    Mirrors the multiplayer length picker below. */}
+                {/* Game length — Short 8 / Medium 12 / Long 15. Shared by
+                    both solo and multiplayer (it sits above that choice). */}
                 <div>
                   <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-gold-400 mb-2">
-                    Career length
+                    Game length
                   </label>
                   <div
                     role="group"
-                    aria-label="Career length"
+                    aria-label="Game length"
                     className="inline-flex rounded-full border border-gold-500/40 bg-ink-900/40 p-1"
                   >
                     {GAME_MODES.map((m) => (
                       <button
                         key={m.key}
                         type="button"
-                        onClick={() => setSoloMode(m.key)}
-                        aria-pressed={soloMode === m.key}
+                        onClick={() => setGameMode(m.key)}
+                        aria-pressed={gameMode === m.key}
                         title={`${m.rounds} years — ${m.blurb}`}
                         className={`px-4 py-1.5 rounded-full font-mono text-[11px] uppercase tracking-[0.18em] transition-colors ${
-                          soloMode === m.key
+                          gameMode === m.key
                             ? 'bg-gold-500 text-ink-900'
                             : 'text-cream-200 hover:text-gold-400'
                         }`}
@@ -342,9 +341,9 @@ export default function Home() {
                     ))}
                   </div>
                   <p className="font-serif italic text-cream-200/60 text-xs mt-1.5">
-                    {roundsForMode(soloMode)} years
+                    {roundsForMode(gameMode)} years
                     {' · '}
-                    {GAME_MODES.find((m) => m.key === soloMode)?.blurb}
+                    {GAME_MODES.find((m) => m.key === gameMode)?.blurb}
                   </p>
                 </div>
 
@@ -473,39 +472,16 @@ export default function Home() {
                         </select>
                       </div>
 
-                      {/* Game length */}
-                      <div>
-                        <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-gold-400 mb-2">
-                          Game length
-                        </label>
-                        <div
-                          role="group"
-                          aria-label="Game length"
-                          className="inline-flex rounded-full border border-gold-500/40 bg-ink-900/40 p-1"
-                        >
-                          {GAME_MODES.map((m) => (
-                            <button
-                              key={m.key}
-                              type="button"
-                              onClick={() => setGameMode(m.key)}
-                              aria-pressed={gameMode === m.key}
-                              title={`${m.rounds} rounds — ${m.blurb}`}
-                              className={`px-4 py-1.5 rounded-full font-mono text-[11px] uppercase tracking-[0.18em] transition-colors ${
-                                gameMode === m.key
-                                  ? 'bg-gold-500 text-ink-900'
-                                  : 'text-cream-200 hover:text-gold-400'
-                              }`}
-                            >
-                              {m.label}
-                            </button>
-                          ))}
-                        </div>
-                        <p className="font-serif italic text-cream-200/60 text-xs mt-1.5">
-                          {GAME_MODES.find((m) => m.key === gameMode)?.rounds} rounds
-                          {' · '}
-                          {GAME_MODES.find((m) => m.key === gameMode)?.blurb}
-                        </p>
-                      </div>
+                      {/* Game length is set by the shared picker above the
+                          Solo/Multiplayer choice — show it here read-only so
+                          the host knows what they're creating. */}
+                      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-cream-200/60">
+                        Length:{' '}
+                        <span className="text-gold-400">
+                          {labelForMode(gameMode)} · {roundsForMode(gameMode)} rounds
+                        </span>
+                        <span className="tracking-normal normal-case text-cream-200/40"> — set above</span>
+                      </p>
 
                       <button
                         type="button"
