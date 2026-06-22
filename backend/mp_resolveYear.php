@@ -441,14 +441,15 @@ function mp_finish_round_tail($mysqli, $gameId, $game) {
     $stmt->execute();
     $stmt->close();
 
-    // ── Regular every-other-year upgrade (a grant or a pay raise) ──────────
-    // Every live player gets one stat upgrade every other year. Run BEFORE the
+    // ── Regular every-third-year upgrade (a grant or a pay raise) ──────────
+    // Every live player gets one stat upgrade every three years. Run BEFORE the
     // promotion pass so that if a player both promotes AND gets the regular
     // drip the same year, the more salient 'promotion' reason wins the (single)
-    // reason column. The count is additive either way. Granted when the
-    // just-finished year is odd (years 1,3,5,…).
+    // reason column. The count is additive either way. Granted at the end of
+    // years 3, 6, 9, … (every third year). Keep this cadence (3) in sync with
+    // the frontend counter in lib/upgradeCadence.js.
     $finishedYear = (int) $game['current_year'];
-    if ($finishedYear % 2 === 1) {
+    if ($finishedYear % 3 === 0) {
       $stmt = $mysqli->prepare("
         UPDATE mp_game_players
         SET pending_upgrade = pending_upgrade + 1,

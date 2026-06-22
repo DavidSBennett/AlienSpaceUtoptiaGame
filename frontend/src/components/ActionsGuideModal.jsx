@@ -37,7 +37,7 @@ const GUIDE = {
       glyph: '⭐',
       label: 'Invest new funding',
       where:
-        'Every so often money comes your way — a raise (once you’re tenure-track), a bonus, or a grant. You invest it in one upgrade: Research Funding, Personal Archive, Literary Agent, Workspaces, Association Memberships, or Publicist. How you invest shapes the kind of research you’ll do.',
+        'Every third year money comes your way — a raise (once you’re tenure-track), a bonus, or a grant — and a promotion adds one too. You invest it in one upgrade: Research Funding, Personal Archive, Literary Agent, Workspaces, Association Memberships, or Publicist. How you invest shapes the kind of research you’ll do. The header shows how long until your next one.',
     },
     {
       glyph: '▾',
@@ -87,7 +87,7 @@ const GUIDE = {
       glyph: '⭐',
       label: 'Invest new funding',
       where:
-        'Every couple of years money comes your way — a raise (once you’re tenure-track), a bonus, or a grant. You invest it in one upgrade: Research Funding, Personal Archive, Literary Agent, Workspaces, Association Memberships, or Publicist. How you invest shapes the kind of research you’ll do.',
+        'Every third year money comes your way — a raise (once you’re tenure-track), a bonus, or a grant — and a promotion adds one too. You invest it in one upgrade: Research Funding, Personal Archive, Literary Agent, Workspaces, Association Memberships, or Publicist. How you invest shapes the kind of research you’ll do. The header shows how long until your next one.',
     },
     {
       glyph: '📚',

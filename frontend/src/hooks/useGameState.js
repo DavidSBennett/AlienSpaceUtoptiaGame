@@ -932,9 +932,11 @@ function advanceYear(state) {
   // ----- Promotions (rank-ups grant a bonus upgrade + a narrative beat) -----
   next = applyStageProgression(next, previousStage);
 
-  // ----- Regular every-other-year upgrade (a grant or a raise) -----
-  // Granted when the just-finished year is odd (years 1, 3, 5, …).
-  if (state.year % 2 === 1) {
+  // ----- Regular every-third-year upgrade (a grant or a raise) -----
+  // Granted at the end of years 3, 6, 9, … (every third year). Keep this
+  // cadence (3) in sync with the backend (mp_resolveYear.php) and the
+  // on-screen counter in lib/upgradeCadence.js.
+  if (state.year % 3 === 0) {
     next = grantUpgrade(next, 'biennial');
   }
 

@@ -31,6 +31,7 @@ import Bookshelf from '../components/Bookshelf.jsx';
 import Tooltip from '../components/Tooltip.jsx';
 import FleuronDivider from '../components/FleuronDivider.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
+import UpgradeCountdown from '../components/UpgradeCountdown.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { exportPublicationsToPDF } from '../lib/publicationsPDF.js';
 import { buildSoloReport, openPlaytestReport } from '../lib/playtestReport.js';
@@ -493,6 +494,12 @@ function GameBoard({ playerName, deck, allCards }) {
             {state.year}
             <span className="text-cream-200">/{TOTAL_YEARS}</span>
           </span>
+
+          <UpgradeCountdown
+            year={state.year}
+            totalYears={TOTAL_YEARS}
+            pending={state.pendingUpgrades}
+          />
         </section>
 
         <div className="h-px bg-teal-900 relative overflow-hidden">

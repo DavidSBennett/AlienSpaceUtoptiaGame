@@ -68,6 +68,7 @@ import { stageLabel, rankIndex } from '../lib/career.js';
 import { useNarrativeEnabled } from '../lib/narrativeSetting.js';
 import YearProgressBar from '../components/YearProgressBar.jsx';
 import StatsStrip from '../components/StatsStrip.jsx';
+import UpgradeCountdown from '../components/UpgradeCountdown.jsx';
 import DrawZone from '../components/DrawZone.jsx';
 import Tooltip from '../components/Tooltip.jsx';
 import FleuronDivider from '../components/FleuronDivider.jsx';
@@ -1002,6 +1003,12 @@ export default function MultiplayerGame() {
               <div className="font-serif italic text-cream-200/80 text-lg text-right mt-1">
                 Year {game.current_year} / {totalYears}
               </div>
+              <UpgradeCountdown
+                year={game.current_year}
+                totalYears={totalYears}
+                pending={you.pending_upgrade}
+                variant="panel"
+              />
             </div>
           </div>
         </section>

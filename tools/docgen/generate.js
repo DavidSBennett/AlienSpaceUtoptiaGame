@@ -224,7 +224,7 @@ const guide = [
   p([{ t: 'Two deadlines can end your career early: ', bold: true }, { t: 'you must publish at least one article by year 3 (to get hired), and at least one book by year 6 (for a permanent post). Miss either and the game ends.' }]),
 
   h2('Upgrades (Money to Invest)'),
-  p('Every other year you come into money — a grant while you’re job-hunting, or a pay raise once you’re employed — and every promotion adds a bonus. You invest each one in a single upgrade:'),
+  p('Every third year you come into money — a grant while you’re job-hunting, or a pay raise once you’re employed — and every promotion adds a bonus. A counter near the top of the screen shows how many years until your next one. You invest each one in a single upgrade:'),
   table(
     ['Upgrade', 'What it does'],
     [
