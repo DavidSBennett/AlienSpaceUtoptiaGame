@@ -286,6 +286,18 @@ export async function adminPurgePlaytestFeedback() {
 }
 
 /**
+ * Admin: delete specific playtest feedback responses by id (curation).
+ * @param {{ ids: number[] }} args
+ * @returns {Promise<{ ok, deleted }>}
+ */
+export async function adminDeletePlaytestFeedback({ ids }) {
+  try {
+    const res = await api.post('/admin_deletePlaytestFeedback.php', { ids });
+    return res.data;
+  } catch (err) { throw normalizeError(err); }
+}
+
+/**
  * Edit the name on a leaderboard entry (admin only).
  * @param {Object} args
  * @param {'solo'|'mp'} args.mode       which leaderboard the score lives on

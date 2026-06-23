@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { adminListPlaytestFeedback, adminPurgePlaytestFeedback } from '../api/auth.js';
+import { adminListPlaytestFeedback, adminPurgePlaytestFeedback, adminDeletePlaytestFeedback } from '../api/auth.js';
 
 /**
  * AdminPlaytestPage — compiles every anonymous playtest submission into one
@@ -50,6 +50,9 @@ export default function AdminPlaytestPage() {
   const [confirmPurge, setConfirmPurge] = useState(false);
   const [purging, setPurging] = useState(false);
   const [purgeMsg, setPurgeMsg] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());  // ids ticked for deletion
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -66,6 +69,38 @@ export default function AdminPlaytestPage() {
 
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => { document.title = 'The Historians — Playtest Data'; }, []);
+
+  function toggleOne(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelected((prev) => {
+      const allOn = rows.length > 0 && rows.every((r) => prev.has(r.id));
+      return allOn ? new Set() : new Set(rows.map((r) => r.id));
+    });
+  }
+
+  async function doDeleteSelected() {
+    setDeleting(true);
+    setError(null);
+    setPurgeMsg(null);
+    try {
+      const ids = Array.from(selected);
+      const res = await adminDeletePlaytestFeedback({ ids });
+      setConfirmDelete(false);
+      setSelected(new Set());
+      setPurgeMsg(`Deleted ${res?.deleted ?? 0} response${(res?.deleted ?? 0) === 1 ? '' : 's'}.`);
+      await refresh();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function doPurge() {
     setPurging(true);
@@ -94,6 +129,7 @@ export default function AdminPlaytestPage() {
   }
 
   const n = rows.length;
+  const allSelected = n > 0 && rows.every((r) => selected.has(r.id));
   const csv = buildCSV(rows);
   const json = JSON.stringify(rows, null, 2);
 
@@ -184,10 +220,38 @@ export default function AdminPlaytestPage() {
           {/* Per-response data table */}
           <section>
             <h2 style={S.h2}>All responses</h2>
+
+            {/* Curation bar — tick rows, then delete the ones to drop. */}
+            <div className="no-print" style={S.curateBar}>
+              {selected.size > 0 ? (
+                confirmDelete ? (
+                  <>
+                    <span style={S.purgeWarn}>Delete {selected.size} selected response{selected.size === 1 ? '' : 's'}?</span>
+                    <button type="button" onClick={doDeleteSelected} disabled={deleting} style={S.btnDanger}>
+                      {deleting ? 'Deleting…' : 'Yes, delete selected'}
+                    </button>
+                    <button type="button" onClick={() => setConfirmDelete(false)} disabled={deleting} style={S.btn}>Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => { setConfirmDelete(true); setPurgeMsg(null); }} style={S.btnDangerOutline}>
+                      Delete selected ({selected.size})
+                    </button>
+                    <button type="button" onClick={() => setSelected(new Set())} style={S.btn}>Clear selection</button>
+                  </>
+                )
+              ) : (
+                <span style={S.muted}>Tick rows to curate, then delete the ones you don’t want to keep.</span>
+              )}
+            </div>
+
             <div style={S.tableScroll}>
               <table style={S.tableTight}>
                 <thead>
                   <tr>
+                    <th scope="col" className="no-print" style={S.thT}>
+                      <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all responses" />
+                    </th>
                     <th scope="col" style={S.thT}>#</th>
                     <th scope="col" style={S.thT}>Date</th>
                     <th scope="col" style={S.thT}>Mode</th>
@@ -203,7 +267,10 @@ export default function AdminPlaytestPage() {
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id}>
+                    <tr key={r.id} style={selected.has(r.id) ? S.rowSelected : undefined}>
+                      <td className="no-print" style={S.tdT}>
+                        <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleOne(r.id)} aria-label={`Select response ${r.id}`} />
+                      </td>
                       <td style={S.tdT}>{r.id}</td>
                       <td style={S.tdT}>{shortDate(r.created_at)}</td>
                       <td style={S.tdT}>{r.mode === 'multiplayer' ? 'MP' : r.mode === 'solo' ? 'Solo' : '—'}</td>
@@ -292,6 +359,8 @@ const S = {
   btnDanger: { padding: '9px 16px', background: '#7a1f1f', color: '#fbf8f0', border: '1px solid #7a1f1f', borderRadius: 2, cursor: 'pointer', fontSize: 14 },
   purgeWarn: { color: '#7a1f1f', fontStyle: 'italic', fontSize: 13 },
   purgeDone: { color: '#1f4f4a', fontStyle: 'italic', fontSize: 13 },
+  curateBar: { display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', margin: '0 0 8px' },
+  rowSelected: { background: '#f3e6e6' },
   btnLink: { padding: '9px 16px', background: '#1f4f4a', color: '#fbf8f0', border: '1px solid #b8923a', borderRadius: 2, textDecoration: 'none', fontSize: 14, marginLeft: 'auto' },
   header: { borderBottom: `2px solid ${INK}`, paddingBottom: 14, marginBottom: 20 },
   eyebrow: { fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 11, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#6b5d44', margin: 0 },
