@@ -239,6 +239,14 @@ function ScoreNameEditor({ mode, editing, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  // Close on Esc only — clicking outside the box must NOT dismiss it (avoids
+  // losing an in-progress edit by accident).
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   async function save() {
     const trimmed = name.trim();
     if (!trimmed) { setError('Name cannot be empty.'); return; }
@@ -261,14 +269,12 @@ function ScoreNameEditor({ mode, editing, onClose, onSaved }) {
   return (
     <div
       className="fixed inset-0 z-[120] bg-ink-900/70 flex items-center justify-center p-4"
-      onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
         className="surface-paper max-w-sm w-full p-6 relative"
         style={{ boxShadow: '0 0 0 1px rgba(184,146,58,0.5), 0 20px 60px rgba(0,0,0,0.6)' }}
-        onClick={(e) => e.stopPropagation()}
       >
         <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700 mb-1">Admin · edit name</p>
         <h3 className="font-display text-xl text-ink-900 mb-3">Rename leaderboard entry</h3>
