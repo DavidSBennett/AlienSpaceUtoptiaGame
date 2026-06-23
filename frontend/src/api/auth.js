@@ -275,6 +275,17 @@ export async function adminListPlaytestFeedback() {
 }
 
 /**
+ * Admin: permanently delete ALL anonymous playtest feedback responses.
+ * @returns {Promise<{ ok, dry_run, matched, purged }>}
+ */
+export async function adminPurgePlaytestFeedback() {
+  try {
+    const res = await api.post('/admin_purgePlaytestFeedback.php', { confirm: 'PURGE PLAYTEST' });
+    return res.data;
+  } catch (err) { throw normalizeError(err); }
+}
+
+/**
  * Edit the name on a leaderboard entry (admin only).
  * @param {Object} args
  * @param {'solo'|'mp'} args.mode       which leaderboard the score lives on

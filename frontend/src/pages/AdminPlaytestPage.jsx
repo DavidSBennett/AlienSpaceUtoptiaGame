@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { adminListPlaytestFeedback } from '../api/auth.js';
+import { adminListPlaytestFeedback, adminPurgePlaytestFeedback } from '../api/auth.js';
 
 /**
  * AdminPlaytestPage — compiles every anonymous playtest submission into one
@@ -47,6 +47,9 @@ export default function AdminPlaytestPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(null);
+  const [confirmPurge, setConfirmPurge] = useState(false);
+  const [purging, setPurging] = useState(false);
+  const [purgeMsg, setPurgeMsg] = useState(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -63,6 +66,22 @@ export default function AdminPlaytestPage() {
 
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => { document.title = 'The Historians — Playtest Data'; }, []);
+
+  async function doPurge() {
+    setPurging(true);
+    setError(null);
+    setPurgeMsg(null);
+    try {
+      const res = await adminPurgePlaytestFeedback();
+      setConfirmPurge(false);
+      setPurgeMsg(`Deleted ${res?.purged ?? 0} response${(res?.purged ?? 0) === 1 ? '' : 's'}.`);
+      await refresh();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setPurging(false);
+    }
+  }
 
   async function copy(label, text) {
     try {
@@ -92,6 +111,26 @@ export default function AdminPlaytestPage() {
         <button type="button" onClick={() => copy('csv', csv)} style={S.btn}>{copied === 'csv' ? '✓ Copied CSV' : 'Copy CSV (all)'}</button>
         <button type="button" onClick={() => copy('json', json)} style={S.btn}>{copied === 'json' ? '✓ Copied JSON' : 'Copy JSON (all)'}</button>
         <button type="button" onClick={refresh} style={S.btn}>Refresh</button>
+
+        {n > 0 && (
+          confirmPurge ? (
+            <>
+              <span style={S.purgeWarn}>Permanently delete all {n}?</span>
+              <button type="button" onClick={doPurge} disabled={purging} style={S.btnDanger}>
+                {purging ? 'Deleting…' : 'Yes, delete all'}
+              </button>
+              <button type="button" onClick={() => setConfirmPurge(false)} disabled={purging} style={S.btn}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => { setConfirmPurge(true); setPurgeMsg(null); }} style={S.btnDangerOutline}>
+              Purge all data
+            </button>
+          )
+        )}
+        {purgeMsg && <span style={S.purgeDone}>{purgeMsg}</span>}
+
         <Link to="/" style={S.btnLink}>Return to Lobby</Link>
       </div>
 
@@ -249,6 +288,10 @@ const S = {
   toolbar: { display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 24 },
   btnPrimary: { padding: '9px 16px', background: INK, color: '#fbf8f0', border: 'none', borderRadius: 2, cursor: 'pointer', fontSize: 14 },
   btn: { padding: '9px 16px', background: 'transparent', color: INK, border: `1px solid ${INK}`, borderRadius: 2, cursor: 'pointer', fontSize: 14 },
+  btnDangerOutline: { padding: '9px 16px', background: 'transparent', color: '#7a1f1f', border: '1px solid #7a1f1f', borderRadius: 2, cursor: 'pointer', fontSize: 14 },
+  btnDanger: { padding: '9px 16px', background: '#7a1f1f', color: '#fbf8f0', border: '1px solid #7a1f1f', borderRadius: 2, cursor: 'pointer', fontSize: 14 },
+  purgeWarn: { color: '#7a1f1f', fontStyle: 'italic', fontSize: 13 },
+  purgeDone: { color: '#1f4f4a', fontStyle: 'italic', fontSize: 13 },
   btnLink: { padding: '9px 16px', background: '#1f4f4a', color: '#fbf8f0', border: '1px solid #b8923a', borderRadius: 2, textDecoration: 'none', fontSize: 14, marginLeft: 'auto' },
   header: { borderBottom: `2px solid ${INK}`, paddingBottom: 14, marginBottom: 20 },
   eyebrow: { fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 11, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#6b5d44', margin: 0 },
