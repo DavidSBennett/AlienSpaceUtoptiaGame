@@ -118,37 +118,83 @@ $responsesJson = json_encode([
   ],
 ], JSON_UNESCAPED_UNICODE);
 
+// Each candidate column → [mysqli type char, value]. We insert only the
+// columns that actually exist in the live table, so the endpoint works whether
+// or not the optional stat columns were ever added (older deployments created
+// the table without them). responses_json captures the full submission either
+// way, so nothing is lost when a stat column is skipped.
+$candidates = [
+  'mode'                    => ['s', $mode],
+  'deck_id'                 => ['i', $deckId],
+  'final_year'              => ['i', $finalYear],
+  'player_count'            => ['i', $playerCount],
+  'had_technical_errors'    => ['i', $hadErrors],
+  'technical_errors_detail' => ['s', $errorDetail],
+  'likert_draw'             => ['i', $likDraw],
+  'likert_publish'          => ['i', $likPublish],
+  'likert_peer_review'      => ['i', $likPeerReview],
+  'likert_historian'        => ['i', $likHistorian],
+  'likert_learned'          => ['i', $likLearned],
+  'likert_enjoyed'          => ['i', $likEnjoyed],
+  'likert_play_again'       => ['i', $likPlayAgain],
+  'free_enjoyed'            => ['s', $freeEnjoyed],
+  'free_confusing'          => ['s', $freeConfusing],
+  'free_other'              => ['s', $freeOther],
+  'self_prestige'           => ['i', $selfPrestige],
+  'self_articles'           => ['i', $selfArticles],
+  'self_books'              => ['i', $selfBooks],
+  'self_citations'          => ['i', $selfCitations],
+  'self_stage'              => ['s', $selfStage],
+  'self_game_over_reason'   => ['s', $selfOutcome],
+  'self_research'           => ['i', $selfResearch],
+  'self_notebook'           => ['i', $selfNotebook],
+  'self_influence'          => ['i', $selfInfluence],
+  'self_workspaces'         => ['i', $selfWorkspaces],
+  'self_reputation'         => ['i', $selfReputation],
+  'self_renown'             => ['i', $selfRenown],
+  'responses_json'          => ['s', $responsesJson],
+];
+
+// Discover which columns the table actually has.
+$existing = [];
+if ($colRes = $mysqli->query("SHOW COLUMNS FROM playtest_feedback")) {
+  while ($cr = $colRes->fetch_assoc()) { $existing[$cr['Field']] = true; }
+  $colRes->close();
+}
+if (!$existing) {
+  mp_error('Feedback table not found — run the playtest_feedback schema in the database.', 500);
+}
+
+$cols = [];
+$marks = [];
+$types = '';
+$vals = [];
+foreach ($candidates as $col => $tv) {
+  if (isset($existing[$col])) {
+    $cols[]  = $col;
+    $marks[] = '?';
+    $types  .= $tv[0];
+    $vals[]  = $tv[1];
+  }
+}
+if (!$cols) {
+  mp_error('Feedback table is missing the expected columns.', 500);
+}
+
+$sql = 'INSERT INTO playtest_feedback (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $marks) . ')';
+
 try {
-  $stmt = $mysqli->prepare("
-    INSERT INTO playtest_feedback
-      (mode, deck_id, final_year, player_count,
-       had_technical_errors, technical_errors_detail,
-       likert_draw, likert_publish, likert_peer_review, likert_historian,
-       likert_learned, likert_enjoyed, likert_play_again,
-       free_enjoyed, free_confusing, free_other,
-       self_prestige, self_articles, self_books, self_citations, self_stage,
-       self_game_over_reason, self_research, self_notebook, self_influence,
-       self_workspaces, self_reputation, self_renown,
-       responses_json)
-    VALUES (?,?,?,?, ?,?, ?,?,?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?,?,?,?, ?)
-  ");
-  $stmt->bind_param(
-    'siiiisiiiiiiisssiiiissiiiiiis',
-    $mode, $deckId, $finalYear, $playerCount,
-    $hadErrors, $errorDetail,
-    $likDraw, $likPublish, $likPeerReview, $likHistorian,
-    $likLearned, $likEnjoyed, $likPlayAgain,
-    $freeEnjoyed, $freeConfusing, $freeOther,
-    $selfPrestige, $selfArticles, $selfBooks, $selfCitations, $selfStage,
-    $selfOutcome, $selfResearch, $selfNotebook, $selfInfluence,
-    $selfWorkspaces, $selfReputation, $selfRenown,
-    $responsesJson
-  );
+  $stmt = $mysqli->prepare($sql);
+  if (!$stmt) throw new \Exception($mysqli->error);
+  // bind_param needs values by reference — build a references array.
+  $bind = [$types];
+  foreach ($vals as $i => $v) { $bind[] = &$vals[$i]; }
+  call_user_func_array([$stmt, 'bind_param'], $bind);
   $stmt->execute();
   $newId = $stmt->insert_id;
   $stmt->close();
 } catch (\Throwable $e) {
-  mp_error('Could not save feedback', 500);
+  mp_error('Could not save feedback: ' . $e->getMessage(), 500);
 }
 
 mp_json(['ok' => true, 'id' => (int) $newId]);

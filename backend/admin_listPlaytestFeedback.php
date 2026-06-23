@@ -18,32 +18,30 @@ users_require_admin($mysqli);
 
 $rows = [];
 try {
+  // SELECT * so this works whether or not the optional stat columns exist on
+  // this deployment (older tables were created without them). The frontend
+  // tolerates missing keys.
   $res = $mysqli->query("
-    SELECT id, created_at, mode, deck_id, final_year, player_count,
-           had_technical_errors, technical_errors_detail,
-           likert_draw, likert_publish, likert_peer_review, likert_historian,
-           likert_learned, likert_enjoyed, likert_play_again,
-           free_enjoyed, free_confusing, free_other,
-           self_prestige, self_articles, self_books, self_citations, self_stage,
-           self_game_over_reason, self_research, self_notebook, self_influence,
-           self_workspaces, self_reputation, self_renown
-    FROM playtest_feedback
+    SELECT * FROM playtest_feedback
     ORDER BY created_at DESC, id DESC
   ");
   while ($row = $res->fetch_assoc()) {
-    // Cast numeric columns so the frontend gets numbers, not strings.
+    // Cast numeric columns so the frontend gets numbers, not strings — but
+    // only those actually present in the row.
     foreach (['id','deck_id','final_year','player_count','had_technical_errors',
               'likert_draw','likert_publish','likert_peer_review','likert_historian',
               'likert_learned','likert_enjoyed','likert_play_again',
               'self_prestige','self_articles','self_books','self_citations',
               'self_research','self_notebook','self_influence','self_workspaces',
               'self_reputation','self_renown'] as $k) {
-      $row[$k] = $row[$k] === null ? null : (int) $row[$k];
+      if (array_key_exists($k, $row)) {
+        $row[$k] = $row[$k] === null ? null : (int) $row[$k];
+      }
     }
     $rows[] = $row;
   }
 } catch (\Throwable $e) {
-  mp_error('Could not read playtest feedback', 500);
+  mp_error('Could not read playtest feedback: ' . $e->getMessage(), 500);
 }
 
 mp_json(['feedback' => $rows, 'count' => count($rows)]);
