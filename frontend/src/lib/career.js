@@ -2,18 +2,19 @@
  * Career progression — shared stage labels, rank order, and narrative copy
  * used by both single-player and multiplayer.
  *
- * The career arc (no more "graduate student"):
- *   Recent Graduate (start, unemployed)
- *     → publish 1st article  → Visiting Assistant Professor (hired)
- *     → publish 1st book      → Assistant Professor (tenure track)
- *     → 2 books               → Associate Professor
+ * The career arc:
+ *   Visiting Assistant Professor (start)
+ *     → publish 1st article  → Assistant Professor (tenure track)
+ *     → publish 1st book      → Associate Professor (tenured)
  *     → 4 books               → Full Professor
  *     → 7 books               → Endowed Professor
  *
- * Deadlines: at least one article by year 3, at least one book by year 6.
+ * No deadlines — the career never ends early; it runs to retirement.
  */
 
 // Rank ladder, low → high. Used to detect promotions and gate employment text.
+// 'recent-graduate' is kept only so legacy saves map cleanly; new careers start
+// at Visiting Assistant Professor.
 export const RANK_ORDER = [
   'recent-graduate',
   'visiting-assistant-professor',
@@ -67,10 +68,9 @@ export function computeStage(articles, books) {
   const b = Number(books) || 0;
   if (b >= 7) return 'endowed-professor';
   if (b >= 4) return 'full-professor';
-  if (b >= 2) return 'associate-professor';
-  if (b >= 1) return 'assistant-professor';
-  if (a >= 1) return 'visiting-assistant-professor';
-  return 'recent-graduate';
+  if (b >= 1) return 'associate-professor';   // first book → tenure
+  if (a >= 1) return 'assistant-professor';    // first article → tenure track
+  return 'visiting-assistant-professor';       // start
 }
 
 /**
@@ -79,19 +79,19 @@ export function computeStage(articles, books) {
  */
 export const STAGE_NARRATIVE = {
   'visiting-assistant-professor': {
-    eyebrow: 'You are hired',
-    title: 'A Foot in the Door',
-    body: 'Your first article is in print. On the strength of it, a university takes you on as a Visiting Assistant Professor — your first real post in the field.',
+    eyebrow: 'A new post',
+    title: 'Visiting Assistant Professor',
+    body: 'You begin your career with a Visiting Assistant Professorship — a foot in the door. Publish to make your name.',
   },
   'assistant-professor': {
     eyebrow: 'Tenure track',
     title: 'Assistant Professor',
-    body: 'Your first book wins you a permanent, tenure-track appointment as Assistant Professor. You belong here now.',
+    body: 'Your first article is in print. On the strength of it you win a permanent, tenure-track appointment as Assistant Professor.',
   },
   'associate-professor': {
-    eyebrow: 'Promotion',
+    eyebrow: 'Tenured',
     title: 'Associate Professor',
-    body: 'A second book earns your promotion to Associate Professor — your standing in the field is secure.',
+    body: 'Your first book earns you tenure and promotion to Associate Professor — your standing in the field is secure.',
   },
   'full-professor': {
     eyebrow: 'Promotion',

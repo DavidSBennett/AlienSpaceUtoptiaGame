@@ -413,8 +413,7 @@ function mp_finish_round_tail($mysqli, $gameId, $game) {
       mp_finalize_game($mysqli, $gameId, $totalYears);
     }
   } else {
-    // Apply hard stage gates (year 5 failed comps, year 12 tenure denied).
-    mp_apply_stage_gates($mysqli, $gameId, $newYear);
+    // No mid-career deadlines — careers never end early (only at retirement).
 
     // Reset pending actions, anchor new year
     $stmt = $mysqli->prepare("
@@ -1942,54 +1941,11 @@ function mp_apply_rejection($mysqli, $gameId, $sid, $writerPid, $evIds, $current
 
 
 /**
- * Apply hard career deadlines at year boundaries.
- *   Year 4 (just finished year 3): each player must have published at least
- *     one article or book, OR have a submission still under review, else
- *     game-over with reason 'failed-comps' (never got hired).
- *   Year 7 (just finished year 6): each player must have published at least
- *     one book, OR have a book-kind submission still under review, else
- *     game-over with reason 'tenure-denied' (no permanent post).
- *
- * The "or pending submission" clause covers a manuscript still awaiting its
- * verdict at the boundary so a late submitter isn't unfairly failed.
+ * Career deadlines are DISABLED — a career never ends early, only at
+ * retirement. Kept as a no-op so any lingering callers stay safe.
  */
 function mp_apply_stage_gates($mysqli, $gameId, $newYear) {
-  if ($newYear === 4) {
-    $stmt = $mysqli->prepare("
-      UPDATE mp_game_players p
-      SET game_over_reason = 'failed-comps', stage = 'failed-comps'
-      WHERE p.game_id = ?
-        AND p.game_over_reason IS NULL
-        AND p.articles_published = 0
-        AND p.books_published = 0
-        AND NOT EXISTS (
-          SELECT 1 FROM mp_submissions s
-          WHERE s.writer_player_id = p.player_id
-            AND s.status IN ('pending','approved','auto-approved','objection-won')
-        )
-    ");
-    $stmt->bind_param('i', $gameId);
-    $stmt->execute();
-    $stmt->close();
-  }
-  if ($newYear === 7) {
-    $stmt = $mysqli->prepare("
-      UPDATE mp_game_players p
-      SET game_over_reason = 'tenure-denied', stage = 'tenure-denied'
-      WHERE p.game_id = ?
-        AND p.game_over_reason IS NULL
-        AND p.books_published = 0
-        AND NOT EXISTS (
-          SELECT 1 FROM mp_submissions s
-          WHERE s.writer_player_id = p.player_id
-            AND s.kind = 'book'
-            AND s.status IN ('pending','approved','auto-approved','objection-won')
-        )
-    ");
-    $stmt->bind_param('i', $gameId);
-    $stmt->execute();
-    $stmt->close();
-  }
+  // Intentionally does nothing (no mid-career game-over gates).
 }
 
 
@@ -2094,14 +2050,15 @@ function mp_reputation_book_min($level) {
 }
 
 function mp_compute_stage($articles, $books) {
-  // Publication-driven career ladder (no more grad student). Articles get you
-  // hired; books drive the professor ranks. Mirrors lib/career.js computeStage.
+  // Publication-driven career ladder. Start as Visiting Assistant Professor;
+  // first article → Assistant Professor (tenure track); first book → Associate
+  // Professor (tenured); then Full at 4 books, Endowed at 7. Mirrors
+  // lib/career.js computeStage.
   if ($books >= 7) return 'endowed-professor';
   if ($books >= 4) return 'full-professor';
-  if ($books >= 2) return 'associate-professor';
-  if ($books >= 1) return 'assistant-professor';
-  if ($articles >= 1) return 'visiting-assistant-professor';
-  return 'recent-graduate';
+  if ($books >= 1) return 'associate-professor';   // first book → tenure
+  if ($articles >= 1) return 'assistant-professor'; // first article → tenure track
+  return 'visiting-assistant-professor';            // start
 }
 
 function mp_array_set_equal($a, $b) {

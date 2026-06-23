@@ -1,14 +1,13 @@
 /**
- * YearProgressBar — a horizontal bar showing year N / total with markers
- * at the two hard gates (year 3: first article; year 6: first book).
+ * YearProgressBar — a horizontal bar showing year N / total.
  *
  * The total length depends on the game's mode (short=8, medium=12,
- * long=15). The gate rounds are fixed, so a marker is only drawn when it
- * falls within this game's length.
+ * long=15). There are no career deadlines, so the bar carries no gate
+ * markers — it just tracks progress toward retirement.
  *
  * The filled portion uses gold; the un-filled is dark teal.
  */
-const GATE_YEARS = [3, 6];
+const GATE_YEARS = [];
 
 export default function YearProgressBar({ currentYear, totalYears = 15 }) {
   const total = totalYears > 0 ? totalYears : 15;

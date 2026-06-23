@@ -61,17 +61,17 @@ export const TUTORIALS = [
     body: (
       <>
         <p>
-          You're a newly minted PhD — a recent graduate of a prestigious
-          doctoral program, looking for your first job. You start with a few
-          evidence cards already in your notebook below: the interests that
-          brought you to the field.
+          You begin your career as a <strong>Visiting Assistant Professor</strong>.
+          You start with a few evidence cards already in your notebook below: the
+          interests that brought you to the field.
         </p>
         <p className="mt-2">
-          Publish your first article to get hired (by year 3), and your first
-          book to win a tenure-track post (by year 6). Each year you take ONE
-          action: draw research, develop a project, or peer-review someone's
-          work. To draw, click the deck to mark "Draw," then "End Year" to
-          advance — fresh evidence flows into your notebook.
+          Publish your first article for a tenure-track post (Assistant
+          Professor), and your first book to earn tenure (Associate Professor) —
+          there are no deadlines. Each year you take ONE action: draw research,
+          develop a project, or peer-review someone's work. To draw, click the
+          deck to mark "Draw," then "End Year" to advance — fresh evidence flows
+          into your notebook.
         </p>
       </>
     ),

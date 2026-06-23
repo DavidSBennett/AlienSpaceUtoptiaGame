@@ -156,7 +156,7 @@ const assignment = [
   h1('Tips'),
   bullet([{ t: 'Turn on "Significance." ', bold: true }, { t: 'In the game header, click the Significance button, then click a card to open it and read the historical-significance note behind each source — a quick way to learn the history (and to judge which evidence fits your argument).' }]),
   bullet('Read the cards. The evidence only counts toward a thesis when it shares a tag (theme) with the conclusion — and grouping evidence that shares the same author, place, date, or source type can double your prestige.'),
-  bullet('Publish early to get hired (an article by year 3) and keep your career alive (a book by year 6).'),
+  bullet('Publish steadily — your first article wins a tenure-track post and your first book earns tenure. There are no deadlines, so focus on building the strongest career you can.'),
   bullet([{ t: 'Keep a study guide. ', bold: true }, { t: 'When your game ends, click "View / Print My Works" on the results screen (in multiplayer, the Final Standings screen) to open your published articles and books as a printable document. Each one lists its thesis and a table of all its evidence with the historical-significance notes — save it as a PDF and you have a ready-made review sheet for the deck’s material.' }]),
   bullet('Turn on tutorial hints from the header if you want step-by-step guidance, and open "How to Play" any time for a quick reference.'),
 
@@ -208,20 +208,20 @@ const guide = [
   p('Dragging cards, opening cards, and toggling settings are all free.'),
 
   h2('Your Career'),
-  p('You begin as a recent PhD looking for work. Your career advances by what you publish:'),
+  p('You begin as a Visiting Assistant Professor. Your career advances by what you publish:'),
   table(
     ['Milestone', 'How you reach it'],
     [
-      ['Hired (Visiting Assistant Professor)', 'Publish your first article.'],
-      ['Assistant Professor (tenure track)', 'Publish your first book.'],
-      ['Associate Professor', '2 books published.'],
+      ['Visiting Assistant Professor', 'Where you begin.'],
+      ['Assistant Professor (tenure track)', 'Publish your first article.'],
+      ['Associate Professor (tenured)', 'Publish your first book.'],
       ['Full Professor', '4 books published.'],
       ['Endowed Professor', '7 books published.'],
     ],
     [4200, 5160],
   ),
   spacer(),
-  p([{ t: 'Two deadlines can end your career early: ', bold: true }, { t: 'you must publish at least one article by year 3 (to get hired), and at least one book by year 6 (for a permanent post). Miss either and the game ends.' }]),
+  p([{ t: 'No deadlines: ', bold: true }, { t: 'your career never ends early. It simply runs to retirement at the end of the game — the more you publish, the higher your final standing.' }]),
 
   h2('Upgrades (Money to Invest)'),
   p('Every third year you come into money — a grant while you’re job-hunting, or a pay raise once you’re employed — and every promotion adds a bonus. A counter near the top of the screen shows how many years until your next one. You invest each one in a single upgrade:'),
@@ -271,7 +271,7 @@ const guide = [
 
   h1('Tips for a High Score'),
   bullet('Focus your arguments — all evidence sharing one place, author, date, source type, or context tag doubles the prestige.'),
-  bullet('Hit the deadlines: an article by year 3, a book by year 6.'),
+  bullet('Publish your first article for a tenure-track post and your first book for tenure, then keep publishing books to reach Full Professor (4) and an Endowed Chair (7).'),
   bullet('Invest upgrades to match your style — Literary Agent for raw prestige, or Association Memberships + Publicist to win the long citation game.'),
   bullet('Turn on the in-game tutorial for guided hints, and open "How to Play" any time.'),
 ];

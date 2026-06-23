@@ -1506,26 +1506,20 @@ function SmallPips({ level }) {
  * pursue at their leisure).
  */
 function currentGoal(state) {
-  const { year, booksPublished } = state;
+  const { booksPublished } = state;
   const published = state.articlesPublished + state.booksPublished;
 
-  // Deadline 1: publish at least one article by year 3 (to get hired).
+  // First article → a tenure-track post (Assistant Professor).
   if (published === 0) {
-    const yearsLeft = 3 - year + 1;
-    return `Goal: Publish an article by year 3 to get hired — ${yearsLeft} year${yearsLeft === 1 ? '' : 's'} left`;
+    return 'Goal: Publish your first article for a tenure-track post (Assistant Professor)';
   }
 
-  // Deadline 2: publish a book by year 6 (to make Assistant Professor).
+  // First book → tenure (Associate Professor).
   if (booksPublished === 0) {
-    const yearsLeft = 6 - year + 1;
-    if (yearsLeft > 0) {
-      return `Goal: Publish a book by year 6 for a tenure-track post — ${yearsLeft} year${yearsLeft === 1 ? '' : 's'} left`;
-    }
-    return 'Goal: Publish your first book to make Assistant Professor';
+    return 'Goal: Publish your first book to earn tenure (Associate Professor)';
   }
 
-  // Promotions by book count (1 → Assistant, 2 → Associate, 4 → Full, 7 → Endowed).
-  if (booksPublished < 2) return `Goal: ${2 - booksPublished} more book for Associate Professor`;
+  // Promotions by book count: Full at 4, Endowed at 7.
   if (booksPublished < 4) return `Goal: ${4 - booksPublished} more book${4 - booksPublished === 1 ? '' : 's'} for Full Professor`;
   if (booksPublished < 7) return `Goal: ${7 - booksPublished} more book${7 - booksPublished === 1 ? '' : 's'} for an Endowed Chair`;
   return 'Continue building your legacy until retirement';

@@ -2,8 +2,8 @@
  * Single-player tutorial registry. Same shape as lib/tutorials.jsx, but the
  * conditions read the SOLO reducer state (state.year, state.hand,
  * state.projects, state.articlesPublished, …) and the copy follows the solo
- * career narrative: you start as a recent PhD, publish an article to get hired,
- * a book to win a tenure-track post, then climb the ranks.
+ * career narrative: you start as a Visiting Assistant Professor, publish an
+ * article for a tenure-track post, a book to earn tenure, then climb the ranks.
  *
  * Consumed by <TutorialManager tutorials={SOLO_TUTORIALS} …/> in Game.jsx.
  */
@@ -34,17 +34,18 @@ export const SOLO_TUTORIALS = [
     id: 'solo-welcome-draw',
     order: 10,
     targetAttr: 'draw-zone',
-    title: 'A Freshly Minted PhD',
+    title: 'Your First Post',
     body: (
       <>
         <p>
-          You're a recent graduate of a prestigious doctoral program, looking
-          for your first job. A few evidence cards are already in your notebook —
-          the interests that brought you to the field.
+          You begin your career as a <strong>Visiting Assistant Professor</strong>.
+          A few evidence cards are already in your notebook — the interests that
+          brought you to the field.
         </p>
         <p className="mt-2">
-          Your first goals: publish an <strong>article by year 3</strong> to get
-          hired, then a <strong>book by year 6</strong> for a tenure-track post.
+          Your goals: publish your <strong>first article</strong> for a
+          tenure-track post (Assistant Professor), then your{' '}
+          <strong>first book</strong> to earn tenure (Associate Professor).
           Click the deck to <strong>draw</strong> more evidence — each draw costs a year.
         </p>
       </>
@@ -115,13 +116,14 @@ export const SOLO_TUTORIALS = [
     id: 'solo-publish-hired',
     order: 40,
     targetAttr: 'publish-button',
-    title: 'Publish to Get Hired',
+    title: 'Publish to Advance',
     body: (
       <>
         <p>
           Your project has enough evidence. Click <strong>Submit for Review</strong> to
-          publish it. An <strong>article</strong> (under 6 evidence) gets you hired as a
-          Visiting Assistant Professor; a <strong>book</strong> (6+) wins a tenure-track post.
+          publish it. Your <strong>first article</strong> (under 6 evidence) wins a
+          tenure-track post (Assistant Professor); your <strong>first book</strong> (6+)
+          earns tenure (Associate Professor).
         </p>
         <p className="mt-2">Publishing costs a year and earns prestige.</p>
       </>
@@ -142,12 +144,12 @@ export const SOLO_TUTORIALS = [
     title: 'Now, a Book',
     body: (
       <>
-        <p>You're hired! To keep your career going you need a <strong>book</strong> (a project with 6+ evidence) by <strong>year 6</strong> — that makes you Assistant Professor on the tenure track.</p>
-        <p className="mt-2">After that, more books earn promotions: 2 → Associate, 4 → Full, 7 → an Endowed Chair.</p>
+        <p>You're on the tenure track! Your next milestone is a <strong>book</strong> (a project with 6+ evidence) — your first book earns you <strong>tenure</strong> as Associate Professor.</p>
+        <p className="mt-2">After that, more books earn promotions: 4 → Full Professor, 7 → an Endowed Chair.</p>
       </>
     ),
     condition: (s) =>
-      !over(s) && (s?.articlesPublished ?? 0) >= 1 && (s?.booksPublished ?? 0) === 0 && (s?.year ?? 1) <= 6,
+      !over(s) && (s?.articlesPublished ?? 0) >= 1 && (s?.booksPublished ?? 0) === 0,
   },
 
   // ── Attend a conference ──────────────────────────────────────────────

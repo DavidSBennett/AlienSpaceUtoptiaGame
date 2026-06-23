@@ -37,34 +37,27 @@ function computeGoal({ state, year, stage, articlesPublished, booksPublished }) 
 
   const published = articlesPublished + booksPublished;
 
-  // ──── Deadline #1: an article by year 3 (to get hired) ─────────────
+  // ──── First article → a tenure-track post ─────────────────────────
   if (published === 0) {
-    const yearsLeft = Math.max(0, 3 - year + 1);
     return (
       <>
-        Publish <strong className="not-italic text-cream-50">one article</strong> by year 3
-        {' '}({yearsLeft} year{yearsLeft === 1 ? '' : 's'} left) to get hired
-        {" — otherwise you leave academia and the game ends."}
+        Publish your <strong className="not-italic text-cream-50">first article</strong> to win a
+        tenure-track post as Assistant Professor.
       </>
     );
   }
 
-  // ──── Deadline #2: a book by year 6 (a tenure-track post) ──────────
+  // ──── First book → tenure ─────────────────────────────────────────
   if (booksPublished === 0) {
-    const yearsLeft = Math.max(0, 6 - year + 1);
     return (
       <>
-        Publish <strong className="not-italic text-cream-50">one book</strong> by year 6
-        {' '}({yearsLeft} year{yearsLeft === 1 ? '' : 's'} left) for a tenure-track post
-        {" — otherwise you leave academia and the game ends."}
+        Publish your <strong className="not-italic text-cream-50">first book</strong> to earn tenure
+        and promotion to Associate Professor.
       </>
     );
   }
 
-  // ──── Promotions by book count (Assistant 1 · Associate 2 · Full 4 · Endowed 7) ──
-  if (booksPublished < 2) {
-    return <>Publish <strong className="not-italic text-cream-50">1 more book</strong> (total 2) to make Associate Professor.</>;
-  }
+  // ──── Promotions by book count (Associate 1 · Full 4 · Endowed 7) ──
   if (booksPublished < 4) {
     const need = 4 - booksPublished;
     return <>Publish <strong className="not-italic text-cream-50">{need} more book{need === 1 ? '' : 's'}</strong> (total 4) to make Full Professor.</>;

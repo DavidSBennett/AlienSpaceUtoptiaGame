@@ -2,8 +2,8 @@
  * Game-length modes for multiplayer.
  *
  * A multiplayer game can be Short, Medium, or Long. The mode only changes
- * how many rounds (years) the game runs; the career gate rounds (article by
- * year 3, book by year 6) stay fixed, so a Short game still reaches both.
+ * how many rounds (years) the game runs. There are no career deadlines — the
+ * career simply runs to retirement at the end of the chosen length.
  *
  * Keep this in sync with the backend:
  *   - mp_createGame.php       (mode → total_years on create)

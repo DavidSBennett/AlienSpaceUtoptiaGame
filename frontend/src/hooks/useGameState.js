@@ -310,7 +310,7 @@ function initialState({ playerName, deck, allCards, totalYears }) {
     // Career
     year: 1,
     prestige: 0,
-    stage: 'recent-graduate',            // see computeStage() in lib/career.js
+    stage: 'visiting-assistant-professor',   // see computeStage() in lib/career.js
     articlesPublished: 0,
     booksPublished: 0,
 
@@ -903,25 +903,8 @@ function advanceYear(state) {
   const citationBonus = (state.citations || 0) * renownMultiplier(state.statLevels.renown || 1);
   const finalPrestige = state.prestige + citationBonus;
 
-  // ----- DEADLINE: by the end of year 3, publish at least one article -----
-  if (nextYear === 4 && state.articlesPublished === 0 && state.booksPublished === 0) {
-    return {
-      ...next,
-      prestige: finalPrestige,
-      stage: 'failed-comps',
-      gameOver: { reason: 'failed-comps', year: 3 },
-    };
-  }
-
-  // ----- DEADLINE: by the end of year 6, publish at least one book -----
-  if (nextYear === 7 && state.booksPublished === 0) {
-    return {
-      ...next,
-      prestige: finalPrestige,
-      stage: 'tenure-denied',
-      gameOver: { reason: 'tenure-denied', year: 6 },
-    };
-  }
+  // No mid-career deadlines — the career never ends early. The only ending is
+  // retirement at the final year (below).
 
   // ----- END OF GAME: final year — retirement -----
   if (nextYear > totalYears) {
