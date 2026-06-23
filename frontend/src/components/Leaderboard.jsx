@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchScores } from '../api/client.js';
+import { adminEditScoreName } from '../api/auth.js';
+import { useAuth } from '../auth/AuthContext.jsx';
+
+// Both list endpoints return `score_id`; older rows may carry `idScore`.
+const rowId = (s) => s.score_id ?? s.idScore;
 
 /**
  * Leaderboard — table of scores. Two ways to use:
@@ -37,6 +42,14 @@ export default function Leaderboard({
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('desc');  // 'asc' | 'desc'
 
+  // Admin name-editing. Available only when we know which board this is
+  // (fetchParams present → mode known and a re-fetch is possible).
+  const { isAdmin } = useAuth();
+  const mode = fetchParams?.mode === 'mp' ? 'mp' : 'solo';
+  const canEdit = isAdmin && !!fetchParams;
+  const [reloadTick, setReloadTick] = useState(0);
+  const [editing, setEditing] = useState(null);  // null | { scoreId, currentName, userId }
+
   // Re-fetch when fetchParams change. We stringify to compare deeply.
   const fetchKey = fetchParams ? JSON.stringify(fetchParams) : null;
 
@@ -66,7 +79,7 @@ export default function Leaderboard({
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchKey, scoresProp]);
+  }, [fetchKey, scoresProp, reloadTick]);
 
   // Auto-detect whether we need a Deck column: if the scores span more than
   // one distinct idDeck, show it. Caller can also force-show or force-hide.
@@ -122,6 +135,7 @@ export default function Leaderboard({
   }
 
   return (
+    <>
     <div className="overflow-y-auto" style={{ maxHeight: '24rem' }}>
       <table className="w-full font-serif text-sm">
         <thead className="sticky top-0 bg-cream-100 z-10">
@@ -149,11 +163,11 @@ export default function Leaderboard({
         </thead>
         <tbody>
           {sortedScores.map((s, i) => {
-            const isMine = highlightIdScore && Number(s.idScore) === Number(highlightIdScore);
+            const isMine = highlightIdScore && Number(rowId(s)) === Number(highlightIdScore);
             const deckName = deckNamesById?.get(Number(s.idDeck)) || `Deck ${s.idDeck}`;
             return (
               <tr
-                key={s.idScore}
+                key={rowId(s) ?? i}
                 className={`
                   border-b border-cream-300/60
                   ${isMine ? 'bg-gold-300/40 font-semibold' : ''}
@@ -163,6 +177,21 @@ export default function Leaderboard({
                 <td className="py-2 px-2 text-ink-900">
                   {s.player_name}
                   {isMine && <span className="ml-2 font-mono text-[9px] uppercase tracking-widest text-gold-700">you</span>}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => setEditing({
+                        scoreId: rowId(s),
+                        currentName: s.player_name,
+                        userId: s.user_id ?? null,
+                      })}
+                      className="ml-2 align-middle text-gold-700/60 hover:text-gold-900 text-xs"
+                      title="Edit name (admin)"
+                      aria-label={`Edit name for ${s.player_name}`}
+                    >
+                      ✎
+                    </button>
+                  )}
                 </td>
                 {showDeck && (
                   <td className="py-2 px-2 text-ink-800 text-xs italic">{deckName}</td>
@@ -182,6 +211,126 @@ export default function Leaderboard({
           })}
         </tbody>
       </table>
+    </div>
+
+    {editing && (
+      <ScoreNameEditor
+        mode={mode}
+        editing={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => { setEditing(null); setReloadTick((t) => t + 1); }}
+      />
+    )}
+    </>
+  );
+}
+
+
+/**
+ * ScoreNameEditor — admin modal to rename a leaderboard entry. For solo
+ * scores (which have an account behind them) the admin chooses whether to
+ * change just this entry or rename the whole account. Multiplayer scores are
+ * snapshots, so only the entry can be edited.
+ */
+function ScoreNameEditor({ mode, editing, onClose, onSaved }) {
+  const hasAccount = mode === 'solo' && editing.userId != null;
+  const [name, setName] = useState(editing.currentName || '');
+  const [scope, setScope] = useState('entry');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function save() {
+    const trimmed = name.trim();
+    if (!trimmed) { setError('Name cannot be empty.'); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await adminEditScoreName({
+        mode,
+        score_id: editing.scoreId,
+        scope: hasAccount ? scope : 'entry',
+        name: trimmed,
+      });
+      onSaved();
+    } catch (e) {
+      setError(e.message || 'Could not save.');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[120] bg-ink-900/70 flex items-center justify-center p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="surface-paper max-w-sm w-full p-6 relative"
+        style={{ boxShadow: '0 0 0 1px rgba(184,146,58,0.5), 0 20px 60px rgba(0,0,0,0.6)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700 mb-1">Admin · edit name</p>
+        <h3 className="font-display text-xl text-ink-900 mb-3">Rename leaderboard entry</h3>
+
+        <label className="block font-mono text-[10px] uppercase tracking-widest text-gold-700 mb-1">New name</label>
+        <input
+          type="text"
+          value={name}
+          maxLength={50}
+          autoFocus
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !saving) save(); }}
+          className="w-full px-3 py-2 border border-gold-500/50 bg-cream-50 text-ink-900 font-serif focus:outline-none focus:border-gold-700"
+        />
+
+        {hasAccount ? (
+          <fieldset className="mt-4">
+            <legend className="font-mono text-[10px] uppercase tracking-widest text-gold-700 mb-1.5">Apply to</legend>
+            <label className="flex items-start gap-2 mb-1.5 cursor-pointer">
+              <input type="radio" name="scope" checked={scope === 'entry'} onChange={() => setScope('entry')} className="mt-1" />
+              <span className="text-sm text-ink-800">
+                <span className="font-semibold">This leaderboard entry only</span>
+                <span className="block text-ink-700/80 text-xs">Doesn’t change their login.</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="scope" checked={scope === 'account'} onChange={() => setScope('account')} className="mt-1" />
+              <span className="text-sm text-ink-800">
+                <span className="font-semibold">Rename the account</span>
+                <span className="block text-ink-700/80 text-xs">Changes their username everywhere, including how they sign in.</span>
+              </span>
+            </label>
+          </fieldset>
+        ) : (
+          <p className="mt-2 font-serif italic text-ink-700 text-xs">
+            Editing this multiplayer leaderboard entry (a stored name, not linked to an account).
+          </p>
+        )}
+
+        {error && (
+          <p className="mt-3 font-serif italic text-oxblood-500 text-sm">{error}</p>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="px-4 py-2 font-mono text-xs uppercase tracking-wider text-ink-700 hover:text-ink-900"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="px-4 py-2 font-mono text-xs uppercase tracking-wider bg-gold-500 text-ink-900 hover:bg-gold-400 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

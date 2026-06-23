@@ -273,3 +273,18 @@ export async function adminListPlaytestFeedback() {
     return res.data;
   } catch (err) { throw normalizeError(err); }
 }
+
+/**
+ * Edit the name on a leaderboard entry (admin only).
+ * @param {Object} args
+ * @param {'solo'|'mp'} args.mode       which leaderboard the score lives on
+ * @param {number} args.score_id        the score row id
+ * @param {'entry'|'account'} args.scope 'entry' = this row only; 'account' = rename the user (solo)
+ * @param {string} args.name            the new name
+ */
+export async function adminEditScoreName({ mode, score_id, scope, name }) {
+  try {
+    const res = await api.post('/admin_editScoreName.php', { mode, score_id, scope, name });
+    return res.data;
+  } catch (err) { throw normalizeError(err); }
+}

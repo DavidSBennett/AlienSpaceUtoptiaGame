@@ -39,12 +39,23 @@ if ($idDeck > 0)  { $conds[] = 's.idDeck = ?';  $types .= 'i'; $params[] = $idDe
 if ($forUser > 0) { $conds[] = 's.user_id = ?'; $types .= 'i'; $params[] = $forUser; }
 $whereSql = count($conds) > 0 ? 'WHERE ' . implode(' AND ', $conds) : '';
 
+// The admin per-score name override (migration 27) may not exist yet — detect
+// it so the board works both before and after the migration. When present, the
+// shown name is COALESCE(display_name, username); otherwise just the username.
+$hasDisplayName = false;
+if ($colRes = $mysqli->query("SHOW COLUMNS FROM user_scores LIKE 'display_name'")) {
+  $hasDisplayName = $colRes->num_rows > 0;
+  $colRes->close();
+}
+$nameExpr = $hasDisplayName ? 'COALESCE(s.display_name, u.username)' : 'u.username';
+$dnExpr   = $hasDisplayName ? 's.display_name' : 'NULL';
+
 $sql = "
   SELECT s.score_id, s.user_id, s.idDeck, s.rank, s.prestige,
          s.articles_published, s.books_published,
          s.research_level, s.notebook_level, s.influence_level, s.workspaces_level,
          s.year_ended, s.submitted_at,
-         u.username, u.username AS player_name
+         u.username, {$dnExpr} AS display_name, {$nameExpr} AS player_name
   FROM user_scores s
   JOIN users u ON u.user_id = s.user_id
   $whereSql
@@ -70,6 +81,7 @@ while ($r = $res->fetch_assoc()) {
     'score_id'           => (int) $r['score_id'],
     'user_id'            => (int) $r['user_id'],
     'username'           => $r['username'],
+    'display_name'       => $r['display_name'],
     'player_name'        => $r['player_name'],
     'idDeck'             => (int) $r['idDeck'],
     'rank'               => $r['rank'],
