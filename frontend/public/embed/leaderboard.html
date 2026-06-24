@@ -74,21 +74,28 @@
   function medal(i){ return i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1); }
 
   var resolvedDeckId = null;
+  var availableDecks = [];
+
+  function deckId(d){ return parseInt(d.value != null ? d.value : d.idDeck, 10); }
+  function deckLabel(d){ return String(d.label || d.nameDeck || ''); }
 
   // Resolve the deck param: a number is an idDeck; anything else is matched by
-  // name against the public deck list.
+  // name against the public deck list — exact, then substring (either way),
+  // then "all words present".
   function resolveDeck() {
     if (/^\d+$/.test(deckParam)) { resolvedDeckId = parseInt(deckParam, 10); return Promise.resolve(); }
     if (!deckParam) return Promise.reject(new Error('No deck specified. Add ?deck=<name or id> to the URL.'));
     return fetch(ORIGIN + '/listDecks.php').then(function(r){ return r.json(); }).then(function(decks){
-      var want = deckParam.toLowerCase();
-      var hit = (decks || []).find(function(d){
-        var label = String(d.label || d.nameDeck || '').toLowerCase();
-        return label === want || label.indexOf(want) !== -1;
-      });
+      availableDecks = Array.isArray(decks) ? decks : (decks && decks.decks) || [];
+      var want = deckParam.toLowerCase().trim();
+      var words = want.split(/\s+/).filter(Boolean);
+      var hit =
+        availableDecks.find(function(d){ return deckLabel(d).toLowerCase().trim() === want; }) ||
+        availableDecks.find(function(d){ var l = deckLabel(d).toLowerCase(); return l.indexOf(want) !== -1 || want.indexOf(l) !== -1; }) ||
+        availableDecks.find(function(d){ var l = deckLabel(d).toLowerCase(); return words.every(function(w){ return l.indexOf(w) !== -1; }); });
       if (!hit) throw new Error('Deck "' + deckParam + '" not found.');
-      resolvedDeckId = parseInt(hit.value != null ? hit.value : hit.idDeck, 10);
-      if (hit.label) document.getElementById('sub').textContent = 'Studies in: ' + hit.label;
+      resolvedDeckId = deckId(hit);
+      if (deckLabel(hit)) document.getElementById('sub').textContent = 'Studies in: ' + deckLabel(hit);
     });
   }
 
@@ -136,7 +143,16 @@
     setInterval(load, refresh * 1000);
   }).catch(function(err){
     document.getElementById('sub').textContent = '';
-    document.getElementById('body').innerHTML = '<p class="msg">' + esc(err.message) + '</p>';
+    var html = '<p class="msg">' + esc(err.message) + '</p>';
+    if (availableDecks.length) {
+      html += '<p class="msg" style="margin-top:0">Available decks — use the name or id in <code>?deck=</code>:</p>';
+      html += '<ul style="font-family:ui-monospace,Menlo,monospace;font-size:.82rem;color:var(--ink);max-width:560px;margin:0 auto 16px;line-height:1.7">';
+      availableDecks.forEach(function(d){
+        html += '<li>' + esc(deckLabel(d)) + ' &nbsp;—&nbsp; <strong>?deck=' + deckId(d) + '</strong></li>';
+      });
+      html += '</ul>';
+    }
+    document.getElementById('body').innerHTML = html;
   });
 })();
 </script>
