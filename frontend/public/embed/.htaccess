@@ -1,0 +1,12 @@
+# Headers for the /embed/ folder only.
+#
+# These pages are meant to be embedded in other sites (e.g. an iframe in a
+# Brightspace/D2L announcement), so we must allow cross-origin framing here.
+# The rest of the app keeps the server's default X-Frame-Options: SAMEORIGIN.
+<IfModule mod_headers.c>
+  # Remove the inherited SAMEORIGIN lock...
+  Header always unset X-Frame-Options
+  # ...and explicitly allow any site to frame these widgets (modern browsers
+  # honour frame-ancestors over X-Frame-Options).
+  Header always set Content-Security-Policy "frame-ancestors *"
+</IfModule>
