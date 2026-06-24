@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Historians — Live Scoreboard</title>
+<style>
+  :root{
+    --ink:#1a1714; --muted:#6b5d44; --gold:#9a7b1f; --rule:#d8cdb4;
+    --paper:#fbf8f0; --head:#1f3a4d; --row:#fff; --rowAlt:#f5f1e6;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:Georgia,'Times New Roman',serif;color:var(--ink);background:transparent;padding:8px}
+  .board{max-width:680px;margin:0 auto;background:var(--paper);border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+  .hd{padding:12px 16px;border-bottom:2px solid var(--head)}
+  .hd h1{margin:0;font-size:1.15rem;color:var(--head)}
+  .hd .sub{font-size:.8rem;color:var(--muted);margin-top:2px}
+  .live{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3a9a4a;margin-right:5px;vertical-align:middle}
+  table{width:100%;border-collapse:collapse;font-size:.92rem}
+  th,td{padding:7px 10px;text-align:left}
+  thead th{font-family:ui-monospace,Menlo,monospace;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--rule)}
+  th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+  tbody tr:nth-child(even){background:var(--rowAlt)}
+  tbody tr:nth-child(odd){background:var(--row)}
+  td.pos{font-family:ui-monospace,Menlo,monospace;color:var(--muted);width:2rem}
+  td.name{font-weight:bold}
+  td.rank{color:var(--muted);font-style:italic;font-size:.82rem}
+  td.pr{font-family:ui-monospace,Menlo,monospace;font-weight:bold}
+  .medal{font-style:normal}
+  .ft{padding:8px 16px;border-top:1px solid var(--rule);font-size:.72rem;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
+  .ft a{color:var(--gold)}
+  .msg{padding:24px 16px;text-align:center;color:var(--muted);font-style:italic}
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="hd">
+    <h1 id="title">The Historians — Live Scoreboard</h1>
+    <div class="sub"><span class="live"></span><span id="sub">Loading…</span></div>
+  </div>
+  <div id="body"><p class="msg">Loading the standings…</p></div>
+  <div class="ft">
+    <span id="updated"></span>
+    <a id="play" href="https://game.thehistorians.org/" target="_blank" rel="noopener">Play The Historians →</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  var ORIGIN = location.origin; // served from game.thehistorians.org
+  var q = new URLSearchParams(location.search);
+  var deckParam = (q.get('deck') || '').trim();
+  var limit = Math.max(1, Math.min(100, parseInt(q.get('limit') || '15', 10) || 15));
+  var refresh = Math.max(10, parseInt(q.get('refresh') || '45', 10) || 45); // seconds
+  var titleParam = q.get('title');
+  if (titleParam) document.getElementById('title').textContent = titleParam;
+
+  var RANK_LABELS = {
+    'visiting-assistant-professor': 'Visiting Asst. Prof.',
+    'assistant-professor': 'Assistant Prof.',
+    'associate-professor': 'Associate Prof.',
+    'full-professor': 'Full Professor',
+    'endowed-professor': 'Endowed Chair',
+    'retired': 'Retired',
+    'recent-graduate': 'Recent Graduate',
+    'failed-comps': 'Left Academia',
+    'tenure-denied': 'Denied a Post',
+    'conceded': 'Withdrew'
+  };
+  function rankLabel(r){ return RANK_LABELS[r] || (r || '—'); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function medal(i){ return i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1); }
+
+  var resolvedDeckId = null;
+
+  // Resolve the deck param: a number is an idDeck; anything else is matched by
+  // name against the public deck list.
+  function resolveDeck() {
+    if (/^\d+$/.test(deckParam)) { resolvedDeckId = parseInt(deckParam, 10); return Promise.resolve(); }
+    if (!deckParam) return Promise.reject(new Error('No deck specified. Add ?deck=<name or id> to the URL.'));
+    return fetch(ORIGIN + '/listDecks.php').then(function(r){ return r.json(); }).then(function(decks){
+      var want = deckParam.toLowerCase();
+      var hit = (decks || []).find(function(d){
+        var label = String(d.label || d.nameDeck || '').toLowerCase();
+        return label === want || label.indexOf(want) !== -1;
+      });
+      if (!hit) throw new Error('Deck "' + deckParam + '" not found.');
+      resolvedDeckId = parseInt(hit.value != null ? hit.value : hit.idDeck, 10);
+      if (hit.label) document.getElementById('sub').textContent = 'Studies in: ' + hit.label;
+    });
+  }
+
+  function render(scores) {
+    var body = document.getElementById('body');
+    if (!scores || scores.length === 0) {
+      body.innerHTML = '<p class="msg">No scores recorded yet — be the first!</p>';
+      return;
+    }
+    var rows = scores.map(function(s, i){
+      return '<tr>'
+        + '<td class="pos"><span class="medal">' + medal(i) + '</span></td>'
+        + '<td class="name">' + esc(s.player_name) + '</td>'
+        + '<td class="rank">' + esc(rankLabel(s.rank)) + '</td>'
+        + '<td class="num">' + (s.articles_published|0) + '</td>'
+        + '<td class="num">' + (s.books_published|0) + '</td>'
+        + '<td class="num pr">' + (s.prestige|0) + '</td>'
+        + '</tr>';
+    }).join('');
+    body.innerHTML =
+      '<table><thead><tr>'
+      + '<th>#</th><th>Scholar</th><th>Rank</th>'
+      + '<th class="num" title="Articles">Art</th><th class="num" title="Books">Bk</th>'
+      + '<th class="num">Prestige</th>'
+      + '</tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function pad(n){ return n < 10 ? '0' + n : '' + n; }
+  function load() {
+    fetch(ORIGIN + '/publicScores.php?deck=' + resolvedDeckId + '&limit=' + limit)
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data){
+        render(data.scores || []);
+        var d = new Date();
+        document.getElementById('updated').textContent =
+          'Updated ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ' · refreshes every ' + refresh + 's';
+      })
+      .catch(function(err){
+        document.getElementById('body').innerHTML = '<p class="msg">Could not load scores: ' + esc(err.message) + '</p>';
+      });
+  }
+
+  resolveDeck().then(function(){
+    load();
+    setInterval(load, refresh * 1000);
+  }).catch(function(err){
+    document.getElementById('sub').textContent = '';
+    document.getElementById('body').innerHTML = '<p class="msg">' + esc(err.message) + '</p>';
+  });
+})();
+</script>
+</body>
+</html>
