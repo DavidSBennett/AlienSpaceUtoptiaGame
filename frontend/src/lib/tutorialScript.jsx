@@ -30,6 +30,28 @@ export function snapshot(s) {
 const hasEvidence = (s, n) => (s.projects || []).some((p) => (p.evidence?.length ?? 0) >= n);
 const hasValid = (s, n) => (s.projects || []).some((p) => (p.evidence?.length ?? 0) >= n && !!p.conclusion);
 
+// A fake opponent manuscript shown in the peer-review demo step. Shape matches
+// what ReviewSubmissionDialog expects.
+export const TUTORIAL_REVIEW_SUBMISSION = {
+  writer_name: 'Prof. Hutchinson',
+  writer_seat: 1,
+  kind: 'article',
+  year_submitted: 3,
+  conclusion: {
+    title: 'The Stamp Act crisis sparked the Revolution',
+    description: 'A focused thesis: the 1765 tax crisis set the break with Britain in motion.',
+    argument: 'economic',
+  },
+  argument_text:
+    'The Stamp Act provoked the first colony-wide resistance. Taken with the boycotts that followed, it shows the Revolution began as a tax revolt.',
+  evidence: [
+    { idCard: 9001, title: 'The Stamp Act', author: 'Parliament', argument: 'economic', sub_argument: 'colonial' },
+    { idCard: 9002, title: 'A merchants’ non-importation agreement', author: 'Boston merchants', argument: 'economic', sub_argument: 'colonial' },
+    { idCard: 9003, title: 'A pamphlet against the tax', author: 'A Freeholder', argument: 'colonial', sub_argument: '' },
+  ],
+  citations: [],
+};
+
 export const TUTORIAL_SCRIPT = [
   {
     id: 'intro', info: true, allow: {},
@@ -66,6 +88,13 @@ export const TUTORIAL_SCRIPT = [
     title: 'Invest your funding',
     body: 'Close the publish notice and the promotion pop-up first. An “Invest your funding” window then opens — click ONE upgrade to choose it. How you invest shapes the research you can do.',
     done: (s, st) => s.pendingUpgrades < st.pendingUpgrades || s.pendingUpgrades === 0,
+  },
+  {
+    // Peer review is a MULTIPLAYER mechanic; here it’s a no-stakes demo so the
+    // student sees the module. Advanced by submitting a verdict in the dialog.
+    id: 'peer-review', allow: {}, mask: 'none',
+    title: 'Peer review (multiplayer)',
+    body: 'In a MULTIPLAYER game, after everyone submits, you review one another’s manuscripts. Here’s an opponent’s article to try it on — a demo, so your choice changes nothing. Read it, then pick a verdict: APPROVE (the evidence supports the thesis — it gets published), REVISE (send it back to add or cut evidence), or REJECT (turn it down — you must flag the weak evidence). Submit your verdict to continue.',
   },
   {
     id: 'conf-stage', allow: {}, mask: 'none', target: 'project-area',

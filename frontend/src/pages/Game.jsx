@@ -35,8 +35,9 @@ import UpgradeCountdown from '../components/UpgradeCountdown.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { isConclusionCard } from '../lib/cardIdentifier.js';
 import { TUTORIAL_DECK, TUTORIAL_CARDS } from '../lib/tutorialDeck.js';
-import { TUTORIAL_SCRIPT, snapshot } from '../lib/tutorialScript.jsx';
+import { TUTORIAL_SCRIPT, snapshot, TUTORIAL_REVIEW_SUBMISSION } from '../lib/tutorialScript.jsx';
 import TutorialCoach from '../components/TutorialCoach.jsx';
+import ReviewSubmissionDialog from '../components/ReviewSubmissionDialog.jsx';
 import { exportPublicationsToPDF } from '../lib/publicationsPDF.js';
 import { buildSoloReport, openPlaytestReport } from '../lib/playtestReport.js';
 import { stageLabel } from '../lib/career.js';
@@ -749,6 +750,16 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
             index={tutStep}
             total={TUTORIAL_SCRIPT.length}
             onAdvance={advanceTutorial}
+          />
+        )}
+
+        {/* Peer-review demo — a dummy opponent manuscript to review. */}
+        {tutorial && tutorialStep?.id === 'peer-review' && (
+          <ReviewSubmissionDialog
+            submission={TUTORIAL_REVIEW_SUBMISSION}
+            yourHand={[]}
+            onSubmit={() => advanceTutorial()}
+            onClose={() => advanceTutorial()}
           />
         )}
 
