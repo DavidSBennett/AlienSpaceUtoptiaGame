@@ -56,12 +56,10 @@ export default function TutorialCoach({ step, index, total, onAdvance }) {
         <div className="fixed inset-0 z-[100] bg-ink-900/75 backdrop-blur-[2px] pointer-events-auto" />
       )}
 
-      {/* Cutout mask: four dim strips around the target leave a clickable hole. */}
+      {/* Cutout mask: four dim strips around the target leave a clickable hole.
+          If the target can't be found (e.g. it vanished after the action), we
+          render NO mask — failing open so the player is never trapped. */}
       {mask === 'hole' && rect && <HoleMask rect={rect} />}
-      {mask === 'hole' && !rect && (
-        // Target not measured yet — block everything so nothing wrong is clicked.
-        <div className="fixed inset-0 z-[100] bg-ink-900/55 pointer-events-auto" />
-      )}
 
       {/* Spotlight glow around the target (hole/none steps). */}
       {mask !== 'backdrop' && rect && (

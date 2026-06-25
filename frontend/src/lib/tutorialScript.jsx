@@ -15,13 +15,15 @@
  *   info    — text-only step shown as a centered modal, advanced with a button.
  */
 
+// Snapshot uses the SAME field names as the live game state so the done()
+// predicates can compare `state.X > start.X` without a naming mismatch.
 export function snapshot(s) {
   return {
     year: s.year,
-    articles: s.articlesPublished || 0,
-    books: s.booksPublished || 0,
+    articlesPublished: s.articlesPublished || 0,
+    booksPublished: s.booksPublished || 0,
     citations: s.citations || 0,
-    pending: s.pendingUpgrades || 0,
+    pendingUpgrades: s.pendingUpgrades || 0,
   };
 }
 
@@ -57,13 +59,13 @@ export const TUTORIAL_SCRIPT = [
     id: 'publish-article', allow: { publish: true }, mask: 'hole', target: 'publish-button',
     title: 'Turn 2 — Publish an article',
     body: 'A project with fewer than 6 evidence cards is an article. Click Submit for Review — your first article wins a tenure-track post (Assistant Professor).',
-    done: (s, st) => s.articles > st.articles,
+    done: (s, st) => s.articlesPublished > st.articlesPublished,
   },
   {
     id: 'upgrade', allow: {}, mask: 'none',
     title: 'Invest your funding',
     body: 'Your promotion brought money to invest. In the window that just opened, click ONE upgrade to choose it — how you invest shapes the research you can do.',
-    done: (s, st) => s.pending < st.pending || s.pending === 0,
+    done: (s, st) => s.pendingUpgrades < st.pendingUpgrades || s.pendingUpgrades === 0,
   },
   {
     id: 'conf-stage', allow: {}, mask: 'none', target: 'project-area',
@@ -99,7 +101,7 @@ export const TUTORIAL_SCRIPT = [
     id: 'publish-book', allow: { publish: true }, mask: 'hole', target: 'publish-button',
     title: 'Turn 5 — Publish a book',
     body: 'Six evidence cards make this a book. Click Submit for Review — your first book earns you tenure and promotion to Associate Professor.',
-    done: (s, st) => s.books > st.books,
+    done: (s, st) => s.booksPublished > st.booksPublished,
   },
   {
     id: 'outro', info: true, allow: {},
