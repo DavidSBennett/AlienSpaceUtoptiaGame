@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { adminListPlaytestFeedback, adminPurgePlaytestFeedback, adminDeletePlaytestFeedback } from '../api/auth.js';
-import { LIKERT_ITEMS, LIKERT_SCALE, FREE_FIELDS } from '../lib/playtestQuestions.js';
+import { LIKERT_ITEMS, LIKERT_SCALE } from '../lib/playtestQuestions.js';
 
 /**
  * AdminPlaytestPage — compiles every anonymous playtest submission into one
@@ -224,36 +224,6 @@ export default function AdminPlaytestPage() {
             </table>
           </section>
 
-          {/* Questionnaire — exact wording asked of respondents, so the column
-              codes in the data table below are unambiguous. */}
-          <section>
-            <h2 style={S.h2}>Questionnaire (exact wording)</h2>
-            <p style={S.subtle}>
-              Statements were rated on a 5-point scale:{' '}
-              {LIKERT_SCALE.map((s) => `${s.v} = ${s.label}`).join(' · ')}.
-            </p>
-            <table style={S.table}>
-              <thead>
-                <tr>
-                  <th scope="col" style={S.th}>Code</th>
-                  <th scope="col" style={S.th}>Statement as shown to players</th>
-                </tr>
-              </thead>
-              <tbody>
-                {LIKERT_COLS.map((c) => (
-                  <tr key={c.key}>
-                    <td style={S.td}><span style={S.codeTag}>{c.short}</span></td>
-                    <td style={S.td}>{c.label}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <h3 style={S.h3}>Free-response prompts</h3>
-            <ul style={S.qList}>
-              {FREE_FIELDS.map((f) => <li key={f.id}>{f.label}</li>)}
-            </ul>
-          </section>
-
           {/* Per-response data table */}
           <section>
             <h2 style={S.h2}>All responses</h2>
@@ -424,7 +394,6 @@ const S = {
   fieldKey: { fontWeight: 'bold' },
   subtle: { color: '#6b5d44', fontStyle: 'italic', fontSize: 12 },
   codeTag: { fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 10.5, background: '#f0e6c8', border: '1px solid #d8cdb4', padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap' },
-  qList: { margin: '4px 0 0', paddingLeft: 20, fontSize: 14, lineHeight: 1.7 },
   pre: { background: '#f2ecdd', border: `1px solid ${RULE}`, padding: 12, fontSize: 11, fontFamily: 'ui-monospace, Menlo, monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowX: 'auto' },
   error: { color: '#7a1f1f', fontStyle: 'italic' },
   muted: { color: '#6b5d44', fontStyle: 'italic' },
