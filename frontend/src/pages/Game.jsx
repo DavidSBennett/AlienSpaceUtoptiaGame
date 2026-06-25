@@ -34,6 +34,9 @@ import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import UpgradeCountdown from '../components/UpgradeCountdown.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { isConclusionCard } from '../lib/cardIdentifier.js';
+import { TUTORIAL_DECK, TUTORIAL_CARDS } from '../lib/tutorialDeck.js';
+import { TUTORIAL_SCRIPT, snapshot } from '../lib/tutorialScript.jsx';
+import TutorialCoach from '../components/TutorialCoach.jsx';
 import { exportPublicationsToPDF } from '../lib/publicationsPDF.js';
 import { buildSoloReport, openPlaytestReport } from '../lib/playtestReport.js';
 import { stageLabel } from '../lib/career.js';
@@ -58,7 +61,7 @@ import { buildTagToConclusionMap } from '../lib/tags.js';
  *   - Project columns render in the projects area, each with its own slots
  *   - All movement is FREE (no year tick); only DRAW_CARDS ticks the year
  */
-export default function Game() {
+export default function Game({ tutorial = false }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -67,23 +70,23 @@ export default function Game() {
   // route so user is always present here, but be defensive). The
   // nav state only carries the deck choice from Home.jsx.
   const playerName = user?.username;
-  const deck = location.state?.deck;
-  // Career length chosen on the home screen (Short 8 / Medium 12 / Long 15).
-  // Falls back inside useGameState when absent (e.g. a direct nav).
-  const totalYears = location.state?.totalYears;
+  // Tutorial mode uses its own fixed deck and a generous length (it ends via
+  // the guided script, not retirement); a normal game reads the nav state.
+  const deck = tutorial ? TUTORIAL_DECK : location.state?.deck;
+  const totalYears = tutorial ? 12 : location.state?.totalYears;
 
   useEffect(() => {
-    if (!playerName || !deck) {
+    if (!tutorial && (!playerName || !deck)) {
       navigate('/', { replace: true });
     }
-  }, [playerName, deck, navigate]);
+  }, [tutorial, playerName, deck, navigate]);
 
-  const [allCards, setAllCards] = useState(null);
-  const [loadStatus, setLoadStatus] = useState('loading');
+  const [allCards, setAllCards] = useState(tutorial ? TUTORIAL_CARDS : null);
+  const [loadStatus, setLoadStatus] = useState(tutorial ? 'ok' : 'loading');
   const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
-    if (!deck) return;
+    if (tutorial || !deck) return;
     let cancelled = false;
     setLoadStatus('loading');
 
@@ -100,9 +103,9 @@ export default function Game() {
       });
 
     return () => { cancelled = true; };
-  }, [deck]);
+  }, [tutorial, deck]);
 
-  if (!playerName || !deck) return null;
+  if (!tutorial && (!playerName || !deck)) return null;
 
   if (loadStatus === 'loading') {
     return (
@@ -122,7 +125,7 @@ export default function Game() {
   }
 
   return (
-    <GameBoard playerName={playerName} deck={deck} allCards={allCards} totalYears={totalYears} />
+    <GameBoard playerName={playerName || 'Student'} deck={deck} allCards={allCards} totalYears={totalYears} tutorial={tutorial} />
   );
 }
 
@@ -130,7 +133,7 @@ export default function Game() {
 /**
  * GameBoard — actual board, mounted only once cards are loaded.
  */
-function GameBoard({ playerName, deck, allCards, totalYears }) {
+function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false }) {
   const {
     state,
     drawCards,
@@ -151,7 +154,36 @@ function GameBoard({ playerName, deck, allCards, totalYears }) {
     deck,
     allCards,
     totalYears,
+    tutorial,
   });
+
+  // ── Tutorial mode: a strict step script gates the turn buttons. ──────────
+  const [tutStep, setTutStep] = useState(0);
+  const tutStartRef = useRef(null);
+  const tutorialStep = tutorial ? TUTORIAL_SCRIPT[tutStep] : null;
+  if (tutorial && tutStartRef.current === null) tutStartRef.current = snapshot(state);
+
+  useEffect(() => {
+    if (!tutorial || !tutorialStep || tutorialStep.info) return;
+    if (tutorialStep.done && tutStartRef.current && tutorialStep.done(state, tutStartRef.current)) {
+      const id = setTimeout(() => {
+        setTutStep((i) => Math.min(i + 1, TUTORIAL_SCRIPT.length - 1));
+        tutStartRef.current = snapshot(state);
+      }, 650);
+      return () => clearTimeout(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, tutorial, tutStep]);
+
+  function advanceTutorial() {
+    setTutStep((i) => Math.min(i + 1, TUTORIAL_SCRIPT.length - 1));
+    tutStartRef.current = snapshot(state);
+  }
+
+  const tutAllow = tutorialStep?.allow || {};
+  const tutLockDraw       = tutorial && !tutAllow.draw;
+  const tutLockPublish    = tutorial && !tutAllow.publish;
+  const tutLockConference = tutorial && !tutAllow.conference;
 
   // Currently-open card modal. Shape: null | { card, source }
   //   source: 'hand'             — card from the notebook (placeable)
@@ -550,6 +582,8 @@ function GameBoard({ playerName, deck, allCards, totalYears }) {
                 useSpines
                 articleMin={derived.articleMin}
                 freePublishing={state.statLevels.workspaces >= 4}
+                lockPublish={tutLockPublish}
+                lockConference={tutLockConference}
               />
             ))}
           </main>
@@ -568,7 +602,7 @@ function GameBoard({ playerName, deck, allCards, totalYears }) {
           discardRemaining={state.discard.length}
           drawCount={derived.drawCount}
           onDraw={drawCards}
-          disabled={!!state.gameOver}
+          disabled={!!state.gameOver || tutLockDraw}
         />
 
         {openCard && (() => {
@@ -691,7 +725,16 @@ function GameBoard({ playerName, deck, allCards, totalYears }) {
           />
         )}
 
-        {state.gameOver && <GameOverOverlay state={state} deck={deck} />}
+        {state.gameOver && !tutorial && <GameOverOverlay state={state} deck={deck} />}
+
+        {tutorial && tutorialStep && (
+          <TutorialCoach
+            step={tutorialStep}
+            index={tutStep}
+            total={TUTORIAL_SCRIPT.length}
+            onAdvance={advanceTutorial}
+          />
+        )}
 
         {/* "How to Play" actions reference — summoned from the header. */}
         {guideOpen && (
@@ -702,7 +745,7 @@ function GameBoard({ playerName, deck, allCards, totalYears }) {
         <TutorialManager
           state={state}
           playerToken="solo"
-          enabled={tutorialEnabled && !state.gameOver}
+          enabled={tutorialEnabled && !state.gameOver && !tutorial}
           tutorials={SOLO_TUTORIALS}
         />
       </div>

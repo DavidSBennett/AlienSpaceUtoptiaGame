@@ -286,7 +286,7 @@ function pickPublicationTitle(conclusion, kind, currentUsed, evidence = []) {
  * Build the initial game state from a list of cards (loaded from API).
  * Splits archive vs conclusion, shuffles archive, sets stats to level 1.
  */
-function initialState({ playerName, deck, allCards, totalYears }) {
+function initialState({ playerName, deck, allCards, totalYears, tutorial }) {
   const archiveCards = allCards.filter((c) => cardIdentifier(c) === 'archive');
   const conclusionCards = allCards.filter((c) => cardIdentifier(c) === 'conclusion');
 
@@ -306,6 +306,9 @@ function initialState({ playerName, deck, allCards, totalYears }) {
     // Career length in years. Chosen on the home screen (Short 8 / Medium 12
     // / Long 15); falls back to the full career if unset.
     totalYears: Number(totalYears) > 0 ? Number(totalYears) : TOTAL_YEARS,
+    // Tutorial mode — suppresses the regular upgrade drip so the only upgrade
+    // is the promotion one (keeps the guided script predictable).
+    tutorial: !!tutorial,
 
     // Career
     year: 1,
@@ -924,7 +927,7 @@ function advanceYear(state) {
   // Granted at the end of years 3, 6, 9, … (every third year). Keep this
   // cadence (3) in sync with the backend (mp_resolveYear.php) and the
   // on-screen counter in lib/upgradeCadence.js.
-  if (state.year % 3 === 0) {
+  if (!state.tutorial && state.year % 3 === 0) {
     next = grantUpgrade(next, 'biennial');
   }
 

@@ -55,6 +55,8 @@ export default function ProjectRow({
   articleMin = 2,
   freePublishing = false,
   statLevels = {},
+  lockPublish = false,
+  lockConference = false,
 }) {
   if (locked) {
     return <LockedRow projectId={project.id} />;
@@ -273,7 +275,7 @@ export default function ProjectRow({
         </div>
 
         {/* === Publish column — fixed right, always reachable === */}
-        <PublishColumn project={project} onPublish={onPublish} onAttendConference={onAttendConference} articleMin={articleMin} freePublishing={freePublishing} statLevels={statLevels} />
+        <PublishColumn project={project} onPublish={onPublish} onAttendConference={onAttendConference} articleMin={articleMin} freePublishing={freePublishing} statLevels={statLevels} lockPublish={lockPublish} lockConference={lockConference} />
 
       </div>
     </div>
@@ -290,12 +292,14 @@ export default function ProjectRow({
  * The button uses an oxblood color so it stands out from the gold accents
  * elsewhere — it's a momentous action, not a routine one.
  */
-function PublishColumn({ project, onPublish, onAttendConference, articleMin = 2, freePublishing = false, statLevels = {} }) {
+function PublishColumn({ project, onPublish, onAttendConference, articleMin = 2, freePublishing = false, statLevels = {}, lockPublish = false, lockConference = false }) {
   const hasConclusion = project.conclusion !== null;
   const evidenceCount = project.evidence.length;
-  const canPublish = hasConclusion && evidenceCount >= articleMin;
+  // `lock*` come from Tutorial mode — they keep the button visibly disabled
+  // until the guided step says it's time, without changing the real rules.
+  const canPublish = hasConclusion && evidenceCount >= articleMin && !lockPublish;
   // A conference needs at least one staged evidence card (no conclusion).
-  const canConference = evidenceCount >= 1;
+  const canConference = evidenceCount >= 1 && !lockConference;
 
   // Helpful tooltip text when disabled
   const needed = articleMin - evidenceCount;

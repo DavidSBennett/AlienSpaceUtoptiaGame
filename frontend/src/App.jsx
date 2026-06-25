@@ -2,7 +2,6 @@ import { Routes, Route } from 'react-router-dom';
 
 import Home from './pages/Home.jsx';
 import Game from './pages/Game.jsx';
-import TutorialGame from './pages/TutorialGame.jsx';
 import LeaderboardPage from './pages/LeaderboardPage.jsx';
 import WorksPage from './pages/WorksPage.jsx';
 import PlaytestReportPage from './pages/PlaytestReportPage.jsx';
@@ -51,7 +50,7 @@ export default function App() {
         <DesktopOnlyGate><RequireAuth><Game /></RequireAuth></DesktopOnlyGate>
       } />
       <Route path="/tutorial" element={
-        <DesktopOnlyGate><RequireAuth><TutorialGame /></RequireAuth></DesktopOnlyGate>
+        <DesktopOnlyGate><RequireAuth><Game tutorial /></RequireAuth></DesktopOnlyGate>
       } />
       <Route path="/leaderboard" element={
         <RequireAuth><LeaderboardPage /></RequireAuth>
