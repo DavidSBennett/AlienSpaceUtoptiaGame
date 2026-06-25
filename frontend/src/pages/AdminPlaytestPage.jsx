@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { adminListPlaytestFeedback, adminPurgePlaytestFeedback, adminDeletePlaytestFeedback } from '../api/auth.js';
+import { LIKERT_ITEMS, LIKERT_SCALE, FREE_FIELDS } from '../lib/playtestQuestions.js';
 
 /**
  * AdminPlaytestPage — compiles every anonymous playtest submission into one
@@ -9,15 +10,17 @@ import { adminListPlaytestFeedback, adminPurgePlaytestFeedback, adminDeletePlayt
  * toolbar (Print / Copy) is hidden in print so the saved PDF is clean.
  */
 
-const LIKERT_COLS = [
-  { key: 'likert_draw',        short: 'Draw',  label: 'Drawing / collecting cards' },
-  { key: 'likert_publish',     short: 'Pub',   label: 'Publishing projects' },
-  { key: 'likert_peer_review', short: 'Peer',  label: 'Peer review' },
-  { key: 'likert_historian',   short: 'Hist',  label: 'Felt like a historian' },
-  { key: 'likert_learned',     short: 'Learn', label: 'Learned something' },
-  { key: 'likert_enjoyed',     short: 'Enjoy', label: 'Overall enjoyment' },
-  { key: 'likert_play_again',  short: 'Again', label: 'Would play again' },
-];
+// Compact column codes for the dense per-response table, keyed by question id.
+const LIKERT_SHORT = {
+  draw: 'Draw', publish: 'Pub', peer_review: 'Peer', historian: 'Hist',
+  learned: 'Learn', enjoyed: 'Enjoy', play_again: 'Again',
+};
+// Built from the shared questionnaire so `label` is the EXACT statement asked.
+const LIKERT_COLS = LIKERT_ITEMS.map((it) => ({
+  key: `likert_${it.id}`,
+  short: LIKERT_SHORT[it.id] || it.id,
+  label: it.label,
+}));
 
 const SELF_COLS = [
   { key: 'self_prestige',  short: 'Prest' },
@@ -197,17 +200,21 @@ export default function AdminPlaytestPage() {
               </tbody>
             </table>
 
-            <h3 style={S.h3}>Likert means (1 disagree → 5 agree)</h3>
+            <h3 style={S.h3}>
+              Likert means ({LIKERT_SCALE.map((s) => `${s.v} = ${s.label}`).join(' · ')})
+            </h3>
             <table style={S.table}>
               <thead>
-                <tr><th scope="col" style={S.th}>Statement</th><th scope="col" style={S.thNum}>Mean</th><th scope="col" style={S.thNum}>n</th></tr>
+                <tr><th scope="col" style={S.th}>Statement (exact wording)</th><th scope="col" style={S.thNum}>Mean</th><th scope="col" style={S.thNum}>n</th></tr>
               </thead>
               <tbody>
                 {LIKERT_COLS.map((c) => {
                   const { mean, count } = meanOf(rows, c.key);
                   return (
                     <tr key={c.key}>
-                      <td style={S.td}>{c.label}</td>
+                      <td style={S.td}>
+                        <span style={S.codeTag}>{c.short}</span>{' '}{c.label}
+                      </td>
                       <td style={S.tdNum}>{count ? mean.toFixed(2) : '—'}</td>
                       <td style={S.tdNum}>{count}</td>
                     </tr>
@@ -215,6 +222,36 @@ export default function AdminPlaytestPage() {
                 })}
               </tbody>
             </table>
+          </section>
+
+          {/* Questionnaire — exact wording asked of respondents, so the column
+              codes in the data table below are unambiguous. */}
+          <section>
+            <h2 style={S.h2}>Questionnaire (exact wording)</h2>
+            <p style={S.subtle}>
+              Statements were rated on a 5-point scale:{' '}
+              {LIKERT_SCALE.map((s) => `${s.v} = ${s.label}`).join(' · ')}.
+            </p>
+            <table style={S.table}>
+              <thead>
+                <tr>
+                  <th scope="col" style={S.th}>Code</th>
+                  <th scope="col" style={S.th}>Statement as shown to players</th>
+                </tr>
+              </thead>
+              <tbody>
+                {LIKERT_COLS.map((c) => (
+                  <tr key={c.key}>
+                    <td style={S.td}><span style={S.codeTag}>{c.short}</span></td>
+                    <td style={S.td}>{c.label}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <h3 style={S.h3}>Free-response prompts</h3>
+            <ul style={S.qList}>
+              {FREE_FIELDS.map((f) => <li key={f.id}>{f.label}</li>)}
+            </ul>
           </section>
 
           {/* Per-response data table */}
@@ -386,6 +423,8 @@ const S = {
   field: { fontSize: 14, margin: '2px 0' },
   fieldKey: { fontWeight: 'bold' },
   subtle: { color: '#6b5d44', fontStyle: 'italic', fontSize: 12 },
+  codeTag: { fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 10.5, background: '#f0e6c8', border: '1px solid #d8cdb4', padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap' },
+  qList: { margin: '4px 0 0', paddingLeft: 20, fontSize: 14, lineHeight: 1.7 },
   pre: { background: '#f2ecdd', border: `1px solid ${RULE}`, padding: 12, fontSize: 11, fontFamily: 'ui-monospace, Menlo, monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowX: 'auto' },
   error: { color: '#7a1f1f', fontStyle: 'italic' },
   muted: { color: '#6b5d44', fontStyle: 'italic' },
