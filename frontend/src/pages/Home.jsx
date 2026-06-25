@@ -370,6 +370,20 @@ export default function Home() {
                   </button>
                 </div>
 
+                {/* First-timer nudge — a short guided tutorial. Shown to
+                    signed-in users; needs no deck (it has its own). */}
+                {isSignedIn && (
+                  <p className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => navigate('/tutorial')}
+                      className="font-mono text-[11px] uppercase tracking-[0.18em] text-gold-400 hover:text-gold-300 underline underline-offset-4"
+                    >
+                      New here? Try the 5-turn tutorial →
+                    </button>
+                  </p>
+                )}
+
                 {/* MP panel — only rendered when expanded AND signed in.
                     Contents conditionally mounted so polling cleans up
                     on collapse / sign-out. */}
