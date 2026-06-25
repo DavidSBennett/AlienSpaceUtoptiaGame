@@ -193,6 +193,11 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
   const tutLockDraw       = tutorial && !tutAllow.draw;
   const tutLockPublish    = tutorial && !tutAllow.publish;
   const tutLockConference = tutorial && !tutAllow.conference;
+  // During gated build steps, only cards/conclusions in the step's group can be
+  // dragged (e.g. only the economic sources for the economic article).
+  const tutDragGroup = tutorial ? tutorialStep?.dragGroup : null;
+  const tutorialDragAllowed = (card) =>
+    !tutorial || !tutDragGroup || (card?.tutorialGroup || '') === tutDragGroup;
 
   // Currently-open card modal. Shape: null | { card, source }
   //   source: 'hand'             — card from the notebook (placeable)
@@ -573,6 +578,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
             conclusionShelf={state.conclusionShelf}
             onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
             showTags={state.showTags} showSignificance={state.showSignificance}
+            dragGate={tutorialDragAllowed}
           />
 
           <main id="main-content" tabIndex={-1} data-tutorial="project-area" className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
@@ -612,6 +618,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
           drawCount={derived.drawCount}
           onDraw={drawCards}
           disabled={!!state.gameOver || tutLockDraw}
+          dragGate={tutorialDragAllowed}
         />
 
         {openCard && (() => {
@@ -778,7 +785,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
  *
  * Hidden entirely when no conclusions are available (early game).
  */
-function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showSignificance }) {
+function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showSignificance, dragGate }) {
   if (!conclusionShelf || conclusionShelf.length === 0) {
     return null;
   }
@@ -794,24 +801,28 @@ function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showS
       </div>
 
       <div className="flex flex-col gap-1.5">
-        {conclusionShelf.map((card) => (
-          <DraggableCard
-            key={`shelf-${card.id}`}
-            id={`shelf-${card.id}`}
-            data={{ cardId: card.id, from: { kind: 'conclusionShelf' } }}
-          >
-            {({ dragHandleProps, isDragging }) => (
-              <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
-                <ConclusionSpine
-                  thin
-                  card={card}
-                  onClick={() => onConclusionClick?.(card)}
-                  showTags={showTags} showSignificance={showSignificance}
-                />
-              </div>
-            )}
-          </DraggableCard>
-        ))}
+        {conclusionShelf.map((card) => {
+          const draggable = dragGate ? dragGate(card) : true;
+          return (
+            <DraggableCard
+              key={`shelf-${card.id}`}
+              id={`shelf-${card.id}`}
+              data={{ cardId: card.id, from: { kind: 'conclusionShelf' } }}
+              disabled={!draggable}
+            >
+              {({ dragHandleProps, isDragging }) => (
+                <div {...dragHandleProps} className={`${isDragging ? 'opacity-50' : ''} ${draggable ? '' : 'opacity-30'}`}>
+                  <ConclusionSpine
+                    thin
+                    card={card}
+                    onClick={() => onConclusionClick?.(card)}
+                    showTags={showTags} showSignificance={showSignificance}
+                  />
+                </div>
+              )}
+            </DraggableCard>
+          );
+        })}
       </div>
     </aside>
   );
@@ -864,6 +875,7 @@ function NotebookArea({
   drawCount = 0,
   onDraw,
   disabled = false,
+  dragGate,
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: 'drop-notebook',
@@ -945,9 +957,10 @@ function NotebookArea({
                   <DraggableCard
                     id={`hand-${card.id}`}
                     data={{ cardId: card.id, from: { kind: 'hand' } }}
+                    disabled={dragGate ? !dragGate(card) : false}
                   >
-                    {({ dragHandleProps, isDragging }) => (
-                      <div {...dragHandleProps} className="flex-shrink-0">
+                    {({ dragHandleProps, isDragging, disabled: dragDisabled }) => (
+                      <div {...dragHandleProps} className={`flex-shrink-0 ${dragDisabled ? 'opacity-30' : ''}`}>
                         <CardThumbnail
                           card={card}
                           onClick={() => onCardClick?.(card)}

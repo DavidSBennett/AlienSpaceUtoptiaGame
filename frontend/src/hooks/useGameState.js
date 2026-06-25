@@ -295,7 +295,9 @@ function initialState({ playerName, deck, allCards, totalYears, tutorial }) {
   // interests that brought them to the field. They come off the top of the
   // freshly shuffled archive (no year tick — this is the game's setup).
   const STARTING_HAND_SIZE = 3;
-  const shuffledArchive = shuffle(archiveCards);
+  // The walkthrough deals in deck order (economic sources first) so its early
+  // steps are predictable; a normal game shuffles.
+  const shuffledArchive = tutorial ? archiveCards.slice() : shuffle(archiveCards);
   const startingHand = shuffledArchive.slice(0, STARTING_HAND_SIZE);
   const remainingArchive = shuffledArchive.slice(STARTING_HAND_SIZE);
 
@@ -353,7 +355,7 @@ function initialState({ playerName, deck, allCards, totalYears, tutorial }) {
     ],
 
     // UI / meta
-    showTags: !!tutorial,                // tags shown by default in the walkthrough
+    showTags: false,                     // global tag-visibility toggle
     showSignificance: false,             // global significance-visibility toggle (gated)
     gameOver: null,                      // null | { reason, year }
     lastPublishResult: null,             // null | full result object — shown in result dialog

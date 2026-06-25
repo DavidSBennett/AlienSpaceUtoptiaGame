@@ -34,7 +34,7 @@ export const TUTORIAL_SCRIPT = [
   {
     id: 'intro', info: true, allow: {},
     title: 'Welcome to the Guided Walkthrough',
-    body: 'This is the real game, just guided. You begin as a Visiting Assistant Professor. At each step only the right control works, and I’ll tell you what to do. Tip: every card here carries the same tag — that’s how you know they belong in one argument.',
+    body: 'This is the real game, just guided. You’re a historian of the American Revolution, beginning as a Visiting Assistant Professor. At each step only the right control works. You’ll first build a focused economic argument, then a broad book — learning how evidence and conclusions must match.',
     cta: 'Begin',
   },
   {
@@ -44,15 +44,15 @@ export const TUTORIAL_SCRIPT = [
     done: (s, st) => s.year > st.year,
   },
   {
-    id: 'build', allow: {}, mask: 'none', target: 'project-area',
-    title: 'Build a project',
-    body: 'Now drag TWO evidence cards from your notebook up into a project row. (The turn buttons are locked until you do.)',
+    id: 'build', allow: {}, mask: 'none', target: 'project-area', dragGroup: 'economic',
+    title: 'Build an economic argument',
+    body: 'Two of these sources are ECONOMIC — about taxes: the Stamp Act and the Townshend Duties. Drag BOTH of them up into a project. The other cards are dimmed and locked for this step.',
     done: (s) => hasEvidence(s, 2),
   },
   {
-    id: 'conclusion', allow: {}, mask: 'none', target: 'conclusion-rail',
-    title: 'Set a conclusion',
-    body: 'Every project needs a conclusion — the thesis your evidence supports. Drag one from the rail on the left into your project’s conclusion slot. It shares the cards’ tag, so they match.',
+    id: 'conclusion', allow: {}, mask: 'none', target: 'conclusion-rail', dragGroup: 'economic',
+    title: 'Set the matching conclusion',
+    body: 'Two conclusions are offered. Drag the ECONOMIC one (“Taxes and trade laws angered the colonists”) into your project’s conclusion slot — it matches your economic sources. The broad conclusion is locked for now.',
     done: (s) => hasValid(s, 2),
   },
   {
@@ -92,9 +92,9 @@ export const TUTORIAL_SCRIPT = [
     done: (s, st) => s.year > st.year,
   },
   {
-    id: 'build-book', allow: {}, mask: 'none', target: 'project-area',
+    id: 'build-book', allow: {}, mask: 'none', target: 'project-area', dragGroup: 'colonial',
     title: 'Build a book',
-    body: 'Assemble a larger project: drag SIX evidence cards into a row and set a conclusion.',
+    body: 'A book is a broad argument. Drag SIX of the remaining COLONIAL sources into a project, and add the broad “Many grievances…” conclusion — it accepts many kinds of evidence.',
     done: (s) => hasValid(s, 6),
   },
   {

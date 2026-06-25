@@ -370,18 +370,19 @@ export default function Home() {
                   </button>
                 </div>
 
-                {/* First-timer nudge — the guided walkthrough. Shown to
-                    signed-in users; needs no deck (it has its own). */}
+                {/* Graduate School — the guided walkthrough. Same button style
+                    as Solo / Multiplayer. Needs no deck (it has its own). */}
                 {isSignedIn && (
-                  <p className="text-center">
-                    <button
-                      type="button"
-                      onClick={() => navigate('/tutorial')}
-                      className="font-mono text-[11px] uppercase tracking-[0.18em] text-gold-400 hover:text-gold-300 underline underline-offset-4"
-                    >
-                      New here? Try the guided walkthrough →
-                    </button>
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/tutorial')}
+                    className="btn-primary w-full leading-tight"
+                  >
+                    Graduate School
+                    <span className="block font-mono text-[10px] uppercase tracking-[0.2em] opacity-80 mt-0.5">
+                      Guided Walkthrough
+                    </span>
+                  </button>
                 )}
 
                 {/* MP panel — only rendered when expanded AND signed in.

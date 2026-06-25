@@ -24,10 +24,11 @@ import { useDraggable } from '@dnd-kit/core';
  * @param {object} data      payload that travels with the drag event
  * @param {function} children  render-prop receiving drag state
  */
-export default function DraggableCard({ id, data, children }) {
+export default function DraggableCard({ id, data, children, disabled = false }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id,
     data,
+    disabled,
   });
 
   // Note: we deliberately do NOT apply the transform to the original element.
@@ -35,11 +36,9 @@ export default function DraggableCard({ id, data, children }) {
   // moving preview portaled to body. The original element stays in place
   // (typically with reduced opacity via the consumer's `isDragging` styling)
   // so that drag previews are never clipped by ancestor overflow.
-  const dragHandleProps = {
-    ref: setNodeRef,
-    ...listeners,
-    ...attributes,
-  };
+  const dragHandleProps = disabled
+    ? { ref: setNodeRef }
+    : { ref: setNodeRef, ...listeners, ...attributes };
 
-  return children({ dragHandleProps, isDragging });
+  return children({ dragHandleProps, isDragging, disabled });
 }
