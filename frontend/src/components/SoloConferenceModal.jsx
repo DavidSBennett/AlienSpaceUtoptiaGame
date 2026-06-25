@@ -116,7 +116,16 @@ export default function SoloConferenceModal({
             </p>
             <button
               type="button"
-              onClick={() => onConfirm([...selected])}
+              onClick={() => {
+                if (selected.size < maxKeep) {
+                  const more = maxKeep - selected.size;
+                  const ok = window.confirm(
+                    `You can still keep ${more} more card${more === 1 ? '' : 's'} from the conference. Bring home just ${selected.size}?`
+                  );
+                  if (!ok) return;
+                }
+                onConfirm([...selected]);
+              }}
               className="px-6 py-3 font-mono text-sm uppercase tracking-wider bg-gold-500 hover:bg-gold-400 text-teal-950 border border-gold-700"
             >
               {selected.size > 0

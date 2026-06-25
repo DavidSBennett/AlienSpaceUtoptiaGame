@@ -353,7 +353,7 @@ function initialState({ playerName, deck, allCards, totalYears, tutorial }) {
     ],
 
     // UI / meta
-    showTags: false,                     // global tag-visibility toggle
+    showTags: !!tutorial,                // tags shown by default in the walkthrough
     showSignificance: false,             // global significance-visibility toggle (gated)
     gameOver: null,                      // null | { reason, year }
     lastPublishResult: null,             // null | full result object — shown in result dialog

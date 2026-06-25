@@ -159,25 +159,34 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
 
   // ── Tutorial mode: a strict step script gates the turn buttons. ──────────
   const [tutStep, setTutStep] = useState(0);
-  const tutStartRef = useRef(null);
+  const tutStartRef = useRef(null);        // snapshot taken when a step begins
+  const tutAdvancedRef = useRef(-1);       // last step we already advanced past
   const tutorialStep = tutorial ? TUTORIAL_SCRIPT[tutStep] : null;
-  if (tutorial && tutStartRef.current === null) tutStartRef.current = snapshot(state);
 
+  // Capture the start snapshot whenever the step changes (runs before the
+  // advance effect below, which is defined after it).
+  useEffect(() => {
+    if (!tutorial) return;
+    tutStartRef.current = snapshot(state);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tutStep, tutorial]);
+
+  // Advance exactly once per step when its goal is met. The advancedRef guard
+  // means rapid state updates after an action can't cancel or double-fire it.
   useEffect(() => {
     if (!tutorial || !tutorialStep || tutorialStep.info) return;
-    if (tutorialStep.done && tutStartRef.current && tutorialStep.done(state, tutStartRef.current)) {
-      const id = setTimeout(() => {
-        setTutStep((i) => Math.min(i + 1, TUTORIAL_SCRIPT.length - 1));
-        tutStartRef.current = snapshot(state);
-      }, 650);
-      return () => clearTimeout(id);
+    if (tutAdvancedRef.current === tutStep) return;
+    const start = tutStartRef.current || snapshot(state);
+    if (tutorialStep.done && tutorialStep.done(state, start)) {
+      tutAdvancedRef.current = tutStep;
+      setTutStep((i) => Math.min(i + 1, TUTORIAL_SCRIPT.length - 1));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, tutorial, tutStep]);
+  }, [state, tutorial, tutStep, tutorialStep]);
 
   function advanceTutorial() {
+    tutAdvancedRef.current = tutStep;
     setTutStep((i) => Math.min(i + 1, TUTORIAL_SCRIPT.length - 1));
-    tutStartRef.current = snapshot(state);
   }
 
   const tutAllow = tutorialStep?.allow || {};
@@ -566,7 +575,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
             showTags={state.showTags} showSignificance={state.showSignificance}
           />
 
-          <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
+          <main id="main-content" tabIndex={-1} data-tutorial="project-area" className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
             {state.projects.map((project, i) => (
               <ProjectRow
                 key={project.id}

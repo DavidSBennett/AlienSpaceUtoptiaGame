@@ -390,6 +390,7 @@ function PublishColumn({ project, onPublish, onAttendConference, articleMin = 2,
           type="button"
           onClick={() => canConference && onAttendConference?.(project.id)}
           disabled={!canConference}
+          data-tutorial={canConference ? 'conference-button' : undefined}
           className={`
             mt-1 font-mono text-[10px] uppercase tracking-[0.12em]
             px-3 py-2 border transition-all duration-200 ease-desk
