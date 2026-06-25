@@ -96,7 +96,24 @@ const COLONIAL = [
   },
 ];
 
+// Card title → uploaded image file (in /cardimages/tutorial/).
+const IMAGES = {
+  'The Stamp Act': 'stamp-act.jpg',
+  'The Townshend Duties': 'townshend-duties.jpg',
+  'The Boston Tea Party': 'boston-tea-party.jpg',
+  'The Boston Massacre': 'boston-massacre.jpg',
+  'Committees of Correspondence': 'committees-of-correspondence.jpg',
+  'The Coercive (Intolerable) Acts': 'coercive-acts.jpg',
+  'The First Continental Congress': 'first-continental-congress.jpg',
+  'Lexington and Concord': 'lexington-and-concord.jpg',
+  'Common Sense': 'common-sense.jpg',
+  'The Declaration of Independence': 'declaration-of-independence.jpg',
+  'The Quartering Act': 'quartering-act.jpg',
+  'The Sons of Liberty': 'sons-of-liberty.jpg',
+};
+
 function evidenceCard(i, c, group, tags) {
+  const file = IMAGES[c.title];
   return {
     id: 1000 + i,
     idCard: 1000 + i,
@@ -118,7 +135,7 @@ function evidenceCard(i, c, group, tags) {
     description: '',
     tutorialGroup: group,
     sequence_number: i + 1,
-    image_url: '',
+    image_url: file ? `/cardimages/tutorial/${file}` : '',
   };
 }
 
