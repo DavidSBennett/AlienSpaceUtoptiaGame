@@ -122,7 +122,7 @@ function evidenceCard(i, c, group, tags) {
   };
 }
 
-function conclusionCard(i, title, description, group, tag) {
+function conclusionCard(i, title, description, group, tag, bonus = 0) {
   return {
     id: 2000 + i,
     idCard: 2000 + i,
@@ -134,7 +134,8 @@ function conclusionCard(i, title, description, group, tag) {
     source_type: '', significance: '', citation: '',
     argument: tag,
     sub_argument: '',
-    bonus: '', context_tags: '',
+    bonus,                 // flat prestige added to any publication using this thesis
+    context_tags: '',
     description,
     tutorialGroup: group,
     sequence_number: 100 + i,
@@ -149,6 +150,6 @@ export const TUTORIAL_DECK = { idDeck: 0, nameDeck: 'Graduate School — The Ame
 export const TUTORIAL_CARDS = [
   ...ECONOMIC.map((c, i) => evidenceCard(i, c, 'economic', ['economic', 'colonial'])),
   ...COLONIAL.map((c, i) => evidenceCard(ECONOMIC.length + i, c, 'colonial', ['colonial'])),
-  conclusionCard(0, 'Taxes and trade laws angered the colonists', 'A focused, economic explanation: new taxes and trade restrictions were the spark.', 'economic', 'economic'),
-  conclusionCard(1, 'Many grievances pushed the colonies to revolution', 'A broad explanation: economic, political, and social grievances together drove the break with Britain.', 'colonial', 'colonial'),
+  conclusionCard(0, 'Taxes and trade laws angered the colonists', 'A focused, economic explanation: new taxes and trade restrictions were the spark.', 'economic', 'economic', 5),
+  conclusionCard(1, 'Many grievances pushed the colonies to revolution', 'A broad explanation: economic, political, and social grievances together drove the break with Britain.', 'colonial', 'colonial', 10),
 ];
