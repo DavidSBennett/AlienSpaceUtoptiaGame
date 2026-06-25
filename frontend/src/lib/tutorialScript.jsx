@@ -64,7 +64,7 @@ export const TUTORIAL_SCRIPT = [
   {
     id: 'upgrade', allow: {}, mask: 'none',
     title: 'Invest your funding',
-    body: 'Your promotion brought money to invest. In the window that just opened, click ONE upgrade to choose it — how you invest shapes the research you can do.',
+    body: 'Close the publish notice and the promotion pop-up first. An “Invest your funding” window then opens — click ONE upgrade to choose it. How you invest shapes the research you can do.',
     done: (s, st) => s.pendingUpgrades < st.pendingUpgrades || s.pendingUpgrades === 0,
   },
   {
