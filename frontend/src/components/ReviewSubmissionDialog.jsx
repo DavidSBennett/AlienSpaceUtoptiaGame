@@ -162,7 +162,7 @@ export default function ReviewSubmissionDialog({
             />
 
             {/* Constructed mismatch statement */}
-            <section className="mt-2 mb-4 text-center">
+            <section className="mt-1 mb-2 text-center">
               {mismatched.length === 0 ? (
                 <p className="font-serif text-verdigris-700">
                   Every card shares the conclusion's theme — the evidence fits the thesis.
@@ -181,10 +181,10 @@ export default function ReviewSubmissionDialog({
               </p>
             </section>
 
-            <FleuronDivider className="my-3" />
+            <FleuronDivider className="my-1" />
 
             {/* Verdict picker */}
-            <section className="mb-4">
+            <section className="mb-3">
               <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 mb-2">Your verdict</div>
               <div className="grid grid-cols-2 gap-3">
                 <VerdictOption
@@ -269,8 +269,8 @@ function FannedCards({ matchInfo, conclusion, conclusionTags, flagged, onToggleF
   const width = (total - 1) * OFFSET + CARD_W;
 
   return (
-    <div className="mx-auto overflow-x-auto">
-      <div className="relative" style={{ height: 178, width, margin: '0 auto' }}>
+    <div className="flex justify-center">
+      <div className="relative" style={{ height: 178, width }}>
         {cards.map((c, k) => {
           const angle = (k - mid) * 4; // gentle fan
           const isFlagged = !c.isConclusion && flagged.has(c.card.idCard);
