@@ -370,20 +370,18 @@ export default function Home() {
                   </button>
                 </div>
 
-                {/* Graduate School — the guided walkthrough. Same button style
-                    as Solo / Multiplayer. Needs no deck (it has its own). */}
-                {isSignedIn && (
-                  <button
-                    type="button"
-                    onClick={() => navigate('/tutorial')}
-                    className="btn-primary w-full leading-tight"
-                  >
-                    Graduate School
-                    <span className="block font-mono text-[10px] uppercase tracking-[0.2em] opacity-80 mt-0.5">
-                      Guided Walkthrough
-                    </span>
-                  </button>
-                )}
+                {/* Graduate School — the guided walkthrough. Open to EVERYONE
+                    (no login needed); it has its own deck and saves no score. */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/tutorial')}
+                  className="btn-primary w-full leading-tight"
+                >
+                  Graduate School
+                  <span className="block font-mono text-[10px] uppercase tracking-[0.2em] opacity-80 mt-0.5">
+                    Guided Walkthrough
+                  </span>
+                </button>
 
                 {/* MP panel — only rendered when expanded AND signed in.
                     Contents conditionally mounted so polling cleans up

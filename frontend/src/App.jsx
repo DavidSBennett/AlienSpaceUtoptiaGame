@@ -49,8 +49,10 @@ export default function App() {
       <Route path="/game" element={
         <DesktopOnlyGate><RequireAuth><Game /></RequireAuth></DesktopOnlyGate>
       } />
+      {/* Open to everyone — the guided walkthrough needs no login (its own
+          deck, no score saved). Desktop-only, but not auth-gated. */}
       <Route path="/tutorial" element={
-        <DesktopOnlyGate><RequireAuth><Game tutorial /></RequireAuth></DesktopOnlyGate>
+        <DesktopOnlyGate><Game tutorial /></DesktopOnlyGate>
       } />
       <Route path="/leaderboard" element={
         <RequireAuth><LeaderboardPage /></RequireAuth>
