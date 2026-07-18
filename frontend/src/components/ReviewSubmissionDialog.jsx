@@ -1,31 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 import CornerOrnament from './CornerOrnament.jsx';
 import FleuronDivider from './FleuronDivider.jsx';
-import { parseTagField } from '../lib/tags.js';
+import { getCardTags } from '../lib/tags.js';
 import { colorForSeat } from '../lib/playerColors.js';
-import { isConclusionCard } from '../lib/cardIdentifier.js';
 
 /**
- * ReviewSubmissionDialog — peer review modal, rendered in the cream
- * "scholarly paper" style matching the CardModal aesthetic.
+ * ReviewSubmissionDialog — peer review modal (shared by multiplayer and the
+ * guided walkthrough).
  *
- * Reviewer sees:
- *   - Conclusion tile (from public shelf)
- *   - Author's prose argument
- *   - Each evidence card: title + author + tags only (NO content)
+ * Layout:
+ *   - The author's written conclusion (prose), if any, at the top.
+ *   - A fanned-card visualization: the conclusion card on top, the evidence
+ *     cards fanned behind it, each showing its tags. Tags that match the
+ *     conclusion's theme are highlighted; cards with no matching tag are
+ *     marked as mismatches.
+ *   - A constructed statement of which cards do NOT match the conclusion.
+ *   - Verdict options (Approve / Revise & Resubmit / Reject) + a comment.
  *
- * Verdict options:
- *   - Approve (no flag required)
- *   - Reject (must flag ≥ 1 evidence card)
- *   - Optional comment
+ * Mismatched cards are pre-flagged; Reject/Revise send those flags (you can
+ * click a card to toggle its flag). onSubmit keeps the same contract:
+ *   ({ verdict, flaggedCardIds, addedCardIds, comment }).
  *
- * Props:
- *   submission — the submission from state.pending_submissions
- *   onSubmit   — async ({ verdict, flaggedCardIds, comment }) => void
- *   onClose    — () => void
- *   busy       — bool
- *   error      — string|null
+ * Props: submission, onSubmit, onClose, busy, error.
  */
 export default function ReviewSubmissionDialog({
   submission,
@@ -33,17 +30,38 @@ export default function ReviewSubmissionDialog({
   onClose,
   busy,
   error,
-  yourHand = [],
 }) {
+  const conclusionTags = useMemo(
+    () => getCardTags(submission?.conclusion || {}),
+    [submission?.conclusion]
+  );
+
+  // Which evidence cards share a tag with the conclusion.
+  const evidence = submission?.evidence || [];
+  const matchInfo = useMemo(() => {
+    return evidence.map((card) => {
+      const tags = Array.from(getCardTags(card));
+      const matches = tags.some((t) => conclusionTags.has(t));
+      return { card, tags, matches };
+    });
+  }, [evidence, conclusionTags]);
+  const mismatched = matchInfo.filter((m) => !m.matches);
+
   const [verdict, setVerdict] = useState('approve');
-  const [flagged, setFlagged] = useState(new Set());
-  const [added, setAdded] = useState(new Set());
+  // Pre-flag the mismatched cards.
+  const [flagged, setFlagged] = useState(() => new Set(mismatched.map((m) => m.card.idCard)));
   const [comment, setComment] = useState('');
 
+  // Reset when a different submission opens.
   useEffect(() => {
-    function onKey(e) {
-      if (e.key === 'Escape' && onClose) onClose();
-    }
+    setVerdict('approve');
+    setFlagged(new Set(mismatched.map((m) => m.card.idCard)));
+    setComment('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submission?.submission_id]);
+
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape' && onClose) onClose(); }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -51,40 +69,28 @@ export default function ReviewSubmissionDialog({
   function toggleFlag(cardId) {
     setFlagged((prev) => {
       const next = new Set(prev);
-      if (next.has(cardId)) next.delete(cardId);
-      else next.add(cardId);
+      if (next.has(cardId)) next.delete(cardId); else next.add(cardId);
       return next;
-    });
-  }
-
-  function toggleAdd(cardId) {
-    setAdded((prev) => {
-      const next = new Set(prev);
-      if (next.has(cardId)) next.delete(cardId);
-      else next.add(cardId);
-      return next;
-    });
-  }
-
-  function handleSubmit() {
-    if (verdict === 'reject' && flagged.size === 0) return;
-    if (verdict === 'revise' && flagged.size === 0 && added.size === 0) return;
-    onSubmit({
-      verdict,
-      flaggedCardIds: (verdict === 'reject' || verdict === 'revise') ? Array.from(flagged) : [],
-      addedCardIds: verdict === 'revise' ? Array.from(added) : [],
-      comment: comment.trim() || null,
     });
   }
 
   const canSubmit = !busy && (
     verdict === 'approve' ||
-    (verdict === 'reject' && flagged.size > 0) ||
-    (verdict === 'revise' && (flagged.size > 0 || added.size > 0))
+    ((verdict === 'reject' || verdict === 'revise') && flagged.size > 0)
   );
+
+  function handleSubmit() {
+    if (!canSubmit) return;
+    onSubmit({
+      verdict,
+      flaggedCardIds: (verdict === 'reject' || verdict === 'revise') ? Array.from(flagged) : [],
+      addedCardIds: [],
+      comment: comment.trim() || null,
+    });
+  }
+
+  if (!submission) return null;
   const writerCol = colorForSeat(submission.writer_seat ?? 0);
-  const handAddable = (Array.isArray(yourHand) ? yourHand : [])
-    .filter((c) => c && !isConclusionCard(c));
 
   return (
     <div
@@ -102,7 +108,7 @@ export default function ReviewSubmissionDialog({
         </button>
 
         <article
-          className="relative surface-paper max-w-4xl w-full max-h-[95vh] overflow-y-auto animate-fade-up"
+          className="relative surface-paper max-w-3xl w-full max-h-[95vh] overflow-y-auto animate-fade-up"
           style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(184, 146, 58, 0.5)' }}
         >
           <div className="absolute inset-2 border border-gold-500/30 pointer-events-none" />
@@ -111,44 +117,22 @@ export default function ReviewSubmissionDialog({
           <div className="absolute bottom-3 left-3 text-gold-500 pointer-events-none"><CornerOrnament corner="bl" size={24} /></div>
           <div className="absolute bottom-3 right-3 text-gold-500 pointer-events-none"><CornerOrnament corner="br" size={24} /></div>
 
-          <div className="px-12 py-10">
+          <div className="px-10 py-8">
             {/* Header */}
-            <div className="mb-3">
-              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700 mb-1">
-                Peer Review
-              </p>
+            <div className="mb-2">
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700 mb-1">Peer Review</p>
               <div className="flex items-baseline gap-3">
                 <span className={`w-3 h-6 ${writerCol.spineBg}`} aria-hidden="true" />
                 <h2 className="font-display text-2xl font-bold text-ink-900">
                   {submission.writer_name}'s {submission.kind}
                 </h2>
               </div>
-              <p className="font-serif italic text-ink-900 text-sm mt-1">
-                Submitted year {submission.year_submitted} · {submission.evidence.length} evidence card{submission.evidence.length === 1 ? '' : 's'}
-              </p>
             </div>
 
-            <FleuronDivider className="my-5" />
-
-            {/* Conclusion */}
-            <section className="mb-5">
+            {/* Author's written conclusion (prose) */}
+            <section className="mb-3">
               <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 mb-1">
-                Conclusion
-              </div>
-              <div className="font-display text-xl text-ink-900">
-                {submission.conclusion?.title}
-              </div>
-              {submission.conclusion?.description && (
-                <p className="font-serif italic text-ink-700 mt-1">
-                  {submission.conclusion.description}
-                </p>
-              )}
-            </section>
-
-            {/* Argument */}
-            <section className="mb-5">
-              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 mb-1">
-                Argument
+                The author's conclusion
               </div>
               {submission.argument_text && submission.argument_text.trim() ? (
                 <p className="font-serif text-ink-900 whitespace-pre-wrap leading-relaxed">
@@ -156,236 +140,69 @@ export default function ReviewSubmissionDialog({
                 </p>
               ) : (
                 <p className="font-serif italic text-ink-700 leading-relaxed">
-                  The author is explaining their argument by voice (Discord, Zoom,
-                  or in person). Listen to their explanation before deciding.
+                  The author is explaining their argument aloud — listen before you decide.
+                </p>
+              )}
+              {submission.conclusion?.title && (
+                <p className="font-display text-lg text-ink-900 mt-1">
+                  “{submission.conclusion.title}”
                 </p>
               )}
             </section>
 
-            {/* Evidence */}
-            <section className="mb-5">
-              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 mb-2">
-                Evidence ({submission.evidence.length})
-              </div>
-              <ul className="space-y-2">
-                {submission.evidence.map((card) => {
-                  const tags = Array.from(new Set([
-                    ...parseTagField(card.argument),
-                    ...parseTagField(card.sub_argument),
-                  ]));
-                  const isFlagged = flagged.has(card.idCard);
-                  return (
-                    <li
-                      key={card.idCard}
-                      className={`border p-3 ${
-                        isFlagged ? 'border-oxblood-500 bg-oxblood-500/10' : 'border-cream-300 bg-cream-50'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-display font-semibold text-ink-900">
-                            {card.title}
-                          </div>
-                          {card.author && (
-                            <div className="font-serif italic text-ink-700 text-sm">
-                              by {card.author}
-                            </div>
-                          )}
-                          {tags.length > 0 && (
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              {tags.map((t) => (
-                                <span
-                                  key={t}
-                                  className="font-mono text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 border border-cream-300 text-ink-700 bg-cream-50"
-                                >
-                                  {t}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        {(verdict === 'reject' || verdict === 'revise') && (
-                          <button
-                            onClick={() => toggleFlag(card.idCard)}
-                            className={`flex-shrink-0 text-xs px-2 py-1 border font-mono uppercase tracking-wider ${
-                              isFlagged
-                                ? 'border-oxblood-500 bg-oxblood-500 text-cream-50'
-                                : 'border-ink-700 text-ink-700 hover:bg-ink-900/5'
-                            }`}
-                          >
-                            {isFlagged ? 'flagged' : 'flag'}
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-              <p className="font-serif italic text-ink-700 text-xs mt-2">
-                Card contents are hidden from reviewers. You judge by titles, authors, tags, and the writer's argument.
+            <FleuronDivider className="my-3" />
+
+            {/* Fanned card visualization */}
+            <FannedCards
+              matchInfo={matchInfo}
+              conclusion={submission.conclusion}
+              conclusionTags={conclusionTags}
+              flagged={flagged}
+              onToggleFlag={toggleFlag}
+            />
+
+            {/* Constructed mismatch statement */}
+            <section className="mt-2 mb-4 text-center">
+              {mismatched.length === 0 ? (
+                <p className="font-serif text-verdigris-700">
+                  Every card shares the conclusion's theme — the evidence fits the thesis.
+                </p>
+              ) : (
+                <p className="font-serif text-oxblood-700">
+                  {mismatched.length} card{mismatched.length === 1 ? '' : 's'} do
+                  {mismatched.length === 1 ? 'es' : ''} not share the conclusion's theme:{' '}
+                  <strong className="font-display">
+                    {mismatched.map((m) => m.card.title).join(', ')}
+                  </strong>.
+                </p>
+              )}
+              <p className="font-serif italic text-ink-700/70 text-xs mt-1">
+                Tip: click a card to flag or unflag it.
               </p>
             </section>
 
-            {/* Revise & Resubmit — contribute cards from your own hand */}
-            {verdict === 'revise' && (
-              <section className="mb-5">
-                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 mb-2">
-                  Add from your hand ({added.size} selected)
-                </div>
-                {handAddable.length === 0 ? (
-                  <p className="font-serif italic text-ink-700 text-sm">
-                    You have no cards in hand to contribute.
-                  </p>
-                ) : (
-                  <ul className="space-y-2">
-                    {handAddable.map((card) => {
-                      const isAdded = added.has(card.idCard);
-                      return (
-                        <li
-                          key={card.idCard}
-                          className={`border p-3 ${
-                            isAdded ? 'border-verdigris-500 bg-verdigris-500/10' : 'border-cream-300 bg-cream-50'
-                          }`}
-                        >
-                          <div className="flex justify-between items-start gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="font-display font-semibold text-ink-900">{card.title}</div>
-                              {card.author && (
-                                <div className="font-serif italic text-ink-700 text-sm">by {card.author}</div>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => toggleAdd(card.idCard)}
-                              className={`flex-shrink-0 text-xs px-2 py-1 border font-mono uppercase tracking-wider ${
-                                isAdded
-                                  ? 'border-verdigris-500 bg-verdigris-500 text-cream-50'
-                                  : 'border-ink-700 text-ink-700 hover:bg-ink-900/5'
-                              }`}
-                            >
-                              {isAdded ? 'added' : 'add'}
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                <p className="font-serif italic text-ink-700 text-xs mt-2">
-                  Flag cards above to remove them; add cards here to contribute. If the writer accepts, your added cards leave your hand and you earn a third of the manuscript's prestige.
-                </p>
-              </section>
-            )}
-
-            {/* Citations — works the writer is citing from the library.
-                Reviewers see these alongside evidence so they can judge
-                whether the citation tags fit the conclusion. Note: the
-                tag-validity check is also enforced automatically at
-                resolve time; mismatched citations auto-reject the
-                submission regardless of approve votes. */}
-            {submission.citations && submission.citations.length > 0 && (
-              <section className="mb-5">
-                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 mb-2">
-                  Citations ({submission.citations.length})
-                </div>
-                <ul className="space-y-2">
-                  {submission.citations.map((c) => {
-                    const tagMatches = !submission.conclusion?.argument
-                      ? null
-                      : String(submission.conclusion.argument)
-                          .split(',')
-                          .map((s) => s.trim())
-                          .includes(c.conclusion_tag);
-                    return (
-                      <li
-                        key={c.work_id}
-                        className={`border p-3 ${
-                          tagMatches === false
-                            ? 'border-oxblood-500 bg-oxblood-500/10'
-                            : 'border-verdigris-500 bg-verdigris-500/10'
-                        }`}
-                      >
-                        <div className="font-mono text-[9px] uppercase tracking-[0.15em] text-verdigris-600 mb-0.5">
-                          {c.kind === 'book' ? 'Cited book' : 'Cited article'} · y{c.year_published} · {c.writer_name}
-                        </div>
-                        <div className="font-display font-semibold text-ink-900">
-                          {c.publication_title}
-                        </div>
-                        <div className="mt-1 flex items-center gap-2">
-                          <span className="font-mono text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 border border-cream-300 text-ink-700 bg-cream-50">
-                            {c.conclusion_tag}
-                          </span>
-                          {tagMatches === false && (
-                            <span className="font-serif italic text-oxblood-700 text-xs">
-                              tag mismatch — system will auto-reject
-                            </span>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            )}
-
-            <FleuronDivider className="my-5" />
+            <FleuronDivider className="my-3" />
 
             {/* Verdict picker */}
             <section className="mb-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 mb-2">
-                Your verdict
-              </div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 mb-2">Your verdict</div>
               <div className="grid grid-cols-3 gap-3">
-                <label className={`border p-3 cursor-pointer ${
-                  verdict === 'approve' ? 'border-gold-500 bg-cream-50' : 'border-cream-300'
-                }`}>
-                  <input
-                    type="radio" name="verdict" value="approve"
-                    checked={verdict === 'approve'}
-                    onChange={() => setVerdict('approve')}
-                    className="mr-2"
-                  />
-                  <span className="font-display font-semibold text-ink-900">Approve</span>
-                  <p className="font-serif italic text-ink-700 text-sm mt-1">
-                    You believe the evidence supports the conclusion.
-                  </p>
-                </label>
-                <label className={`border p-3 cursor-pointer ${
-                  verdict === 'revise' ? 'border-verdigris-500 bg-cream-50' : 'border-cream-300'
-                }`}>
-                  <input
-                    type="radio" name="verdict" value="revise"
-                    checked={verdict === 'revise'}
-                    onChange={() => setVerdict('revise')}
-                    className="mr-2"
-                  />
-                  <span className="font-display font-semibold text-ink-900">Revise &amp; Resubmit</span>
-                  <p className="font-serif italic text-ink-700 text-sm mt-1">
-                    Flag cards to drop and/or add cards from your hand. The writer decides at year-end.
-                  </p>
-                </label>
-                <label className={`border p-3 cursor-pointer ${
-                  verdict === 'reject' ? 'border-oxblood-500 bg-cream-50' : 'border-cream-300'
-                }`}>
-                  <input
-                    type="radio" name="verdict" value="reject"
-                    checked={verdict === 'reject'}
-                    onChange={() => setVerdict('reject')}
-                    className="mr-2"
-                  />
-                  <span className="font-display font-semibold text-ink-900">Reject</span>
-                  <p className="font-serif italic text-ink-700 text-sm mt-1">
-                    Flag at least one card that doesn't fit. Other reviewers may still approve.
-                  </p>
-                </label>
+                <VerdictOption
+                  value="approve" verdict={verdict} setVerdict={setVerdict} accent="gold"
+                  label="Approve" desc="The evidence supports the conclusion — publish it."
+                />
+                <VerdictOption
+                  value="revise" verdict={verdict} setVerdict={setVerdict} accent="verdigris"
+                  label="Revise & Resubmit" desc="Send it back — the flagged cards should be reconsidered."
+                />
+                <VerdictOption
+                  value="reject" verdict={verdict} setVerdict={setVerdict} accent="oxblood"
+                  label="Reject" desc="Turn it down — the flagged cards don't fit the thesis."
+                />
               </div>
-              {verdict === 'reject' && flagged.size === 0 && (
+              {(verdict === 'reject' || verdict === 'revise') && flagged.size === 0 && (
                 <p className="font-serif italic text-oxblood-700 text-sm mt-2">
-                  Flag at least one evidence card to reject.
-                </p>
-              )}
-              {verdict === 'revise' && flagged.size === 0 && added.size === 0 && (
-                <p className="font-serif italic text-oxblood-700 text-sm mt-2">
-                  Flag a card to drop or add a card from your hand to propose a revision.
+                  Flag at least one card (click it above) to {verdict === 'reject' ? 'reject' : 'revise'}.
                 </p>
               )}
             </section>
@@ -393,9 +210,7 @@ export default function ReviewSubmissionDialog({
             {/* Comment */}
             <section className="mb-4">
               <label className="block">
-                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700">
-                  Comment (optional)
-                </span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700">Comment (optional)</span>
                 <textarea
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
@@ -437,5 +252,106 @@ export default function ReviewSubmissionDialog({
         </article>
       </div>
     </div>
+  );
+}
+
+
+/** The fanned cards — conclusion on top, evidence fanned behind, tags shown. */
+function FannedCards({ matchInfo, conclusion, conclusionTags, flagged, onToggleFlag }) {
+  const n = matchInfo.length;
+  const mid = (n - 1) / 2;
+  return (
+    <div className="relative mx-auto" style={{ height: 260, width: '100%', maxWidth: 620 }}>
+      {matchInfo.map(({ card, tags, matches }, i) => {
+        const angle = (i - mid) * 13;
+        const tx = (i - mid) * 66;
+        const isFlagged = flagged.has(card.idCard);
+        return (
+          <button
+            key={card.idCard}
+            type="button"
+            onClick={() => onToggleFlag(card.idCard)}
+            className="absolute left-1/2 bottom-2 transition-transform hover:-translate-y-2"
+            style={{ transform: `translateX(-50%) translateX(${tx}px) rotate(${angle}deg)`, transformOrigin: 'bottom center', zIndex: 10 + i }}
+            title="Click to flag / unflag"
+          >
+            <MiniCard card={card} tags={tags} matches={matches} flagged={isFlagged} conclusionTags={conclusionTags} />
+          </button>
+        );
+      })}
+
+      {/* Conclusion — on top, centered */}
+      <div
+        className="absolute left-1/2 bottom-2"
+        style={{ transform: 'translateX(-50%)', transformOrigin: 'bottom center', zIndex: 100 }}
+      >
+        <MiniCard card={conclusion} tags={Array.from(conclusionTags)} conclusionTags={conclusionTags} isConclusion />
+      </div>
+    </div>
+  );
+}
+
+
+/** A small card showing its tags (colored by match) and title. */
+function MiniCard({ card, tags, matches, flagged, isConclusion, conclusionTags }) {
+  const border = isConclusion
+    ? 'border-gold-500 bg-cream-50'
+    : matches
+    ? 'border-verdigris-500 bg-cream-100'
+    : 'border-oxblood-500 bg-cream-100';
+  return (
+    <div
+      className={`relative w-[120px] h-[172px] rounded-md border-2 shadow-lg p-2 flex flex-col ${border} ${
+        flagged && !isConclusion ? 'ring-2 ring-oxblood-500 ring-offset-1' : ''
+      }`}
+    >
+      <div className="flex gap-1 flex-wrap">
+        {(tags || []).map((t) => {
+          const isMatchTag = isConclusion || conclusionTags?.has(t);
+          return (
+            <span
+              key={t}
+              className={`font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                isConclusion
+                  ? 'bg-gold-500 text-ink-900'
+                  : isMatchTag
+                  ? 'bg-verdigris-500 text-cream-50'
+                  : 'bg-cream-300 text-ink-700'
+              }`}
+            >
+              {t}
+            </span>
+          );
+        })}
+        {(!tags || tags.length === 0) && (
+          <span className="font-mono text-[9px] uppercase text-ink-700/60">no tag</span>
+        )}
+      </div>
+
+      <div className="flex-1 flex items-center justify-center text-center px-0.5">
+        <span className="font-display text-[11px] text-ink-900 leading-tight">{card?.title}</span>
+      </div>
+
+      <div className={`text-center font-mono text-[8px] uppercase tracking-wide ${
+        isConclusion ? 'text-gold-700' : matches ? 'text-verdigris-700' : 'text-oxblood-700'
+      }`}>
+        {isConclusion ? 'Conclusion' : matches ? '✓ matches' : '✕ no match'}
+      </div>
+    </div>
+  );
+}
+
+
+function VerdictOption({ value, verdict, setVerdict, label, desc, accent }) {
+  const active = verdict === value;
+  const border = active
+    ? (accent === 'oxblood' ? 'border-oxblood-500' : accent === 'verdigris' ? 'border-verdigris-500' : 'border-gold-500')
+    : 'border-cream-300';
+  return (
+    <label className={`border p-3 cursor-pointer ${border} ${active ? 'bg-cream-50' : ''}`}>
+      <input type="radio" name="verdict" value={value} checked={active} onChange={() => setVerdict(value)} className="mr-2" />
+      <span className="font-display font-semibold text-ink-900">{label}</span>
+      <p className="font-serif italic text-ink-700 text-sm mt-1">{desc}</p>
+    </label>
   );
 }
