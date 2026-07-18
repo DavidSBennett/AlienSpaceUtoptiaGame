@@ -735,7 +735,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
         {/* Career narrative beat on a promotion — shown unless the player
             has turned story prompts off. Either way it's cleared on dismiss
             (or immediately, if prompts are off). */}
-        {state.lastStageAdvancement && narrativeOn && !state.gameOver && (
+        {state.lastStageAdvancement && narrativeOn && !state.gameOver && !tutorial && (
           <NarrativeModal
             stage={state.lastStageAdvancement.to}
             year={state.lastStageAdvancement.year}
