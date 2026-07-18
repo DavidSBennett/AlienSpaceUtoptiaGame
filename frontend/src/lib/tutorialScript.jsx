@@ -158,8 +158,8 @@ export const TUTORIAL_SCRIPT = [
   },
   {
     id: 'outro', info: true, allow: {},
-    title: 'You’ve got it — welcome to the field!',
-    body: 'You drew research, built and published an article and a book, invested your funding, and attended a conference — the whole loop of graduate research. You’re ready to start a real game from the home screen.',
+    title: 'You’ve got it — You have graduated!',
+    body: 'You went into the archives to find the relevant evidence in order to write successful contributions to the field, attended a conference, published an article, and even successfully defended your dissertation. You’re ready to start your new career.',
     cta: 'Finish',
   },
 ];
