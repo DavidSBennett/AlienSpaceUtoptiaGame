@@ -76,14 +76,14 @@ export default function ReviewSubmissionDialog({
 
   const canSubmit = !busy && (
     verdict === 'approve' ||
-    ((verdict === 'reject' || verdict === 'revise') && flagged.size > 0)
+    (verdict === 'revise' && flagged.size > 0)
   );
 
   function handleSubmit() {
     if (!canSubmit) return;
     onSubmit({
       verdict,
-      flaggedCardIds: (verdict === 'reject' || verdict === 'revise') ? Array.from(flagged) : [],
+      flaggedCardIds: verdict === 'revise' ? Array.from(flagged) : [],
       addedCardIds: [],
       comment: comment.trim() || null,
     });
@@ -186,7 +186,7 @@ export default function ReviewSubmissionDialog({
             {/* Verdict picker */}
             <section className="mb-4">
               <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 mb-2">Your verdict</div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <VerdictOption
                   value="approve" verdict={verdict} setVerdict={setVerdict} accent="gold"
                   label="Approve" desc="The evidence supports the conclusion — publish it."
@@ -195,14 +195,10 @@ export default function ReviewSubmissionDialog({
                   value="revise" verdict={verdict} setVerdict={setVerdict} accent="verdigris"
                   label="Revise & Resubmit" desc="Send it back — the flagged cards should be reconsidered."
                 />
-                <VerdictOption
-                  value="reject" verdict={verdict} setVerdict={setVerdict} accent="oxblood"
-                  label="Reject" desc="Turn it down — the flagged cards don't fit the thesis."
-                />
               </div>
-              {(verdict === 'reject' || verdict === 'revise') && flagged.size === 0 && (
+              {verdict === 'revise' && flagged.size === 0 && (
                 <p className="font-serif italic text-oxblood-700 text-sm mt-2">
-                  Flag at least one card (click it above) to {verdict === 'reject' ? 'reject' : 'revise'}.
+                  Flag at least one card (click it above) to send it back for revision.
                 </p>
               )}
             </section>

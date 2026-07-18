@@ -7,7 +7,7 @@
  *   • The WRITER of the current manuscript sees their full evidence (content +
  *     significance) and simply acknowledges.
  *   • Everyone else sees the reviewer-safe view (title / author / tags) and must
- *     cast a verdict (Approve / Reject / Revise & Resubmit) before continuing.
+ *     cast a verdict (Approve / Revise & Resubmit) before continuing.
  *
  * A per-manuscript barrier holds until every live player clicks the action
  * button ("Continue to Next Manuscript", or "Start Next Year" on the last one).
@@ -30,7 +30,6 @@ import MinimizedInterstitialBar from './MinimizedInterstitialBar.jsx';
 const VERDICTS = [
   { key: 'approve', label: 'Approve', help: 'Publish it as is.' },
   { key: 'revise',  label: 'Revise & Resubmit', help: 'Flag what should be cut; the writer decides next year.' },
-  { key: 'reject',  label: 'Reject', help: 'Flag the evidence that sinks it.' },
 ];
 
 export default function ReviewPhaseModal({
@@ -69,7 +68,7 @@ export default function ReviewPhaseModal({
     setError(null);
   }, [currentSid]);
 
-  const needsFlags = verdict === 'reject' || verdict === 'revise';
+  const needsFlags = verdict === 'revise';
   const flagsOk = !needsFlags || flagged.size >= 1;
   const verdictReady = isWriter || (verdict && flagsOk);
 
