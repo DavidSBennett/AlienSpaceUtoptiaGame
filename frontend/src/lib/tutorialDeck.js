@@ -83,10 +83,10 @@ const COLONIAL = [
     significance: 'The founding statement of American independence.',
   },
   {
-    title: 'The Quartering Act',
-    content: 'Colonists are required to help house and supply British soldiers stationed among them.',
-    date: '1765', author: 'Parliament', location: 'London',
-    significance: 'Resented as an imposition of standing troops in peacetime.',
+    title: 'Patrick Henry’s “Give Me Liberty” Speech',
+    content: 'A Virginia delegate rouses the colonists to arm themselves, closing with “Give me liberty, or give me death!”',
+    date: '1775', author: 'Patrick Henry', location: 'Virginia',
+    significance: 'Gave voice to the colonial resolve to resist Britain by force.',
   },
   {
     title: 'The Sons of Liberty',
@@ -108,7 +108,7 @@ const IMAGES = {
   'Lexington and Concord': 'lexington-and-concord.jpg',
   'Common Sense': 'common-sense.jpg',
   'The Declaration of Independence': 'declaration-of-independence.jpg',
-  'The Quartering Act': 'quartering-act.jpg',
+  'Patrick Henry’s “Give Me Liberty” Speech': 'give-me-liberty.jpg',
   'The Sons of Liberty': 'sons-of-liberty.jpg',
 };
 
