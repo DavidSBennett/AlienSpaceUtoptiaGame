@@ -45,11 +45,14 @@ export const TUTORIAL_REVIEW_SUBMISSION = {
   argument_text:
     'Merchant boycotts and popular protest over taxes show the break with Britain was rooted in economic grievance, not abstract principle.',
   evidence: [
-    // The Stamp Act is a British measure — tagged British, so it does NOT fit an
-    // economic-grievance thesis (the reviewer should catch this mismatch).
-    { idCard: 9001, title: 'The Stamp Act', author: 'Parliament (Britain)', argument: 'British', sub_argument: '' },
+    // The Stamp Act is British, political, AND economic — it carries the
+    // Economic tag, so it fits the thesis.
+    { idCard: 9001, title: 'The Stamp Act', author: 'Parliament (Britain)', argument: 'British,Political,Economic', sub_argument: '' },
     { idCard: 9002, title: 'A merchants’ non-importation agreement', author: 'Boston merchants', argument: 'Economic', sub_argument: '' },
     { idCard: 9003, title: 'A pamphlet against the tax', author: 'A colonial writer', argument: 'Economic', sub_argument: '' },
+    // Revere's engraving is a colonialist, social source — no Economic tag, so
+    // it does NOT fit the economic thesis (the reviewer should flag it).
+    { idCard: 9004, title: 'Paul Revere’s Boston Massacre engraving', author: 'Paul Revere', argument: 'Colonialist,Social', sub_argument: '' },
   ],
   citations: [],
 };
