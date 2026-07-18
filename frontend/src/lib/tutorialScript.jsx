@@ -80,7 +80,7 @@ export const TUTORIAL_SCRIPT = [
   {
     id: 'intro', info: true, allow: {},
     title: 'Welcome to the Guided Walkthrough',
-    body: 'This is the real game, just guided. You’re a historian of the American Revolution, beginning as a Visiting Assistant Professor. At each step only the right control works. You’ll first build a focused economic argument, then a broad book — learning how evidence and conclusions must match.',
+    body: 'This is the real game, just guided. You’re a graduate student starting your PhD in the history of the American Revolution, learning the craft of research. At each step only the right control works. You’ll first build a focused economic argument, then a broad book — learning how evidence and conclusions must match.',
     cta: 'Begin',
   },
   {
@@ -104,13 +104,13 @@ export const TUTORIAL_SCRIPT = [
   {
     id: 'publish-article', allow: { publish: true }, mask: 'hole', target: 'publish-button',
     title: 'Turn 2 — Publish an article',
-    body: 'A project with fewer than 6 evidence cards is an article. Click Submit for Review — your first article wins a tenure-track post (Assistant Professor).',
+    body: 'A project with fewer than 6 evidence cards is an article. Click Submit for Review — publishing your first seminar paper is a graduate student’s first real milestone.',
     done: (s, st) => s.articlesPublished > st.articlesPublished,
   },
   {
     id: 'upgrade', allow: {}, mask: 'none',
     title: 'Invest your funding',
-    body: 'Close the publish notice and the promotion pop-up first. An “Invest your funding” window then opens — click ONE upgrade to choose it. How you invest shapes the research you can do.',
+    body: 'Close the publish notice and the pop-up that follows first. An “Invest your funding” window then opens — click ONE upgrade to choose it. How you spend your funding shapes the research you can do.',
     done: (s, st) => s.pendingUpgrades < st.pendingUpgrades || s.pendingUpgrades === 0,
   },
   {
@@ -153,13 +153,13 @@ export const TUTORIAL_SCRIPT = [
   {
     id: 'publish-book', allow: { publish: true }, mask: 'hole', target: 'publish-button',
     title: 'Turn 5 — Publish a book',
-    body: 'Six evidence cards make this a book. Click Submit for Review — your first book earns you tenure and promotion to Associate Professor.',
+    body: 'Six evidence cards make this a book. Click Submit for Review — a book-length work is like defending your dissertation, the capstone of your graduate training.',
     done: (s, st) => s.booksPublished > st.booksPublished,
   },
   {
     id: 'outro', info: true, allow: {},
-    title: 'You’ve got it — tenure!',
-    body: 'You drew research, built and published an article and a book, invested an upgrade, and attended a conference — the whole loop. You’re ready to start a real game from the home screen.',
+    title: 'You’ve got it — welcome to the field!',
+    body: 'You drew research, built and published an article and a book, invested your funding, and attended a conference — the whole loop of graduate research. You’re ready to start a real game from the home screen.',
     cta: 'Finish',
   },
 ];
