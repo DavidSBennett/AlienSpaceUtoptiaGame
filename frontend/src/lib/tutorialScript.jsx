@@ -80,7 +80,7 @@ export const TUTORIAL_SCRIPT = [
   {
     id: 'intro', info: true, allow: {},
     title: 'Welcome to the Guided Walkthrough',
-    body: 'This is the real game, just guided. You’re a graduate student starting your PhD in the history of the American Revolution, learning the craft of research. At each step only the right control works. You’ll first build a focused economic argument, then a broad book — learning how evidence and conclusions must match.',
+    body: 'This is the real game, just guided. You’re earning a PhD in history, learning how to research, write, and ultimately publish your arguments within academia. At each step only the right control works. You’ll first build a focused economic argument, then a broad book — learning how evidence and conclusions must match.',
     cta: 'Begin',
   },
   {
