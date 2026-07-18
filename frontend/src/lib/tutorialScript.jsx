@@ -57,6 +57,25 @@ export const TUTORIAL_REVIEW_SUBMISSION = {
   citations: [],
 };
 
+// What the walkthrough explains AFTER the player casts their review verdict.
+export const TUTORIAL_REVIEW_OUTCOMES = {
+  approve: {
+    title: 'You approved it',
+    body: [
+      'You let this publication through — but its argument isn’t well supported: one of its cards didn’t share the conclusion’s theme.',
+      'Because you approved, the writer still earns prestige and an upgrade for the publication. Approving a weak argument rewards the author anyway — so save Approve for when the evidence really fits the thesis.',
+    ],
+  },
+  revise: {
+    title: 'You sent it back to revise',
+    body: [
+      'You chose Revise & Resubmit. Now the writer decides how to respond:',
+      'They can object to your findings and seek a second opinion — if that goes against them, the publication is fully rejected and the writer loses 5 prestige.',
+      'Or they can accept your edits and resubmit — the publication goes through with the changes, the writer earns prestige and an upgrade, and you, the reviewer, earn a +5 prestige bump for recognizing its strength.',
+    ],
+  },
+};
+
 export const TUTORIAL_SCRIPT = [
   {
     id: 'intro', info: true, allow: {},

@@ -35,7 +35,7 @@ import UpgradeCountdown from '../components/UpgradeCountdown.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { isConclusionCard } from '../lib/cardIdentifier.js';
 import { TUTORIAL_DECK, TUTORIAL_CARDS } from '../lib/tutorialDeck.js';
-import { TUTORIAL_SCRIPT, snapshot, TUTORIAL_REVIEW_SUBMISSION } from '../lib/tutorialScript.jsx';
+import { TUTORIAL_SCRIPT, snapshot, TUTORIAL_REVIEW_SUBMISSION, TUTORIAL_REVIEW_OUTCOMES } from '../lib/tutorialScript.jsx';
 import TutorialCoach from '../components/TutorialCoach.jsx';
 import ReviewSubmissionDialog from '../components/ReviewSubmissionDialog.jsx';
 import { exportPublicationsToPDF } from '../lib/publicationsPDF.js';
@@ -162,6 +162,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
   const [tutStep, setTutStep] = useState(0);
   const tutStartRef = useRef(null);        // snapshot taken when a step begins
   const tutAdvancedRef = useRef(-1);       // last step we already advanced past
+  const [tutReviewVerdict, setTutReviewVerdict] = useState(null); // peer-review branch
   const tutorialStep = tutorial ? TUTORIAL_SCRIPT[tutStep] : null;
 
   // Capture the start snapshot whenever the step changes (runs before the
@@ -753,13 +754,20 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
           />
         )}
 
-        {/* Peer-review demo — a dummy opponent manuscript to review. */}
-        {tutorial && tutorialStep?.id === 'peer-review' && (
+        {/* Peer-review demo — a dummy opponent manuscript to review. After the
+            verdict, we branch to explain what that choice means. */}
+        {tutorial && tutorialStep?.id === 'peer-review' && !tutReviewVerdict && (
           <ReviewSubmissionDialog
             submission={TUTORIAL_REVIEW_SUBMISSION}
             yourHand={[]}
-            onSubmit={() => advanceTutorial()}
+            onSubmit={({ verdict }) => setTutReviewVerdict(verdict === 'revise' ? 'revise' : 'approve')}
             onClose={() => advanceTutorial()}
+          />
+        )}
+        {tutorial && tutorialStep?.id === 'peer-review' && tutReviewVerdict && (
+          <TutorialReviewOutcome
+            outcome={TUTORIAL_REVIEW_OUTCOMES[tutReviewVerdict]}
+            onContinue={() => { setTutReviewVerdict(null); advanceTutorial(); }}
           />
         )}
 
@@ -1599,4 +1607,29 @@ function currentGoal(state) {
   if (booksPublished < 4) return `Goal: ${4 - booksPublished} more book${4 - booksPublished === 1 ? '' : 's'} for Full Professor`;
   if (booksPublished < 7) return `Goal: ${7 - booksPublished} more book${7 - booksPublished === 1 ? '' : 's'} for an Endowed Chair`;
   return 'Continue building your legacy until retirement';
+}
+
+
+/**
+ * TutorialReviewOutcome — the branching explanation shown in the guided
+ * walkthrough after the player casts a peer-review verdict (approve / revise).
+ */
+function TutorialReviewOutcome({ outcome, onContinue }) {
+  if (!outcome) return null;
+  return (
+    <div className="fixed inset-0 z-[130] bg-ink-900/75 backdrop-blur-[2px] flex items-center justify-center p-4">
+      <div className="surface-paper border-2 border-gold-500 shadow-2xl max-w-md w-full px-7 py-6">
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700 mb-2">
+          Peer review · what happens next
+        </p>
+        <h3 className="font-display text-2xl text-ink-900 leading-tight">{outcome.title}</h3>
+        {(outcome.body || []).map((p, i) => (
+          <p key={i} className="font-serif text-sm text-ink-900 leading-snug mt-3">{p}</p>
+        ))}
+        <div className="mt-5 flex justify-end">
+          <button type="button" onClick={onContinue} className="btn-primary">Continue →</button>
+        </div>
+      </div>
+    </div>
+  );
 }
