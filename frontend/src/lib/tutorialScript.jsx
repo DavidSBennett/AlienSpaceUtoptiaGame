@@ -159,7 +159,7 @@ export const TUTORIAL_SCRIPT = [
   {
     id: 'outro', info: true, allow: {},
     title: 'You’ve got it — You have graduated!',
-    body: 'You went into the archives to find the relevant evidence in order to write successful contributions to the field, attended a conference, published an article, and even successfully defended your dissertation. You’re ready to start your new career.',
+    body: 'You went into the archives to gather evidence, you shared your knowledge at conferences to expand your research options, and you gathered all of that evidence into article- and book-length manuscripts in order to successfully contribute to the field. You’re ready to start your new career.',
     cta: 'Finish',
   },
 ];
