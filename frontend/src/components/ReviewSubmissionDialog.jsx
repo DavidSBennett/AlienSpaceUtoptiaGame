@@ -256,43 +256,56 @@ export default function ReviewSubmissionDialog({
 }
 
 
-/** The fanned cards — conclusion on top, evidence fanned behind, tags shown. */
+/**
+ * The fanned cards — a left-to-right spread. Each card overlaps the one to its
+ * LEFT (higher z as you go right), so every card's left edge — where the tags
+ * live — stays exposed. The conclusion is the rightmost card, on top.
+ */
 function FannedCards({ matchInfo, conclusion, conclusionTags, flagged, onToggleFlag }) {
-  const n = matchInfo.length;
-  const mid = (n - 1) / 2;
-  return (
-    <div className="relative mx-auto" style={{ height: 260, width: '100%', maxWidth: 620 }}>
-      {matchInfo.map(({ card, tags, matches }, i) => {
-        const angle = (i - mid) * 13;
-        const tx = (i - mid) * 66;
-        const isFlagged = flagged.has(card.idCard);
-        return (
-          <button
-            key={card.idCard}
-            type="button"
-            onClick={() => onToggleFlag(card.idCard)}
-            className="absolute left-1/2 bottom-2 transition-transform hover:-translate-y-2"
-            style={{ transform: `translateX(-50%) translateX(${tx}px) rotate(${angle}deg)`, transformOrigin: 'bottom center', zIndex: 10 + i }}
-            title="Click to flag / unflag"
-          >
-            <MiniCard card={card} tags={tags} matches={matches} flagged={isFlagged} conclusionTags={conclusionTags} />
-          </button>
-        );
-      })}
+  const cards = [
+    ...matchInfo.map((m) => ({ ...m, isConclusion: false })),
+    { card: conclusion, tags: Array.from(conclusionTags), matches: true, isConclusion: true },
+  ];
+  const total = cards.length;
+  const OFFSET = 62;   // horizontal step; leaves ~62px of each card's left showing
+  const CARD_W = 112;
+  const mid = (total - 1) / 2;
+  const width = (total - 1) * OFFSET + CARD_W;
 
-      {/* Conclusion — on top, centered */}
-      <div
-        className="absolute left-1/2 bottom-2"
-        style={{ transform: 'translateX(-50%)', transformOrigin: 'bottom center', zIndex: 100 }}
-      >
-        <MiniCard card={conclusion} tags={Array.from(conclusionTags)} conclusionTags={conclusionTags} isConclusion />
+  return (
+    <div className="mx-auto overflow-x-auto">
+      <div className="relative" style={{ height: 200, width, margin: '0 auto' }}>
+        {cards.map((c, k) => {
+          const angle = (k - mid) * 4; // gentle fan
+          const isFlagged = !c.isConclusion && flagged.has(c.card.idCard);
+          return (
+            <button
+              key={c.isConclusion ? 'conclusion' : c.card.idCard}
+              type="button"
+              onClick={c.isConclusion ? undefined : () => onToggleFlag(c.card.idCard)}
+              disabled={c.isConclusion}
+              className="absolute bottom-1 transition-transform hover:-translate-y-3 hover:z-[200]"
+              style={{ left: k * OFFSET, transformOrigin: 'bottom center', transform: `rotate(${angle}deg)`, zIndex: k + 1 }}
+              title={c.isConclusion ? undefined : 'Click to flag / unflag'}
+            >
+              <MiniCard
+                card={c.card}
+                tags={c.tags}
+                matches={c.matches}
+                flagged={isFlagged}
+                isConclusion={c.isConclusion}
+                conclusionTags={conclusionTags}
+              />
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 
-/** A small card showing its tags (colored by match) and title. */
+/** A small card. Tags stack in a column at the top-left (the exposed strip). */
 function MiniCard({ card, tags, matches, flagged, isConclusion, conclusionTags }) {
   const border = isConclusion
     ? 'border-gold-500 bg-cream-50'
@@ -301,22 +314,28 @@ function MiniCard({ card, tags, matches, flagged, isConclusion, conclusionTags }
     : 'border-oxblood-500 bg-cream-100';
   return (
     <div
-      className={`relative w-[120px] h-[172px] rounded-md border-2 shadow-lg p-2 flex flex-col ${border} ${
-        flagged && !isConclusion ? 'ring-2 ring-oxblood-500 ring-offset-1' : ''
+      className={`relative w-[112px] h-[168px] rounded-md border-2 shadow-lg p-2 flex flex-col text-left ${border} ${
+        flagged ? 'ring-2 ring-oxblood-500 ring-offset-1' : ''
       }`}
     >
-      <div className="flex gap-1 flex-wrap">
+      {/* Top-left strip: match badge + tags stacked, so they stay visible. */}
+      <div className="flex flex-col items-start gap-1">
+        <span className={`font-mono text-[8px] uppercase tracking-wide px-1 py-0.5 rounded ${
+          isConclusion ? 'bg-gold-500 text-ink-900' : matches ? 'bg-verdigris-500 text-cream-50' : 'bg-oxblood-500 text-cream-50'
+        }`}>
+          {isConclusion ? 'Thesis' : matches ? '✓ match' : '✕ no match'}
+        </span>
         {(tags || []).map((t) => {
           const isMatchTag = isConclusion || conclusionTags?.has(t);
           return (
             <span
               key={t}
-              className={`font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${
+              className={`font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${
                 isConclusion
-                  ? 'bg-gold-500 text-ink-900'
+                  ? 'bg-gold-500 text-ink-900 border-gold-700'
                   : isMatchTag
-                  ? 'bg-verdigris-500 text-cream-50'
-                  : 'bg-cream-300 text-ink-700'
+                  ? 'bg-verdigris-500 text-cream-50 border-verdigris-700'
+                  : 'bg-cream-300 text-ink-700 border-cream-400'
               }`}
             >
               {t}
@@ -328,14 +347,8 @@ function MiniCard({ card, tags, matches, flagged, isConclusion, conclusionTags }
         )}
       </div>
 
-      <div className="flex-1 flex items-center justify-center text-center px-0.5">
-        <span className="font-display text-[11px] text-ink-900 leading-tight">{card?.title}</span>
-      </div>
-
-      <div className={`text-center font-mono text-[8px] uppercase tracking-wide ${
-        isConclusion ? 'text-gold-700' : matches ? 'text-verdigris-700' : 'text-oxblood-700'
-      }`}>
-        {isConclusion ? 'Conclusion' : matches ? '✓ matches' : '✕ no match'}
+      <div className="flex-1 flex items-end pb-0.5">
+        <span className="font-display text-[10px] text-ink-900 leading-tight">{card?.title}</span>
       </div>
     </div>
   );
