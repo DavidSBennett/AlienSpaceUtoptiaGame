@@ -534,7 +534,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
           {/* Center: current career goal — what the player needs to do
               before the next gate. Drives the player's near-term decisions. */}
           <span className="font-serif italic text-cream-200/80 text-sm text-center flex-1 truncate">
-            {currentGoal(state)}
+            {currentGoal(state, tutorial)}
           </span>
 
           <span className="font-mono text-cream-200 flex-shrink-0">
@@ -1589,9 +1589,16 @@ function SmallPips({ level }) {
  * with all advancement triggers gated only on book counts the player can
  * pursue at their leisure).
  */
-function currentGoal(state) {
+function currentGoal(state, tutorial = false) {
   const { booksPublished } = state;
   const published = state.articlesPublished + state.booksPublished;
+
+  // Guided Walkthrough uses grad-school language instead of the career ranks.
+  if (tutorial) {
+    if (published === 0) return 'Goal: Research and publish your first article — a seminar paper';
+    if (booksPublished === 0) return 'Goal: Research and publish your first book — defend your dissertation';
+    return 'Goal: Complete your graduate training';
+  }
 
   // First article → a tenure-track post (Assistant Professor).
   if (published === 0) {
