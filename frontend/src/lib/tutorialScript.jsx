@@ -38,16 +38,18 @@ export const TUTORIAL_REVIEW_SUBMISSION = {
   kind: 'article',
   year_submitted: 3,
   conclusion: {
-    title: 'The Stamp Act crisis sparked the Revolution',
-    description: 'A focused thesis: the 1765 tax crisis set the break with Britain in motion.',
-    argument: 'economic',
+    title: 'Economic grievances turned colonists against Britain',
+    description: 'A focused thesis: taxes and trade burdens — not ideas alone — drove colonial resistance.',
+    argument: 'Economic',
   },
   argument_text:
-    'The Stamp Act provoked the first colony-wide resistance. Taken with the boycotts that followed, it shows the Revolution began as a tax revolt.',
+    'Merchant boycotts and popular protest over taxes show the break with Britain was rooted in economic grievance, not abstract principle.',
   evidence: [
-    { idCard: 9001, title: 'The Stamp Act', author: 'Parliament', argument: 'economic', sub_argument: 'colonial' },
-    { idCard: 9002, title: 'A merchants’ non-importation agreement', author: 'Boston merchants', argument: 'economic', sub_argument: 'colonial' },
-    { idCard: 9003, title: 'A pamphlet against the tax', author: 'A Freeholder', argument: 'colonial', sub_argument: '' },
+    // The Stamp Act is a British measure — tagged British, so it does NOT fit an
+    // economic-grievance thesis (the reviewer should catch this mismatch).
+    { idCard: 9001, title: 'The Stamp Act', author: 'Parliament (Britain)', argument: 'British', sub_argument: '' },
+    { idCard: 9002, title: 'A merchants’ non-importation agreement', author: 'Boston merchants', argument: 'Economic', sub_argument: '' },
+    { idCard: 9003, title: 'A pamphlet against the tax', author: 'A colonial writer', argument: 'Economic', sub_argument: '' },
   ],
   citations: [],
 };
