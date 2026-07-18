@@ -597,6 +597,16 @@ export default function Home() {
             <span className="sr-only"> (opens PDF in a new tab)</span>
           </a>
 
+          <a
+            href="the-historians-sell-sheet.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-ghost inline-block"
+          >
+            Sell Sheet
+            <span className="sr-only"> (opens PDF in a new tab)</span>
+          </a>
+
           <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-cream-200">
             Davidsbennett.com
           </p>
