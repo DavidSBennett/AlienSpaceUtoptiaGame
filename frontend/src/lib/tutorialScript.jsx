@@ -80,7 +80,7 @@ export const TUTORIAL_SCRIPT = [
   {
     id: 'intro', info: true, allow: {},
     title: 'Welcome to the Guided Walkthrough',
-    body: 'You’re tasked with earning a PhD in history, so you must now learn how to research, write, and ultimately publish your arguments within academia. While this game is shaped exactly like the real game, your options will be limited along a guided path. At each step of the game, you will be asked to do a specific action, which will mean that some of the buttons and actions will be inaccessible to you at different times. By the end of this tutorial you will know how to visit the archive to draw research cards, publish small articles, attend conferences to shape your hand, and publish book length manuscripts. Sit back, relax and learn what academia is all about.',
+    body: 'You’re here to earn a PhD in history — which means learning to research, write, and publish your arguments. This is the real game, just guided. At each step we’ll ask you to do one thing, so some buttons will be locked until it’s their turn. By the end you’ll know how to draw research from the archive, publish articles, attend conferences to shape your hand, and publish book-length manuscripts. Sit back, relax, and see what academia is all about.',
     cta: 'Begin',
   },
   {
