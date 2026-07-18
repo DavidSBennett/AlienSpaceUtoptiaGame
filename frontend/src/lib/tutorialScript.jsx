@@ -70,8 +70,8 @@ export const TUTORIAL_REVIEW_OUTCOMES = {
     title: 'You sent it back to revise',
     body: [
       'You chose Revise & Resubmit. Now the writer decides how to respond:',
-      'They can object to your findings and seek a second opinion — if that goes against them, the publication is fully rejected and the writer loses 5 prestige.',
-      'Or they can accept your edits and resubmit — the publication goes through with the changes, the writer earns prestige and an upgrade, and you, the reviewer, earn a +5 prestige bump for recognizing its strength.',
+      'They can object to your findings and seek a second opinion. But for this argument you already know how that ends — one card doesn’t share the conclusion’s tags, so a second opinion will outright reject the argument, and the writer loses 5 prestige.',
+      'Or they can accept your edits and resubmit — dropping the mismatched card. The publication then goes through with the changes, the writer earns prestige and an upgrade, and you, the reviewer, earn a +5 prestige bump for recognizing its strength.',
     ],
   },
 };
