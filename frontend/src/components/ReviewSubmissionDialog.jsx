@@ -117,7 +117,7 @@ export default function ReviewSubmissionDialog({
           <div className="absolute bottom-3 left-3 text-gold-500 pointer-events-none"><CornerOrnament corner="bl" size={24} /></div>
           <div className="absolute bottom-3 right-3 text-gold-500 pointer-events-none"><CornerOrnament corner="br" size={24} /></div>
 
-          <div className="px-10 py-8">
+          <div className="px-10 py-5">
             {/* Header */}
             <div className="mb-2">
               <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700 mb-1">Peer Review</p>
@@ -150,7 +150,7 @@ export default function ReviewSubmissionDialog({
               )}
             </section>
 
-            <FleuronDivider className="my-3" />
+            <FleuronDivider className="my-1" />
 
             {/* Fanned card visualization */}
             <FannedCards
@@ -274,7 +274,7 @@ function FannedCards({ matchInfo, conclusion, conclusionTags, flagged, onToggleF
 
   return (
     <div className="mx-auto overflow-x-auto">
-      <div className="relative" style={{ height: 200, width, margin: '0 auto' }}>
+      <div className="relative" style={{ height: 178, width, margin: '0 auto' }}>
         {cards.map((c, k) => {
           const angle = (k - mid) * 4; // gentle fan
           const isFlagged = !c.isConclusion && flagged.has(c.card.idCard);
@@ -284,7 +284,7 @@ function FannedCards({ matchInfo, conclusion, conclusionTags, flagged, onToggleF
               type="button"
               onClick={c.isConclusion ? undefined : () => onToggleFlag(c.card.idCard)}
               disabled={c.isConclusion}
-              className="absolute bottom-1 transition-transform hover:-translate-y-3 hover:z-[200]"
+              className="absolute bottom-0 transition-transform hover:-translate-y-1 hover:z-[200]"
               style={{ left: k * OFFSET, transformOrigin: 'bottom center', transform: `rotate(${angle}deg)`, zIndex: k + 1 }}
               title={c.isConclusion ? undefined : 'Click to flag / unflag'}
             >
