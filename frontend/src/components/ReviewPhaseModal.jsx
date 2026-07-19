@@ -225,15 +225,19 @@ export default function ReviewPhaseModal({
               <div className="mb-2">
                 <EvidenceFan
                   evidence={current.evidence || []}
+                  citations={current.citations || []}
                   conclusion={current.conclusion}
                   flaggable={needsFlags}
                   flagged={flagged}
                   onToggleFlag={toggleFlag}
+                  worksFlaggable={needsFlags}
+                  flaggedWorks={flaggedWorks}
+                  onToggleFlagWork={toggleFlagWork}
                 />
               </div>
               {needsFlags && (
                 <p className="font-serif italic text-ink-700 text-xs text-center mb-2">
-                  Click a card — or a citation below — to flag evidence that doesn't fit the conclusion
+                  Click any card — evidence or a cited work — to flag what doesn't fit the conclusion
                   ({flagged.size + flaggedWorks.size} flagged).
                 </p>
               )}
@@ -243,18 +247,6 @@ export default function ReviewPhaseModal({
           {/* The writer sees full content + significance — no tags. */}
           {isWriter && (
             <WriterEvidence evidence={current.evidence} showSignificance={showSignificance} />
-          )}
-
-          {/* Citations the manuscript leans on. Reviewers can flag a cited work
-              (book / article / conference paper) that doesn't fit the argument,
-              the same way they flag evidence cards. */}
-          {!isWriter && current.citations && current.citations.length > 0 && (
-            <ReviewCitations
-              citations={current.citations}
-              flaggable={needsFlags}
-              flagged={flaggedWorks}
-              onToggleFlag={toggleFlagWork}
-            />
           )}
 
           {/* Reviewer verdict controls */}
@@ -370,49 +362,3 @@ function WriterEvidence({ evidence, showSignificance }) {
 }
 
 
-/** Citations the manuscript leans on — shown to reviewers beneath the fan.
- *  When `flaggable`, each cited work can be clicked to flag it for removal. */
-function ReviewCitations({ citations, flaggable = false, flagged, onToggleFlag }) {
-  const kindLabel = (k) => (k === 'book' ? 'Book' : k === 'conference' ? 'Conference paper' : 'Article');
-  return (
-    <div className="pt-1">
-      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-ink-900 mb-1">Citations</p>
-      <div className="space-y-1">
-        {citations.map((c) => {
-          const isFlagged = flaggable && !!flagged?.has(c.work_id);
-          const inner = (
-            <>
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="font-serif text-sm text-ink-900">
-                  “{c.publication_title}” — {c.writer_name}
-                  <span className="font-bold text-gold-800"> · {c.conclusion_tag}</span>
-                </span>
-                {flaggable && (
-                  <span className={`font-mono text-[10px] uppercase tracking-wider flex-shrink-0 ${isFlagged ? 'text-oxblood-700' : 'text-ink-700'}`}>
-                    {isFlagged ? '⚑ flagged' : 'flag'}
-                  </span>
-                )}
-              </div>
-              <div className="font-mono text-[9px] uppercase tracking-wider text-ink-700">{kindLabel(c.kind)}</div>
-            </>
-          );
-          if (!flaggable) {
-            return <div key={c.work_id} className="px-2 py-1">{inner}</div>;
-          }
-          return (
-            <button
-              key={c.work_id}
-              type="button"
-              onClick={() => onToggleFlag(c.work_id)}
-              className={`w-full text-left px-2 py-1 border transition-colors ${
-                isFlagged ? 'bg-oxblood-500/15 border-oxblood-500' : 'bg-cream-50 border-cream-300 hover:border-gold-500'
-              }`}
-            >
-              {inner}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
