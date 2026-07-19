@@ -177,7 +177,9 @@ export default function ReviewPhaseModal({
             <h3 className="font-display text-2xl font-bold text-ink-900">
               {current.conclusion?.title || 'Untitled'}
             </h3>
-            {(() => {
+            {/* Tags are hidden scaffolding — reviewers see them to judge the
+                argument, but never the writer (of their own manuscript). */}
+            {!isWriter && (() => {
               const concTags = [current.conclusion?.argument, current.conclusion?.sub_argument]
                 .filter(Boolean).join(', ');
               return concTags ? (
@@ -197,30 +199,34 @@ export default function ReviewPhaseModal({
 
           <FleuronDivider className="my-5" />
 
-          {/* Evidence — a fanned visualization of the submitted cards against
-              the conclusion (which support the thesis, which fall off-topic).
-              Reviewers who chose Revise can click a card to flag it. */}
+          {/* Evidence. Reviewers get the fanned visualization (which exposes the
+              cards' tags to judge support) and can flag off-topic cards. The
+              WRITER never sees the fan — tags stay hidden from them — only their
+              own full content + significance table. */}
           <h3 className="font-display text-lg font-bold uppercase tracking-widest text-ink-900 mb-2">
             Evidence
           </h3>
 
-          <div className="mb-2">
-            <EvidenceFan
-              evidence={current.evidence || []}
-              conclusion={current.conclusion}
-              flaggable={!isWriter && needsFlags}
-              flagged={flagged}
-              onToggleFlag={toggleFlag}
-            />
-          </div>
-
-          {!isWriter && needsFlags && (
-            <p className="font-serif italic text-ink-700 text-xs text-center mb-2">
-              Click a card to flag evidence that doesn't fit the conclusion ({flagged.size} flagged).
-            </p>
+          {!isWriter && (
+            <>
+              <div className="mb-2">
+                <EvidenceFan
+                  evidence={current.evidence || []}
+                  conclusion={current.conclusion}
+                  flaggable={needsFlags}
+                  flagged={flagged}
+                  onToggleFlag={toggleFlag}
+                />
+              </div>
+              {needsFlags && (
+                <p className="font-serif italic text-ink-700 text-xs text-center mb-2">
+                  Click a card to flag evidence that doesn't fit the conclusion ({flagged.size} flagged).
+                </p>
+              )}
+            </>
           )}
 
-          {/* The writer also sees full content + significance below the fan. */}
+          {/* The writer sees full content + significance — no tags. */}
           {isWriter && (
             <WriterEvidence evidence={current.evidence} showSignificance={showSignificance} />
           )}
