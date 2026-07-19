@@ -157,6 +157,8 @@ export default function MultiplayerGame() {
   const [locallyDismissed, setLocallyDismissed] = useState(() => new Set());
   const [reviseDecision, setReviseDecision] = useState(null);
   const [locallyDismissedRevise, setLocallyDismissedRevise] = useState(() => new Set());
+  // Whether the manuscript re-entry tray is expanded.
+  const [manuscriptTrayOpen, setManuscriptTrayOpen] = useState(false);
 
   // Track what's currently being dragged so DragOverlay can render a
   // floating preview that follows the cursor. Without this, drags happen
@@ -732,6 +734,30 @@ export default function MultiplayerGame() {
       );
       if (r) setOpenResult(r);
     }
+  }
+
+  // Re-open a post-review window the writer set aside or minimized. The old
+  // "Out for Review" basket was removed, so this is how a writer gets back to a
+  // Revise & Resubmit decision (to accept / object / rebuild) or a resolved
+  // result (to reclaim cards, draw consolation, or object).
+  function reopenManuscript(item) {
+    const sid = item.sub.submission_id;
+    if (item.kind === 'revise') {
+      setLocallyDismissedRevise((prev) => {
+        const next = new Set(prev);
+        next.delete(sid);
+        return next;
+      });
+      setReviseDecision(item.sub);
+    } else {
+      setLocallyDismissed((prev) => {
+        const next = new Set(prev);
+        next.delete(sid);
+        return next;
+      });
+      setOpenResult(item.sub);
+    }
+    setManuscriptTrayOpen(false);
   }
 
   // Aftermath: sign off ("end the game"). The game finalizes once every live
@@ -1375,6 +1401,66 @@ export default function MultiplayerGame() {
             onFinish={handleAftermathFinish}
           />
         )}
+
+        {/* Manuscript re-entry tray — reopen a Revise & Resubmit decision or a
+            resolved result the writer set aside/minimized. Replaces the removed
+            "Out for Review" basket so a writer is never stranded. */}
+        {(() => {
+          const reviseItems = (state.revise_decisions_for_you || []).map((d) => ({ kind: 'revise', sub: d }));
+          const resultItems = (state.resolved_submissions_for_you || [])
+            .filter((r) =>
+              !r.writer_seen_result ||
+              (r.is_rejection && (((r.bound_evidence?.length || 0) > 0) || !r.consolation_drawn))
+            )
+            .map((r) => ({ kind: 'result', sub: r }));
+          const items = [...reviseItems, ...resultItems];
+          if (items.length === 0) return null;
+
+          const approvedStatuses = ['approved', 'auto-approved', 'objection-won'];
+          return (
+            <div className="fixed bottom-4 left-4 z-[60]">
+              {manuscriptTrayOpen && (
+                <div className="mb-2 w-72 max-h-[50vh] overflow-y-auto surface-paper border border-gold-500/40 shadow-xl p-2 animate-fade-up">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-700 px-1 mb-1">
+                    Your manuscripts
+                  </p>
+                  <ul className="space-y-1">
+                    {items.map((it) => {
+                      const s = it.sub;
+                      const title = s.publication_title || s.conclusion?.title || s.conclusion_title || s.kind || 'Manuscript';
+                      const badge = it.kind === 'revise'
+                        ? 'Revise & Resubmit — decide'
+                        : (approvedStatuses.includes(s.status) ? 'Approved' : 'Rejected — action needed');
+                      const tone = it.kind === 'revise'
+                        ? 'text-gold-700'
+                        : (approvedStatuses.includes(s.status) ? 'text-verdigris-700' : 'text-oxblood-700');
+                      return (
+                        <li key={`${it.kind}-${s.submission_id}`}>
+                          <button
+                            type="button"
+                            onClick={() => reopenManuscript(it)}
+                            className="w-full text-left px-2 py-1.5 border border-cream-300 bg-cream-50 hover:border-gold-500 transition-colors"
+                          >
+                            <div className="font-display text-sm text-ink-900 truncate">{title}</div>
+                            <div className={`font-mono text-[10px] uppercase tracking-wider ${tone}`}>{badge}</div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setManuscriptTrayOpen((v) => !v)}
+                title="Your manuscripts awaiting a decision or action"
+                className="px-3 py-2 bg-gold-500 hover:bg-gold-400 text-teal-950 border border-gold-700 font-mono text-xs uppercase tracking-wider shadow-lg"
+              >
+                Your manuscripts ({items.length})
+              </button>
+            </div>
+          );
+        })()}
       </div>
     </DndContext>
   );
