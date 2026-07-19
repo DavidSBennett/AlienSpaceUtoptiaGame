@@ -10,6 +10,7 @@ import SkipLink from '../components/SkipLink.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import useUserSetting from '../auth/useUserSetting.js';
 import { GAME_MODES, DEFAULT_MODE, labelForRounds, roundsForMode, labelForMode } from '../lib/gameModes.js';
+import { SEED_MODE } from '../lib/seedMode.js';
 
 /**
  * Home — the unified landing page. Hosts BOTH the solo and multiplayer
@@ -44,6 +45,9 @@ export default function Home() {
 
   // ── Shared form state ────────────────────────────────────────────
   const [selectedDeckId, setSelectedDeckId] = useState('');
+  // Seed mode only: an admin-entered seed makes the deck + hands reproducible.
+  const [seed, setSeed] = useState('');
+  const seedEnabled = SEED_MODE && isAdmin;
   // Game length (Short 8 / Medium 12 / Long 15) — shared by both solo and
   // multiplayer. The picker sits above the Solo/Multiplayer choice.
   const [gameMode, setGameMode] = useState(DEFAULT_MODE);
@@ -168,7 +172,9 @@ export default function Home() {
     if (!raw) return;
     const deck = { idDeck: raw.value, nameDeck: raw.label };
     // Note: no playerName in nav state. Game.jsx pulls from useAuth.
-    navigate('/game', { state: { deck, totalYears: roundsForMode(gameMode) } });
+    const navState = { deck, totalYears: roundsForMode(gameMode) };
+    if (seedEnabled && seed.trim()) navState.seed = seed.trim();
+    navigate('/game', { state: navState });
   }
 
   async function handleCreateLobby() {
@@ -182,6 +188,8 @@ export default function Home() {
         player_name: user.username,
         max_players: Number(maxPlayers),
         mode: gameMode,
+        // Seed build + admins only; the backend ignores it unless SEED_MODE.
+        ...(seedEnabled && seed.trim() ? { seed: seed.trim() } : {}),
       });
       saveSession(res.game_id, {
         player_token: res.player_token,
@@ -346,6 +354,33 @@ export default function Home() {
                     </p>
                   )}
                 </div>
+
+                {/* Seed field — seed build + admins only. A non-empty seed makes
+                    the shuffle and starting hands reproducible (solo and the
+                    lobby you create). Empty = a normal random game. */}
+                {seedEnabled && (
+                  <div>
+                    <label
+                      htmlFor="seed-input"
+                      className="block font-mono text-[10px] uppercase tracking-[0.2em] text-gold-400 mb-2"
+                    >
+                      <span className="px-1.5 py-0.5 mr-2 bg-gold-500 text-teal-950 rounded">Seed mode</span>
+                      Reproducible seed (optional)
+                    </label>
+                    <input
+                      id="seed-input"
+                      type="text"
+                      value={seed}
+                      onChange={(e) => setSeed(e.target.value)}
+                      placeholder="e.g. test-01 — leave blank for a random game"
+                      className="input-dark w-full"
+                      autoComplete="off"
+                    />
+                    <p className="font-serif italic text-cream-200/70 text-xs mt-1">
+                      Same seed → same deck order and opening hands, every time.
+                    </p>
+                  </div>
+                )}
 
                 {/* Game length — Short 8 / Medium 12 / Long 15. Shared by
                     both solo and multiplayer (it sits above that choice). */}

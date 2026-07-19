@@ -61,6 +61,15 @@ if (!isset($modeYears[$mode])) {
 }
 $totalYears = $modeYears[$mode];
 
+// Seed / lab installation ONLY: an admin-supplied seed makes the deck shuffle
+// and opening hands reproducible. The live site never defines SEED_MODE, so the
+// seed is ignored there even if somehow sent.
+$seedInput = null;
+if (defined('SEED_MODE') && SEED_MODE) {
+  $rawSeed = isset($body['seed']) ? trim((string) $body['seed']) : '';
+  if ($rawSeed !== '') $seedInput = substr($rawSeed, 0, 64);
+}
+
 // ----- Verify deck exists -----
 
 $stmt = $mysqli->prepare("SELECT idDeck FROM Decks WHERE idDeck = ? LIMIT 1");
@@ -114,6 +123,15 @@ try {
     throw new Exception('Failed to set host: ' . $stmt->error);
   }
   $stmt->close();
+
+  // 3b. Record the reproducible-game seed (seed mode only; column added by
+  //     migration 32, which only the seed installation runs).
+  if ($seedInput !== null) {
+    $stmt = $mysqli->prepare("UPDATE mp_games SET seed_input = ? WHERE game_id = ?");
+    $stmt->bind_param('si', $seedInput, $gameId);
+    $stmt->execute();
+    $stmt->close();
+  }
 
   $mysqli->commit();
 } catch (Exception $e) {

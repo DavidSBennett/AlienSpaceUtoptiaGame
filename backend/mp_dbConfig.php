@@ -272,6 +272,31 @@ function mp_authenticate($mysqli, $tokenOverride = null) {
  * @param int $gameId
  * @return int new state_version
  */
+/**
+ * Seed-mode helper: return the reproducible-game seed for a game, or '' when
+ * there is none / this isn't the seed installation / the column doesn't exist.
+ *
+ * Deliberately defensive and SEED_MODE-gated: on the live site SEED_MODE is
+ * never defined, so this returns '' immediately and never touches the (possibly
+ * column-less) mp_games table. Safe whether mysqli is silent or throwing.
+ */
+function mp_game_seed($mysqli, $gameId) {
+  if (!(defined('SEED_MODE') && SEED_MODE)) return '';
+  try {
+    $q = @$mysqli->prepare("SELECT seed_input FROM mp_games WHERE game_id = ?");
+    if (!$q) return '';
+    $q->bind_param('i', (int) $gameId);
+    if (!$q->execute()) { $q->close(); return ''; }
+    $q->bind_result($si);
+    $seed = $q->fetch() ? (string) ($si ?? '') : '';
+    $q->close();
+    return $seed;
+  } catch (Throwable $e) {
+    return '';
+  }
+}
+
+
 function mp_bump_state_version($mysqli, $gameId) {
   $stmt = $mysqli->prepare("UPDATE mp_games SET state_version = state_version + 1 WHERE game_id = ?");
   $stmt->bind_param('i', $gameId);

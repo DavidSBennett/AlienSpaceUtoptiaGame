@@ -21,4 +21,10 @@ if (!defined('SECRET_DB_HOST')) {
   define('SECRET_SMTP_SECURE', 'ssl');                 // 'ssl' for port 465
   define('SECRET_SMTP_USER',   'noreply@thehistorians.org');
   define('SECRET_SMTP_PASS',   'your_smtp_password');
+
+  // ----- Seed / lab installation ONLY -----
+  // Leave this OUT on the live site. On the seed subdomain's config.secret.php
+  // (pointing at its OWN database), set it to true to enable admin-supplied
+  // seeds for reproducible games (mp_createGame / mp_startGame honor it).
+  // define('SEED_MODE', true);
 }

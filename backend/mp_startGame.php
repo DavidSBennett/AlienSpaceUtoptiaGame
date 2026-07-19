@@ -94,15 +94,30 @@ if (count($archiveCardIds) === 0) {
 
 // ----- Shuffle (Fisher-Yates in PHP) -----
 //
-// Use a cryptographically-random shuffle so we can't be accused of bias.
-// Tag a seed value in the game row for diagnostic purposes.
-$seed = bin2hex(random_bytes(8));
+// Normally a cryptographically-random shuffle (unbiased, unpredictable). But if
+// the game was created with a reproducible seed (seed mode), we shuffle with a
+// deterministic PRNG (mt_rand seeded from the seed) so the same seed always
+// yields the same deck order and — since hands are dealt off the top — the same
+// opening hands. The live game never sets a seed, so it always uses crypto.
+$seedInput = mp_game_seed($mysqli, $gameId);
 $n = count($archiveCardIds);
-for ($i = $n - 1; $i > 0; $i--) {
-  $j = random_int(0, $i);
-  $tmp = $archiveCardIds[$i];
-  $archiveCardIds[$i] = $archiveCardIds[$j];
-  $archiveCardIds[$j] = $tmp;
+if ($seedInput !== '') {
+  mt_srand(crc32($seedInput));
+  for ($i = $n - 1; $i > 0; $i--) {
+    $j = mt_rand(0, $i);
+    $tmp = $archiveCardIds[$i];
+    $archiveCardIds[$i] = $archiveCardIds[$j];
+    $archiveCardIds[$j] = $tmp;
+  }
+  $seed = $seedInput;   // record the human seed for diagnostics
+} else {
+  $seed = bin2hex(random_bytes(8));
+  for ($i = $n - 1; $i > 0; $i--) {
+    $j = random_int(0, $i);
+    $tmp = $archiveCardIds[$i];
+    $archiveCardIds[$i] = $archiveCardIds[$j];
+    $archiveCardIds[$j] = $tmp;
+  }
 }
 
 // ----- Insert shuffled archive in a transaction -----

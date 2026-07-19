@@ -913,6 +913,11 @@ function mp_finish_conference($mysqli, $gameId, $game) {
   // attendees than leftovers, the extras get none. The card is still disposed
   // below (the publication is a snapshot) — see mp_award_conference_paper.
   $shuffled = $left;
+  // Seed mode: make the leftover-award order reproducible per (seed, year).
+  $confSeed = mp_game_seed($mysqli, $gameId);
+  if ($confSeed !== '') {
+    mt_srand(crc32($confSeed . '|conf|' . $year));
+  }
   shuffle($shuffled);
   $i = 0;
   foreach ($attendeeIds as $pid) {

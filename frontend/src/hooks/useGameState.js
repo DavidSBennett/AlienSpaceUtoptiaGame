@@ -1,6 +1,7 @@
 import { useReducer, useCallback, useMemo } from 'react';
 
-import { shuffle } from '../lib/shuffle.js';
+import { shuffle, shuffleWith } from '../lib/shuffle.js';
+import { hashSeed, nextInt } from '../lib/seededRng.js';
 import { validateArgument, computePrestige, critiqueArgument } from '../lib/validation.js';
 import { computeStage, isPromotion } from '../lib/career.js';
 import { cardIdentifier } from '../lib/cardIdentifier.js';
@@ -286,9 +287,15 @@ function pickPublicationTitle(conclusion, kind, currentUsed, evidence = []) {
  * Build the initial game state from a list of cards (loaded from API).
  * Splits archive vs conclusion, shuffles archive, sets stats to level 1.
  */
-function initialState({ playerName, deck, allCards, totalYears, tutorial }) {
+function initialState({ playerName, deck, allCards, totalYears, tutorial, seed }) {
   const archiveCards = allCards.filter((c) => cardIdentifier(c) === 'archive');
   const conclusionCards = allCards.filter((c) => cardIdentifier(c) === 'conclusion');
+
+  // Seed mode: a non-empty seed makes the whole game reproducible. rngState is
+  // the running mulberry32 state, threaded through every shuffle/pick below.
+  // Null rngState = a normal game on Math.random (unchanged for real players).
+  const hasSeed = seed !== undefined && seed !== null && String(seed).trim() !== '';
+  let rngState = hasSeed ? hashSeed(String(seed).trim()) : null;
 
   // Deal a small starting hand. Each historian begins grad school with a few
   // evidence cards already in their Research Notebook to represent the
@@ -297,7 +304,14 @@ function initialState({ playerName, deck, allCards, totalYears, tutorial }) {
   const STARTING_HAND_SIZE = 3;
   // The walkthrough deals in deck order (economic sources first) so its early
   // steps are predictable; a normal game shuffles.
-  const shuffledArchive = tutorial ? archiveCards.slice() : shuffle(archiveCards);
+  let shuffledArchive;
+  if (tutorial) {
+    shuffledArchive = archiveCards.slice();
+  } else if (rngState != null) {
+    [shuffledArchive, rngState] = shuffleWith(archiveCards, rngState);
+  } else {
+    shuffledArchive = shuffle(archiveCards);
+  }
   const startingHand = shuffledArchive.slice(0, STARTING_HAND_SIZE);
   const remainingArchive = shuffledArchive.slice(STARTING_HAND_SIZE);
 
@@ -311,6 +325,12 @@ function initialState({ playerName, deck, allCards, totalYears, tutorial }) {
     // Tutorial mode — suppresses the regular upgrade drip so the only upgrade
     // is the promotion one (keeps the guided script predictable).
     tutorial: !!tutorial,
+
+    // Seed mode (reproducible games). `seed` is the admin-entered value; `rngState`
+    // is the running PRNG state threaded through every shuffle/pick. Both null in
+    // a normal game.
+    seed: hasSeed ? String(seed).trim() : null,
+    rngState,
 
     // Career
     year: 1,
@@ -428,6 +448,7 @@ function reducer(state, action) {
       // enough OR both piles are empty.
       let deck = state.archiveDeck.slice();
       let discard = state.discard.slice();
+      let rngState = state.rngState;
       const drawn = [];
 
       while (drawn.length < targetDraw) {
@@ -435,7 +456,11 @@ function reducer(state, action) {
           if (discard.length === 0) break;  // nothing more to draw, ever
           // Reshuffle discard → new deck. The discard pile becomes the
           // fresh draw stack; existing discard array is emptied.
-          deck = shuffle(discard);
+          if (rngState == null) {
+            deck = shuffle(discard);
+          } else {
+            [deck, rngState] = shuffleWith(discard, rngState);
+          }
           discard = [];
         }
         drawn.push(deck.shift());
@@ -447,6 +472,7 @@ function reducer(state, action) {
         archiveDeck: deck,
         discard,
         hand: [...state.hand, ...drawn],
+        rngState,
       });
     }
 
@@ -764,11 +790,16 @@ function reducer(state, action) {
       // if the deck runs dry (same walk as DRAW_CARDS).
       let deck = state.archiveDeck.slice();
       let discard = state.discard.slice();
+      let rngState = state.rngState;
       const pool = [];
       while (pool.length < poolSize) {
         if (deck.length === 0) {
           if (discard.length === 0) break;
-          deck = shuffle(discard);
+          if (rngState == null) {
+            deck = shuffle(discard);
+          } else {
+            [deck, rngState] = shuffleWith(discard, rngState);
+          }
           discard = [];
         }
         pool.push(deck.shift());
@@ -783,6 +814,7 @@ function reducer(state, action) {
         projects,
         archiveDeck: deck,
         discard,
+        rngState,
         conference: {
           projectId,
           pool,
@@ -811,9 +843,17 @@ function reducer(state, action) {
       // Conference publication: award one random leftover (un-kept) pool card
       // as a single-evidence "conference paper" on the bookshelf. It carries no
       // prestige of its own (solo has no opponents to cite it).
+      let rngState = state.rngState;
       let publications = state.publications;
       if (returned.length > 0) {
-        const paper = pickRandom(returned);
+        let paper;
+        if (rngState == null) {
+          paper = pickRandom(returned);
+        } else {
+          let idx;
+          [idx, rngState] = nextInt(rngState, returned.length);
+          paper = returned[idx];
+        }
         publications = [
           ...state.publications,
           {
@@ -843,6 +883,7 @@ function reducer(state, action) {
         citations: (state.citations || 0) + (citationGrant || 0),
         conference: null,
         publications,
+        rngState,
       };
 
       // Attending a conference grants a stat upgrade. Skip in the guided

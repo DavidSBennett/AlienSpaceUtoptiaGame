@@ -1,0 +1,60 @@
+name: Build & Deploy SEED build to GreenGeeks (SSH)
+
+# The seed / lab installation: identical app built with VITE_SEED_MODE=1 (which
+# turns on the admin-only reproducible-seed inputs) and deployed to the SEPARATE
+# seed subdomain, which points at its OWN database (config.secret.php there sets
+# SEED_MODE). The live site is never touched by this workflow.
+#
+# Manual trigger only, so it never fails in CI before the seed subdomain exists.
+# Once seed.thehistorians.org is set up, you can add:
+#   push:
+#     branches: [ main ]
+# to keep it in sync automatically.
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install & build frontend (seed mode)
+        working-directory: frontend
+        env:
+          VITE_SEED_MODE: '1'
+        run: |
+          npm ci
+          npm run build
+
+      - name: Assemble publish/ (built app + PHP)
+        run: |
+          mkdir -p publish
+          cp -r frontend/dist/. publish/
+          cp backend/*.php publish/
+          # config.secret.php, dbConfig.php, vendor/, uploads/, Images/ live only
+          # on the server. The seed docroot's config.secret.php points at the
+          # seed DB and sets define('SEED_MODE', true).
+
+      - name: Deploy via SSH (rsync) to the seed subdomain
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST:     ${{ secrets.SSH_HOST }}
+          REMOTE_USER:     ${{ secrets.SSH_USERNAME }}
+          REMOTE_PORT:     ${{ secrets.SSH_PORT }}
+          SOURCE: "publish/"
+          # Adjust if cPanel put the subdomain docroot somewhere else.
+          TARGET: "public_html/seed.thehistorians.org/"
+          ARGS: "-rltgoDzvO --no-perms"
+          EXCLUDE: "config.secret.php, dbConfig.php, vendor/, uploads/, Images/"
+          SCRIPT_AFTER: |
+            curl -s "https://seed.thehistorians.org/_opcache_reset.php?token=bf5d5bf1de8bcbc0c7ceae99c868ca8f" >/dev/null 2>&1 || true

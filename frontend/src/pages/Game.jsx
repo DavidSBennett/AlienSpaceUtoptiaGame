@@ -75,6 +75,8 @@ export default function Game({ tutorial = false }) {
   // the guided script, not retirement); a normal game reads the nav state.
   const deck = tutorial ? TUTORIAL_DECK : location.state?.deck;
   const totalYears = tutorial ? 12 : location.state?.totalYears;
+  // Seed mode only: a reproducible-game seed passed from the home setup.
+  const seed = tutorial ? null : (location.state?.seed ?? null);
 
   useEffect(() => {
     if (!tutorial && (!playerName || !deck)) {
@@ -126,7 +128,7 @@ export default function Game({ tutorial = false }) {
   }
 
   return (
-    <GameBoard playerName={playerName || 'Student'} deck={deck} allCards={allCards} totalYears={totalYears} tutorial={tutorial} />
+    <GameBoard playerName={playerName || 'Student'} deck={deck} allCards={allCards} totalYears={totalYears} tutorial={tutorial} seed={seed} />
   );
 }
 
@@ -134,7 +136,7 @@ export default function Game({ tutorial = false }) {
 /**
  * GameBoard — actual board, mounted only once cards are loaded.
  */
-function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false }) {
+function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, seed = null }) {
   const {
     state,
     drawCards,
@@ -156,6 +158,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false })
     allCards,
     totalYears,
     tutorial,
+    seed,
   });
 
   // ── Tutorial mode: a strict step script gates the turn buttons. ──────────
