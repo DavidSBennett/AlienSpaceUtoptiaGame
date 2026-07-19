@@ -141,6 +141,9 @@
       align-items: center; justify-content: center; text-align: center;
       padding: 1.5rem; gap: 0.5rem;
     }
+    /* Must beat the display:flex above, or the [hidden] attribute is ignored
+       and the notice covers the video. */
+    .video-placeholder[hidden] { display: none; }
     .video-placeholder .ip-label {
       font-family: 'JetBrains Mono', monospace; font-size: 0.62rem;
       letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold-500);
