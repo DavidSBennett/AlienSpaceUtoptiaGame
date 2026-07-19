@@ -1,7 +1,7 @@
 import CornerOrnament from './CornerOrnament.jsx';
 import FleuronDivider from './FleuronDivider.jsx';
 import EvidenceFan from './EvidenceFan.jsx';
-import { tagAsConclusionLabel, getCardTags } from '../lib/tags.js';
+import { tagAsConclusionLabel } from '../lib/tags.js';
 
 /**
  * PublishResultDialog — shown after the player submits an argument for review.
@@ -51,48 +51,42 @@ export default function PublishResultDialog({ result, tagToConclusion, onClose }
           <CornerOrnament corner="br" size={24} />
         </div>
 
-        <div className="px-12 py-10">
+        <div className="px-10 py-6">
 
-          {/* Top label — establishes the format as journal correspondence */}
-          <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-gold-700 mb-3">
-            Peer Review · Editor's Decision
-          </p>
-
-          {/* Headline — accept or revise (gentle framing for failure) */}
-          <h2
-            className={`font-display text-4xl font-bold leading-tight ${
-              result.ok ? 'text-verdigris-600' : 'text-oxblood-500'
-            }`}
-          >
-            {result.ok
-              ? (result.kind === 'book' ? 'Book Accepted for Publication' : 'Article Accepted for Publication')
-              : 'Revisions Required'}
-          </h2>
-
-          {/* Title of the submitted work, in italics */}
+          {/* Headline row — decision + the submitted work's title, on one line
+              where there's room. Keeps the top compact. */}
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2
+              className={`font-display text-2xl font-bold leading-tight ${
+                result.ok ? 'text-verdigris-600' : 'text-oxblood-500'
+              }`}
+            >
+              {result.ok
+                ? (result.kind === 'book' ? 'Book Accepted' : 'Article Accepted')
+                : 'Revisions Required'}
+            </h2>
+            <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-gold-700">
+              Peer Review · Editor's Decision
+            </p>
+          </div>
           {result.conclusion?.title && (
-            <p className="font-serif italic text-ink-700 text-base mt-2">
+            <p className="font-serif italic text-ink-700 text-sm mt-0.5">
               re:&nbsp;<span className="not-italic font-semibold">{result.conclusion.title}</span>
             </p>
           )}
 
-          <FleuronDivider className="my-6" />
-
           {/* Fanned-card visualization — shows which evidence supported the
               conclusion (shares its theme) and which fell off-topic. */}
           {result.conclusionCard && (
-            <section className="mb-6">
-              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700 mb-3 text-center">
-                Your Evidence
-              </p>
+            <div className="mt-3">
               <EvidenceFan
                 evidence={result.evidenceCards || []}
                 conclusion={result.conclusionCard}
               />
-              <EvidenceSupportCaption result={result} />
-              <FleuronDivider className="my-6" />
-            </section>
+            </div>
           )}
+
+          <FleuronDivider className="my-3" />
 
           {/* The body of the review — different content for accept vs revise */}
           {result.ok ? (
@@ -101,22 +95,18 @@ export default function PublishResultDialog({ result, tagToConclusion, onClose }
             <FailureBody result={result} tagToConclusion={tagToConclusion} />
           )}
 
-          {/* Sign-off */}
-          <div className="mt-8 pt-4 border-t border-gold-500/30">
-            <p className="font-serif italic text-ink-700 text-sm text-right">
+          {/* Sign-off + dismiss on one line to save vertical space */}
+          <div className="mt-4 pt-3 border-t border-gold-500/30 flex items-center justify-between gap-3">
+            <p className="font-serif italic text-ink-700 text-sm">
               — The Editorial Board
             </p>
-          </div>
-
-          {/* Dismiss button */}
-          <div className="mt-6 text-center">
             <button
               type="button"
               onClick={onClose}
               className="font-display font-bold uppercase tracking-[0.15em] text-sm
                          px-6 py-2 border-2 border-ink-900 text-ink-900
                          hover:bg-ink-900 hover:text-cream-50
-                         transition-colors duration-200"
+                         transition-colors duration-200 flex-shrink-0"
             >
               Continue Career
             </button>
@@ -124,43 +114,6 @@ export default function PublishResultDialog({ result, tagToConclusion, onClose }
         </div>
       </article>
     </div>
-  );
-}
-
-
-/**
- * EvidenceSupportCaption — one line under the fan summarizing how many cards
- * supported the conclusion and naming any that fell off-topic. Uses the same
- * tag-sharing test the fan draws with (getCardTags).
- */
-function EvidenceSupportCaption({ result }) {
-  const conclusion = result.conclusionCard;
-  const evidence = result.evidenceCards || [];
-  if (!conclusion) return null;
-
-  const conclusionTags = getCardTags(conclusion);
-  const offTopic = evidence.filter((card) => {
-    const tags = Array.from(getCardTags(card));
-    return !tags.some((t) => conclusionTags.has(t));
-  });
-  const supported = evidence.length - offTopic.length;
-
-  return (
-    <p className="font-serif text-center text-sm mt-4">
-      {offTopic.length === 0 ? (
-        <span className="text-verdigris-700">
-          All {evidence.length} of your sources share the conclusion's theme — the evidence fits the thesis.
-        </span>
-      ) : (
-        <span className="text-oxblood-700">
-          {supported} of {evidence.length} sources support the conclusion.{' '}
-          {offTopic.length === 1 ? 'This source falls' : 'These sources fall'} off-topic:{' '}
-          <strong className="font-display">
-            {offTopic.map((c) => c.title).join(', ')}
-          </strong>.
-        </span>
-      )}
-    </p>
   );
 }
 
@@ -187,7 +140,7 @@ function SuccessBody({ result, tagToConclusion }) {
     .filter((label) => label !== submittedTitle);
 
   return (
-    <div className="space-y-4 font-serif text-ink-900 leading-relaxed text-base">
+    <div className="space-y-3 font-serif text-ink-900 leading-snug text-sm">
       {throughLines.length > 0 ? (
         <p>
           Your argument is well-supported. The {evidenceCount} pieces of evidence you marshal
@@ -214,19 +167,19 @@ function SuccessBody({ result, tagToConclusion }) {
         </p>
       )}
 
-      {/* Prestige scoring panel */}
+      {/* Prestige scoring line — compact, on one row */}
       {prestige && (
-        <div className="my-6 border-t border-b border-gold-500/30 py-4">
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700 mb-2 text-center">
+        <div className="my-2 border-t border-b border-gold-500/30 py-2 flex items-baseline justify-center gap-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700">
             Prestige Awarded
-          </p>
-          <p className="font-display text-5xl font-bold text-ink-900 text-center leading-none">
+          </span>
+          <span className="font-display text-3xl font-bold text-ink-900 leading-none">
             +{prestige.total}
-          </p>
+          </span>
           {prestige.doubled && (
-            <p className="font-serif italic text-verdigris-600 text-sm text-center mt-2">
-              ({prestige.base} base × 2 evidentiary coherence)
-            </p>
+            <span className="font-serif italic text-verdigris-600 text-xs">
+              ({prestige.base} base × 2 coherence)
+            </span>
           )}
         </div>
       )}
@@ -291,13 +244,12 @@ function FailureBody({ result, tagToConclusion }) {
   }
 
   return (
-    <div className="space-y-4 font-serif text-ink-900 leading-relaxed text-base">
+    <div className="space-y-2 font-serif text-ink-900 leading-snug text-sm">
       <CritiqueText critique={critique} result={result} tagToConclusion={tagToConclusion} />
       <p className="italic text-ink-700">
-        Take heart — even seasoned scholars revise their arguments many times. Your evidence
-        remains assembled in the project; consider whether a different conclusion might be
-        the natural home for what you've gathered, or which sources you might exchange to
-        better support your thesis.
+        Take heart — even seasoned scholars revise many times. Your evidence stays assembled
+        in the project; consider a different conclusion for what you've gathered, or which
+        sources to exchange to better support your thesis.
       </p>
     </div>
   );

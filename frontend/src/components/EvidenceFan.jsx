@@ -43,7 +43,7 @@ export default function EvidenceFan({ evidence = [], conclusion }) {
 
   return (
     <div className="flex justify-center">
-      <div className="relative" style={{ height: 178, width }}>
+      <div className="relative" style={{ height: 150, width }}>
         {cards.map((c, k) => {
           const angle = (k - mid) * 4; // gentle fan
           return (
@@ -82,7 +82,7 @@ function MiniCard({ card, tags, matches, isConclusion, conclusionTags }) {
     : 'border-oxblood-500 bg-cream-100';
   return (
     <div
-      className={`relative w-[112px] h-[168px] rounded-md border-2 shadow-lg p-2 flex flex-col text-left ${border}`}
+      className={`relative w-[112px] h-[140px] rounded-md border-2 shadow-lg p-1.5 flex flex-col text-left ${border}`}
     >
       {/* Top-left strip: support badge + tags stacked, so they stay visible. */}
       <div className="flex flex-col items-start gap-1">
