@@ -89,7 +89,27 @@
       opacity: 0.72; font-weight: 400; margin-top: 1px;
     }
 
-    /* ── Video ── */
+    /* ── Video + tabs ── */
+    .video-tabs {
+      display: flex; gap: 20px; justify-content: center; margin-bottom: 12px;
+    }
+    .tab-group { text-align: center; }
+    .tab-group-label {
+      display: block; font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase;
+      color: var(--gold-500); margin-bottom: 5px;
+    }
+    .tab-btns { display: flex; gap: 6px; }
+    .tab-btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 5px 13px; border: 1px solid rgba(184,146,58,0.5);
+      background: transparent; color: var(--cream-100); cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .tab-btn:hover:not(.active) { background: rgba(184,146,58,0.14); }
+    .tab-btn.active { background: var(--gold-500); color: var(--teal-950); border-color: var(--gold-500); }
+
     .video-frame {
       position: relative; width: 100%; padding-top: 56.25%;
       border: 2px solid var(--gold-500);
@@ -165,13 +185,32 @@
         </div>
       </div>
 
-      <div class="video-frame">
-        <iframe
-          src="https://www.youtube-nocookie.com/embed/-LgP7lqHKhc"
-          title="The Historians — playthrough"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowfullscreen
-          referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <div>
+        <div class="video-tabs">
+          <div class="tab-group">
+            <span class="tab-group-label">Digital</span>
+            <div class="tab-btns">
+              <button type="button" class="tab-btn active" data-video="-LgP7lqHKhc">Solo</button>
+              <button type="button" class="tab-btn" data-video="DIGITAL_MULTIPLAYER_ID">Multiplayer</button>
+            </div>
+          </div>
+          <div class="tab-group">
+            <span class="tab-group-label">In-Person</span>
+            <div class="tab-btns">
+              <button type="button" class="tab-btn" data-video="INPERSON_SOLO_ID">Solo</button>
+              <button type="button" class="tab-btn" data-video="INPERSON_MULTIPLAYER_ID">Multiplayer</button>
+            </div>
+          </div>
+        </div>
+        <div class="video-frame">
+          <iframe
+            id="player"
+            src="https://www.youtube-nocookie.com/embed/-LgP7lqHKhc"
+            title="The Historians — playthrough"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
       </div>
     </div>
 
@@ -195,5 +234,22 @@
     </footer>
 
   </div>
+
+  <script>
+    (function () {
+      var player = document.getElementById('player');
+      var buttons = document.querySelectorAll('.tab-btn');
+      buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-video');
+          if (!id) return;
+          buttons.forEach(function (b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          // Load the chosen video (no autoplay; the viewer presses play).
+          player.src = 'https://www.youtube-nocookie.com/embed/' + id;
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
