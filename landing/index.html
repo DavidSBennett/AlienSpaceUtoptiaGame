@@ -121,6 +121,14 @@
     .tab-btn:hover:not(.active) { background: rgba(184,146,58,0.14); }
     .tab-btn.active { background: var(--gold-500); color: var(--teal-950); border-color: var(--gold-500); }
 
+    .tab-note {
+      display: block; font-family: 'JetBrains Mono', monospace;
+      font-size: 0.5rem; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--cream-200); opacity: 0.6; margin-top: 0.25rem;
+    }
+    .tab-btn:disabled { opacity: 0.55; cursor: default; }
+    .tab-btn:disabled:hover { background: transparent; }
+
     .video-frame {
       position: relative; width: 100%; aspect-ratio: 16 / 9;
       border: 0.125rem solid var(--gold-500);
@@ -128,6 +136,16 @@
       background: var(--teal-900);
     }
     .video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    .video-placeholder {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center;
+      padding: 1.5rem; gap: 0.5rem;
+    }
+    .video-placeholder .ip-label {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.62rem;
+      letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold-500);
+    }
+    .video-placeholder p { font-style: italic; color: var(--cream-200); font-size: 1rem; }
 
     /* ── Slim feature row ── */
     .features {
@@ -207,9 +225,10 @@
           <div class="tab-group">
             <span class="tab-group-label">In-Person</span>
             <div class="tab-btns">
-              <button type="button" class="tab-btn" data-video="INPERSON_SOLO_ID">Solo</button>
-              <button type="button" class="tab-btn" data-video="INPERSON_MULTIPLAYER_ID">Multiplayer</button>
+              <button type="button" class="tab-btn" data-status="in-process">Solo</button>
+              <button type="button" class="tab-btn" data-status="in-process">Multiplayer</button>
             </div>
+            <span class="tab-note">In process</span>
           </div>
         </div>
         <div class="video-frame">
@@ -220,6 +239,10 @@
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowfullscreen
             referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          <div class="video-placeholder" id="placeholder" hidden>
+            <span class="ip-label">In process</span>
+            <p>This walkthrough is being filmed — check back soon.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -248,15 +271,25 @@
   <script>
     (function () {
       var player = document.getElementById('player');
+      var placeholder = document.getElementById('placeholder');
       var buttons = document.querySelectorAll('.tab-btn');
       buttons.forEach(function (btn) {
         btn.addEventListener('click', function () {
-          var id = btn.getAttribute('data-video');
-          if (!id) return;
           buttons.forEach(function (b) { b.classList.remove('active'); });
           btn.classList.add('active');
-          // Load the chosen video (no autoplay; the viewer presses play).
-          player.src = 'https://www.youtube-nocookie.com/embed/' + id;
+
+          var id = btn.getAttribute('data-video');
+          if (id) {
+            placeholder.hidden = true;
+            player.hidden = false;
+            // Load the chosen video (no autoplay; the viewer presses play).
+            player.src = 'https://www.youtube-nocookie.com/embed/' + id;
+          } else {
+            // No video yet — stop whatever was playing and show the notice.
+            player.src = 'about:blank';
+            player.hidden = true;
+            placeholder.hidden = false;
+          }
         });
       });
     })();
