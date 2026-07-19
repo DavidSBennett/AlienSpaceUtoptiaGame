@@ -440,29 +440,12 @@ function mp_finish_round_tail($mysqli, $gameId, $game) {
     $stmt->execute();
     $stmt->close();
 
-    // ── Regular every-third-year upgrade (a grant or a pay raise) ──────────
-    // Every live player gets one stat upgrade every three years. Run BEFORE the
-    // promotion pass so that if a player both promotes AND gets the regular
-    // drip the same year, the more salient 'promotion' reason wins the (single)
-    // reason column. The count is additive either way. Granted at the end of
-    // years 3, 6, 9, … (every third year). Keep this cadence (3) in sync with
-    // the frontend counter in lib/upgradeCadence.js.
-    $finishedYear = (int) $game['current_year'];
-    if ($finishedYear % 3 === 0) {
-      $stmt = $mysqli->prepare("
-        UPDATE mp_game_players
-        SET pending_upgrade = pending_upgrade + 1,
-            pending_upgrade_reason = 'biennial'
-        WHERE game_id = ? AND game_over_reason IS NULL AND is_ghost = 0
-      ");
-      $stmt->bind_param('i', $gameId);
-      $stmt->execute();
-      $stmt->close();
-      mp_log_event($mysqli, $gameId, null, 'upgrade_drip', ['after_year' => $finishedYear]);
-    }
+    // Upgrades are earned per-publication and per-conference now (see
+    // mp_apply_approval and mp_finish_conference) — there is no longer a
+    // regular every-third-year drip.
 
-    // Per-player stage progression — promotions advance the rank and grant a
-    // bonus upgrade (reason 'promotion').
+    // Per-player stage progression — promotions advance the rank (no bonus
+    // upgrade; upgrades come only from publishing and conferences).
     mp_apply_stage_progression($mysqli, $gameId, $newYear);
 
     mp_log_event($mysqli, $gameId, null, 'year_advanced', ['new_year' => $newYear]);
@@ -900,16 +883,22 @@ function mp_finish_conference($mysqli, $gameId, $game) {
   $rows = [];
   while ($r = $res->fetch_assoc()) $rows[] = $r;
   $stmt->close();
+  $attendeeIds = [];
   foreach ($rows as $r) {
     $pid = (int) $r['player_id'];
+    $attendeeIds[] = $pid;
+    // Citation tokens = reputation level value.
     $grant = mp_conf_citation_grant(max(1, min(4, (int) $r['reputation_level'])));
     $u = $mysqli->prepare("UPDATE mp_game_players SET citations_received_count = citations_received_count + ? WHERE player_id = ?");
     $u->bind_param('ii', $grant, $pid); $u->execute(); $u->close();
     mp_log_event($mysqli, $gameId, $pid, 'conference_citations', ['citations' => $grant]);
+
+    // Attending a conference grants one stat upgrade (reason 'conference').
+    $uu = $mysqli->prepare("UPDATE mp_game_players SET pending_upgrade = pending_upgrade + 1, pending_upgrade_reason = 'conference' WHERE player_id = ?");
+    $uu->bind_param('i', $pid); $uu->execute(); $uu->close();
   }
 
-  // Dispose of untaken pool cards: contributed → contributor's discard; fresh →
-  // back to the draw pile.
+  // Read the untaken (leftover) pool cards.
   $stmt = $mysqli->prepare("SELECT idCard, contributor_player_id FROM mp_conference_pool WHERE game_id = ? AND taken_by_player_id IS NULL");
   $stmt->bind_param('i', $gameId);
   $stmt->execute();
@@ -917,6 +906,23 @@ function mp_finish_conference($mysqli, $gameId, $game) {
   $left = [];
   while ($r = $res->fetch_assoc()) $left[] = $r;
   $stmt->close();
+
+  // Conference publications: award each attendee ONE random leftover card as a
+  // single-evidence "conference paper" on their bookshelf. Each leftover is
+  // awarded to at most one attendee (they're physical cards); if there are more
+  // attendees than leftovers, the extras get none. The card is still disposed
+  // below (the publication is a snapshot) — see mp_award_conference_paper.
+  $shuffled = $left;
+  shuffle($shuffled);
+  $i = 0;
+  foreach ($attendeeIds as $pid) {
+    if ($i >= count($shuffled)) break;
+    mp_award_conference_paper($mysqli, $gameId, $pid, (int) $shuffled[$i]['idCard'], $year);
+    $i++;
+  }
+
+  // Dispose of untaken pool cards: contributed → contributor's discard; fresh →
+  // back to the draw pile.
   foreach ($left as $r) {
     $cid = (int) $r['idCard'];
     if ($r['contributor_player_id'] !== null) {
@@ -939,6 +945,86 @@ function mp_finish_conference($mysqli, $gameId, $game) {
 
   // Resolve outcomes + advance the year.
   mp_finish_round_tail($mysqli, $gameId, $game);
+}
+
+
+/**
+ * Award one leftover conference card to a player as a "conference paper"
+ * published work. The owner earns NO prestige from it, but it is citable by
+ * opponents: citing it adds the card's bonus prestige to the citer's article
+ * and mints the owner a citation token (same machinery as citing an article or
+ * book — see mp_apply_approval). It does NOT count toward article/book totals.
+ *
+ * The publication is a snapshot, so the physical card is still disposed by the
+ * caller's normal leftover-disposal loop.
+ */
+function mp_award_conference_paper($mysqli, $gameId, $playerId, $idCard, $year) {
+  $card = mp_fetch_card_row($mysqli, $idCard);
+  if (!$card) return;
+
+  // First argument tag drives citation tag-matching (like a conclusion tag).
+  $tag = '';
+  foreach (array_map('trim', explode(',', (string) ($card['argument'] ?? ''))) as $t) {
+    if ($t !== '') { $tag = $t; break; }
+  }
+
+  // Full tag list for the snapshot chip.
+  $tags = [];
+  foreach (['argument', 'sub_argument'] as $f) {
+    foreach (array_map('trim', explode(',', (string) ($card[$f] ?? ''))) as $t) {
+      if ($t !== '') $tags[] = $t;
+    }
+  }
+
+  $snapshot = [[
+    'kind'         => 'card',
+    'idCard'       => (int) $card['idCard'],
+    'title'        => $card['title'] ?? '',
+    'author'       => $card['author'] ?? '',
+    'tags'         => array_values(array_unique($tags)),
+    'date'         => $card['date'] ?? '',
+    'content'      => $card['content'] ?? '',
+    'significance' => $card['significance'] ?? '',
+    'citation'     => $card['citation'] ?? '',
+  ]];
+
+  $submissionId  = null;                                   // no submission
+  $title         = (string) ($card['title'] ?? 'Conference paper');
+  $concCardId    = (int) $card['idCard'];                  // itself, for the title JOIN
+  $kind          = 'conference';
+  $evCount       = 1;
+  $snapJson      = json_encode($snapshot);
+  $prestige      = 0;                                      // owner earns nothing
+  $citationValue = isset($card['bonus']) ? (int) $card['bonus'] : 0;  // opponent's citation payout
+
+  // Best-effort: if the schema hasn't been migrated yet (kind enum / nullable
+  // submission_id — see database/30_conference_publications.sql), skip the award
+  // rather than aborting the whole conference resolution. A single failed INSERT
+  // rolls back only itself, so the conference still finishes normally.
+  try {
+    $stmt = $mysqli->prepare("
+      INSERT INTO mp_published_works
+        (game_id, submission_id, writer_player_id, publication_title,
+         conclusion_card_id, conclusion_tag, kind, evidence_count,
+         evidence_snapshot, prestige_granted, citation_value, year_published)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->bind_param('iiisissisiii', $gameId, $submissionId, $playerId, $title,
+      $concCardId, $tag, $kind, $evCount, $snapJson, $prestige, $citationValue, $year);
+    $stmt->execute();
+    $stmt->close();
+
+    mp_log_event($mysqli, $gameId, $playerId, 'conference_paper_awarded', [
+      'idCard'         => $concCardId,
+      'title'          => $title,
+      'citation_value' => $citationValue,
+    ]);
+  } catch (Exception $e) {
+    mp_log_event($mysqli, $gameId, $playerId, 'conference_paper_award_failed', [
+      'idCard' => $concCardId,
+      'error'  => $e->getMessage(),
+    ]);
+  }
 }
 
 
@@ -1619,7 +1705,9 @@ function mp_apply_auto_rejection($mysqli, $gameId, $sid, $writerPid, $reason, $c
   $stmt->execute();
   $stmt->close();
 
-  // (No writer upgrade — upgrades are a fixed biennial drip now.)
+  // (No writer upgrade — an auto-rejected submission is not published, and
+  //  upgrades are earned only by publishing a manuscript or attending a
+  //  conference.)
 
   mp_log_event($mysqli, $gameId, $writerPid, 'publication_auto_rejected', [
     'submission_id' => $sid,
@@ -1736,16 +1824,18 @@ function mp_apply_approval($mysqli, $gameId, $sid, $writerPid, $kind, $evIds, $c
     $stmt->close();
   }
 
-  // 5. Update writer's stats. Publishing grants prestige only — upgrades are
-  //    now a fixed biennial drip (see mp_finish_round_tail), not earned by
-  //    publishing or reviewing.
+  // 5. Update writer's stats. Publishing a manuscript grants prestige AND one
+  //    stat upgrade (reviewers still earn none). Promotions and the old biennial
+  //    drip no longer grant upgrades.
   $articleInc = ($kind === 'article') ? 1 : 0;
   $bookInc    = ($kind === 'book') ? 1 : 0;
   $stmt = $mysqli->prepare("
     UPDATE mp_game_players
     SET prestige = prestige + ?,
         articles_published = articles_published + ?,
-        books_published = books_published + ?
+        books_published = books_published + ?,
+        pending_upgrade = pending_upgrade + 1,
+        pending_upgrade_reason = 'publish'
     WHERE player_id = ?
   ");
   $stmt->bind_param('iiii', $prestige, $articleInc, $bookInc, $writerPid);
@@ -1975,9 +2065,11 @@ function mp_apply_stage_progression($mysqli, $gameId, $newYear) {
     if ($newStage === $p['stage']) continue;
 
     $pid = (int) $p['player_id'];
+    // Promotions advance the rank only — no bonus upgrade. Upgrades come from
+    // publishing manuscripts and attending conferences.
     $u = $mysqli->prepare("
       UPDATE mp_game_players
-      SET stage = ?, pending_upgrade = pending_upgrade + 1, pending_upgrade_reason = 'promotion'
+      SET stage = ?
       WHERE player_id = ?
     ");
     $u->bind_param('si', $newStage, $pid);

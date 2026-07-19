@@ -113,7 +113,13 @@ export function upgradeReasonText(reason, stage) {
   if (reason === 'promotion') {
     return `Your promotion to ${stageLabel(stage)} comes with new money to invest in your research.`;
   }
-  // Regular every-other-year money.
+  if (reason === 'publish') {
+    return 'Publishing your work brought in fresh funding. How you invest it shapes the research you can do.';
+  }
+  if (reason === 'conference') {
+    return 'Presenting at the conference brought in fresh funding. How you invest it shapes the research you can do.';
+  }
+  // Generic grant / pay raise.
   return isEmployed(stage)
     ? 'A pay raise has come through. How you invest it shapes the research you can do.'
     : "You've won a grant. How you invest it shapes the research you can do.";

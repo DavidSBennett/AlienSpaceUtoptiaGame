@@ -120,16 +120,21 @@ export default function Bookshelf({ publications, playerName, deck }) {
  */
 function PublicationSpine({ pub, onClick }) {
   const isBook = pub.kind === 'book';
+  const isConference = pub.kind === 'conference';
   const widthClass = isBook ? 'w-11' : 'w-[22px]';
   const colorClass = isBook
     ? 'bg-oxblood-500 border-oxblood-700 text-cream-50 hover:bg-oxblood-400'
-    : 'bg-teal-700 border-teal-900 text-cream-100 hover:bg-teal-600';
+    : isConference
+      ? 'bg-gold-600 border-gold-800 text-ink-900 hover:bg-gold-500'
+      : 'bg-teal-700 border-teal-900 text-cream-100 hover:bg-teal-600';
+  const kindLabel = isBook ? 'Book' : isConference ? 'Conference paper' : 'Article';
+  const prestigeNote = pub.prestige > 0 ? `, +${pub.prestige} prestige` : '';
 
   return (
     <button
       type="button"
       onClick={onClick}
-      title={`${isBook ? 'Book' : 'Article'} · ${pub.title} (Year ${pub.year}, +${pub.prestige} prestige)`}
+      title={`${kindLabel} · ${pub.title} (Year ${pub.year}${prestigeNote})`}
       className={`
         relative ${widthClass} h-36 border-2 ${colorClass}
         transition-all duration-200 ease-desk hover:-translate-y-1 hover:shadow-card-hover
@@ -193,10 +198,12 @@ function PublicationModal({ pub, onClose }) {
           {/* Type chip + year */}
           <div className="flex items-center gap-3 mb-3">
             <span className="font-mono uppercase tracking-[0.15em] px-2.5 py-0.5 border border-cream-300 text-ink-900 bg-cream-50 text-xs">
-              {pub.kind === 'book' ? 'Book' : 'Article'}
+              {pub.kind === 'book' ? 'Book' : pub.kind === 'conference' ? 'Conference paper' : 'Article'}
             </span>
             <span className="font-mono text-xs text-ink-700">Year {pub.year}</span>
-            <span className="font-mono text-xs text-ink-700">+{pub.prestige} prestige</span>
+            {pub.prestige > 0 && (
+              <span className="font-mono text-xs text-ink-700">+{pub.prestige} prestige</span>
+            )}
           </div>
 
           {/* Title */}

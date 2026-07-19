@@ -33,7 +33,7 @@ export const AWARDS = [
     // award celebrates one heavyweight work, not a body of work.
     score: (p, ctx) => {
       const works = (ctx.publishedWorks || []).filter(
-        (w) => w.writer_player_id === p.player_id
+        (w) => w.writer_player_id === p.player_id && w.kind !== 'conference'
       );
       if (works.length === 0) return 0;
       return Math.max(
@@ -57,7 +57,7 @@ export const AWARDS = [
     prestige: 10,
     score: (p, ctx) => {
       const works = (ctx.publishedWorks || []).filter(
-        (w) => w.writer_player_id === p.player_id
+        (w) => w.writer_player_id === p.player_id && w.kind !== 'conference'
       );
       const conclusions = new Set();
       for (const work of works) {

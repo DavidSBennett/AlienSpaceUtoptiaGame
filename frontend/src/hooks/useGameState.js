@@ -710,9 +710,13 @@ function reducer(state, action) {
         usedTitles: nextUsedTitles,
       };
 
-      // Upgrades are no longer earned per-publication — they come from the
-      // every-other-year drip and from promotions (handled in advanceYear).
-      //
+      // Upgrades are earned per-publication: a successful publish grants one
+      // stat upgrade. (Promotions and the old every-third-year drip no longer
+      // grant upgrades — see advanceYear / applyStageProgression.)
+      if (validation.ok) {
+        next = grantUpgrade(next, 'publish');
+      }
+
       // Phase 10.4: Workspaces L4 grants "free publishing" — submitting no
       // longer costs a year. We skip advanceYear in that case, but a book
       // can still trigger a promotion, so we apply stage progression directly.
@@ -800,13 +804,50 @@ function reducer(state, action) {
       const keptIds = new Set(kept.map((c) => c.id));
       const returned = pool.filter((c) => !keptIds.has(c.id));
 
-      return advanceYear({
+      // Conference publication: award one random leftover (un-kept) pool card
+      // as a single-evidence "conference paper" on the bookshelf. It carries no
+      // prestige of its own (solo has no opponents to cite it).
+      let publications = state.publications;
+      if (returned.length > 0) {
+        const paper = pickRandom(returned);
+        publications = [
+          ...state.publications,
+          {
+            id: `conf-y${state.year}-${state.publications.length + 1}`,
+            kind: 'conference',
+            title: paper?.title || 'Conference paper',
+            description: 'A paper presented at a conference.',
+            conclusionId: null,
+            conclusionTitle: '',
+            evidence: [{
+              title: paper?.title || '',
+              content: paper?.content || '',
+              significance: paper?.significance || '',
+              date: paper?.date || '',
+              citation: paper?.citation || '',
+            }],
+            year: state.year,
+            prestige: 0,
+          },
+        ];
+      }
+
+      let next = {
         ...state,
         hand: [...state.hand, ...kept],
         discard: [...state.discard, ...returned],
         citations: (state.citations || 0) + (citationGrant || 0),
         conference: null,
-      });
+        publications,
+      };
+
+      // Attending a conference grants a stat upgrade. Skip in the guided
+      // walkthrough so the upgrade chooser doesn't interrupt the scripted flow.
+      if (!state.tutorial) {
+        next = grantUpgrade(next, 'conference');
+      }
+
+      return advanceYear(next);
     }
 
     case 'DISMISS_STAGE_ADVANCEMENT': {
@@ -880,8 +921,9 @@ function applyStageProgression(state, previousStage) {
 
   let next = { ...state, stage: newStage };
   if (isPromotion(previousStage, newStage)) {
+    // Record the promotion for the narrative modal. Promotions no longer grant
+    // a bonus upgrade — upgrades come only from publishing and conferences.
     next.lastStageAdvancement = { from: previousStage, to: newStage, year: next.year };
-    next = grantUpgrade(next, 'promotion');
   }
   return next;
 }
@@ -922,16 +964,11 @@ function advanceYear(state) {
     };
   }
 
-  // ----- Promotions (rank-ups grant a bonus upgrade + a narrative beat) -----
+  // ----- Promotions (rank-ups record a narrative beat; no bonus upgrade) -----
   next = applyStageProgression(next, previousStage);
 
-  // ----- Regular every-third-year upgrade (a grant or a raise) -----
-  // Granted at the end of years 3, 6, 9, … (every third year). Keep this
-  // cadence (3) in sync with the backend (mp_resolveYear.php) and the
-  // on-screen counter in lib/upgradeCadence.js.
-  if (!state.tutorial && state.year % 3 === 0) {
-    next = grantUpgrade(next, 'biennial');
-  }
+  // Upgrades are earned per-publication and per-conference now — there is no
+  // longer a regular every-third-year drip.
 
   return next;
 }

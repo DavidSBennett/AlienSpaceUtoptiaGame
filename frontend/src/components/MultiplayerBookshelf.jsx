@@ -136,6 +136,8 @@ function PlayerSection({ label, seat, works, onSpineClick, compact = false }) {
 
 function PublicationSpine({ work, color, onClick, compact = false }) {
   const isBook = work.kind === 'book';
+  const isConference = work.kind === 'conference';
+  const kindLabel = isBook ? 'Book' : isConference ? 'Conference paper' : 'Article';
   const widthClass = compact ? (isBook ? 'w-8' : 'w-[16px]') : (isBook ? 'w-11' : 'w-[22px]');
   const heightClass = compact ? 'h-20' : 'h-36';
   const bgClass = isBook ? color.spineBg : color.accentBg;
@@ -150,7 +152,7 @@ function PublicationSpine({ work, color, onClick, compact = false }) {
         {work.publication_title}
       </strong>
       <span className="font-mono text-[10px] text-cream-200/70 block">
-        {isBook ? 'Book' : 'Article'} · Year {work.year_published} · {evidenceCount} evidence card{evidenceCount === 1 ? '' : 's'}
+        {kindLabel} · Year {work.year_published} · {evidenceCount} evidence card{evidenceCount === 1 ? '' : 's'}
       </span>
       <span className="block mt-2">
         <strong className="text-verdigris-400">If you cite this:</strong>{' '}

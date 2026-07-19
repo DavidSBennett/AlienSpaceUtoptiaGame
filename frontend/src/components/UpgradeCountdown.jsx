@@ -1,29 +1,22 @@
 /**
- * UpgradeCountdown — a small "time until your next funding/upgrade" readout
- * for the top of the game screen. Players receive a regular upgrade every
- * third year (see lib/upgradeCadence.js); promotions add bonus upgrades.
- *
- * When an upgrade is already waiting to be spent, it nudges the player to
- * choose it now instead of counting down.
+ * UpgradeCountdown — a small "you have funding to invest" nudge for the top of
+ * the game screen. Upgrades are now earned by publishing and by attending
+ * conferences (no regular every-third-year drip), so this only appears when an
+ * upgrade is waiting to be spent.
  *
  * Props:
- *   year        — the year currently in progress
- *   totalYears  — career length
- *   pending     — number/bool of upgrades waiting to be spent (optional)
+ *   pending     — number/bool of upgrades waiting to be spent
  *   variant     — 'strip' (compact mono, for the solo header strip) or
  *                 'panel' (serif, right-aligned, for the multiplayer header)
  */
-import { upgradeCountdownLabel } from '../lib/upgradeCadence.js';
-
-export default function UpgradeCountdown({ year, totalYears, pending = 0, variant = 'strip' }) {
+export default function UpgradeCountdown({ pending = 0, variant = 'strip' }) {
   const hasPending = Number(pending) > 0;
-  const label = upgradeCountdownLabel(year, totalYears);
 
-  // Nothing to show: no pending upgrade and no further drip this game.
-  if (!hasPending && !label) return null;
+  // Nothing to show unless an upgrade is waiting.
+  if (!hasPending) return null;
 
-  const value = hasPending ? 'Ready — choose now' : label;
-  const ready = hasPending;
+  const value = 'Ready — choose now';
+  const ready = true;
 
   if (variant === 'panel') {
     return (
