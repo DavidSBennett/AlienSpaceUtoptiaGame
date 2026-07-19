@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { colorForSeat } from '../lib/playerColors.js';
 import FleuronDivider from './FleuronDivider.jsx';
 import MinimizedInterstitialBar from './MinimizedInterstitialBar.jsx';
+import EvidenceFan from './EvidenceFan.jsx';
 
 const VERDICTS = [
   { key: 'approve', label: 'Approve', help: 'Publish it as is.' },
@@ -196,19 +197,38 @@ export default function ReviewPhaseModal({
 
           <FleuronDivider className="my-5" />
 
-          {/* Evidence — full for the writer, reviewer-safe for everyone else */}
+          {/* Evidence — a fanned visualization of the submitted cards against
+              the conclusion (which support the thesis, which fall off-topic).
+              Reviewers who chose Revise can click a card to flag it. */}
           <h3 className="font-display text-lg font-bold uppercase tracking-widest text-ink-900 mb-2">
             Evidence
           </h3>
-          {isWriter
-            ? <WriterEvidence evidence={current.evidence} showSignificance={showSignificance} />
-            : <ReviewerEvidence
-                evidence={current.evidence}
-                citations={current.citations}
-                flagged={flagged}
-                flagging={needsFlags}
-                onToggleFlag={toggleFlag}
-              />}
+
+          <div className="mb-2">
+            <EvidenceFan
+              evidence={current.evidence || []}
+              conclusion={current.conclusion}
+              flaggable={!isWriter && needsFlags}
+              flagged={flagged}
+              onToggleFlag={toggleFlag}
+            />
+          </div>
+
+          {!isWriter && needsFlags && (
+            <p className="font-serif italic text-ink-700 text-xs text-center mb-2">
+              Click a card to flag evidence that doesn't fit the conclusion ({flagged.size} flagged).
+            </p>
+          )}
+
+          {/* The writer also sees full content + significance below the fan. */}
+          {isWriter && (
+            <WriterEvidence evidence={current.evidence} showSignificance={showSignificance} />
+          )}
+
+          {/* Citations the manuscript leans on (reviewer context). */}
+          {!isWriter && current.citations && current.citations.length > 0 && (
+            <ReviewCitations citations={current.citations} />
+          )}
 
           {/* Reviewer verdict controls */}
           {!isWriter && (
@@ -323,54 +343,17 @@ function WriterEvidence({ evidence, showSignificance }) {
 }
 
 
-/** Reviewer-safe evidence list — title / author / tags, optionally flaggable. */
-function ReviewerEvidence({ evidence, citations, flagged, flagging, onToggleFlag }) {
+/** Citations the manuscript leans on — shown to reviewers beneath the fan. */
+function ReviewCitations({ citations }) {
   return (
-    <div className="space-y-2">
-      {(!evidence || evidence.length === 0) && (
-        <p className="font-serif italic text-ink-800">No evidence recorded.</p>
-      )}
-      {(evidence || []).map((ev, i) => {
-        const isFlagged = flagged.has(ev.idCard);
-        const tags = [ev.argument, ev.sub_argument].filter(Boolean).join(', ');
-        return (
-          <button
-            key={ev.idCard ?? i}
-            type="button"
-            onClick={() => flagging && onToggleFlag(ev.idCard)}
-            disabled={!flagging}
-            className={`w-full text-left px-3 py-2 border transition-colors ${
-              isFlagged
-                ? 'bg-oxblood-500/15 border-oxblood-500'
-                : 'bg-cream-50 border-cream-300'
-            } ${flagging ? 'hover:border-gold-500 cursor-pointer' : 'cursor-default'}`}
-          >
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="font-serif font-semibold text-ink-900">{ev.title || '—'}</span>
-              {flagging && (
-                <span className={`font-mono text-[10px] uppercase tracking-wider ${isFlagged ? 'text-oxblood-700' : 'text-ink-700'}`}>
-                  {isFlagged ? '⚑ flagged' : 'flag'}
-                </span>
-              )}
-            </div>
-            <div className="font-mono text-[10px] text-ink-800 mt-0.5">
-              {ev.author || 'Unknown'}{tags && <span className="font-bold text-gold-800"> · {tags}</span>}
-            </div>
-          </button>
-        );
-      })}
-
-      {citations && citations.length > 0 && (
-        <div className="pt-2">
-          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-ink-900 mb-1">Citations</p>
-          {citations.map((c) => (
-            <div key={c.work_id} className="font-serif text-sm text-ink-900">
-              “{c.publication_title}” — {c.writer_name}
-              <span className="font-bold text-gold-800"> · {c.conclusion_tag}</span>
-            </div>
-          ))}
+    <div className="pt-1">
+      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-ink-900 mb-1">Citations</p>
+      {citations.map((c) => (
+        <div key={c.work_id} className="font-serif text-sm text-ink-900">
+          “{c.publication_title}” — {c.writer_name}
+          <span className="font-bold text-gold-800"> · {c.conclusion_tag}</span>
         </div>
-      )}
+      ))}
     </div>
   );
 }

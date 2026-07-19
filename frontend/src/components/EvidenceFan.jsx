@@ -2,19 +2,31 @@ import { useMemo } from 'react';
 import { getCardTags } from '../lib/tags.js';
 
 /**
- * EvidenceFan — a read-only fanned-card visualization of a published argument.
+ * EvidenceFan — a fanned-card visualization of an argument.
  *
  * The conclusion card sits on the right (on top); the evidence cards fan out to
  * its left, each card's left strip staying exposed. Every evidence card is
  * marked as either supporting the conclusion (it shares a tag with the thesis)
- * or not. Used in the solo publish-result modal; mirrors the peer-review
- * visualizer's look, minus the interactive flagging.
+ * or not.
+ *
+ * Read-only by default (the solo publish-result modal). Pass `flaggable` with a
+ * `flagged` Set and `onToggleFlag` to let a reviewer click cards to flag the
+ * evidence that doesn't fit (the multiplayer peer-review phase).
  *
  * Props:
- *   evidence   — array of full evidence card objects (with argument/sub_argument)
- *   conclusion — the full conclusion card object
+ *   evidence     — array of full evidence card objects (argument/sub_argument)
+ *   conclusion   — the full conclusion card object
+ *   flaggable    — when true, evidence cards are clickable to toggle a flag
+ *   flagged      — Set of flagged idCards (only used when flaggable)
+ *   onToggleFlag — (idCard) => void (only used when flaggable)
  */
-export default function EvidenceFan({ evidence = [], conclusion }) {
+export default function EvidenceFan({
+  evidence = [],
+  conclusion,
+  flaggable = false,
+  flagged,
+  onToggleFlag,
+}) {
   const conclusionTags = useMemo(() => getCardTags(conclusion || {}), [conclusion]);
 
   const matchInfo = useMemo(
@@ -46,25 +58,51 @@ export default function EvidenceFan({ evidence = [], conclusion }) {
       <div className="relative" style={{ height: 150, width }}>
         {cards.map((c, k) => {
           const angle = (k - mid) * 4; // gentle fan
+          const cardId = c.card?.idCard ?? c.card?.id;
+          const isFlagged = flaggable && !c.isConclusion && !!flagged?.has(cardId);
+          const clickable = flaggable && !c.isConclusion;
+          const commonStyle = {
+            left: k * OFFSET,
+            transformOrigin: 'bottom center',
+            transform: `rotate(${angle}deg)`,
+            zIndex: k + 1,
+          };
+          const commonClass =
+            'absolute bottom-0 transition-transform hover:-translate-y-1 hover:z-[200]';
+          const inner = (
+            <MiniCard
+              card={c.card}
+              tags={c.tags}
+              matches={c.matches}
+              isConclusion={c.isConclusion}
+              conclusionTags={conclusionTags}
+              flaggable={clickable}
+              flagged={isFlagged}
+            />
+          );
+
+          if (clickable) {
+            return (
+              <button
+                key={cardId ?? k}
+                type="button"
+                onClick={() => onToggleFlag(cardId)}
+                className={`${commonClass} cursor-pointer`}
+                style={commonStyle}
+                title="Click to flag / unflag this evidence"
+              >
+                {inner}
+              </button>
+            );
+          }
           return (
             <div
-              key={c.isConclusion ? 'conclusion' : (c.card?.idCard ?? c.card?.id ?? k)}
-              className="absolute bottom-0 transition-transform hover:-translate-y-1 hover:z-[200]"
-              style={{
-                left: k * OFFSET,
-                transformOrigin: 'bottom center',
-                transform: `rotate(${angle}deg)`,
-                zIndex: k + 1,
-              }}
+              key={c.isConclusion ? 'conclusion' : (cardId ?? k)}
+              className={commonClass}
+              style={commonStyle}
               title={c.card?.title}
             >
-              <MiniCard
-                card={c.card}
-                tags={c.tags}
-                matches={c.matches}
-                isConclusion={c.isConclusion}
-                conclusionTags={conclusionTags}
-              />
+              {inner}
             </div>
           );
         })}
@@ -74,7 +112,7 @@ export default function EvidenceFan({ evidence = [], conclusion }) {
 }
 
 /** A small card. Tags stack in a column at the top-left (the exposed strip). */
-function MiniCard({ card, tags, matches, isConclusion, conclusionTags }) {
+function MiniCard({ card, tags, matches, isConclusion, conclusionTags, flaggable, flagged }) {
   const border = isConclusion
     ? 'border-gold-500 bg-cream-50'
     : matches
@@ -82,7 +120,9 @@ function MiniCard({ card, tags, matches, isConclusion, conclusionTags }) {
     : 'border-oxblood-500 bg-cream-100';
   return (
     <div
-      className={`relative w-[112px] h-[140px] rounded-md border-2 shadow-lg p-1.5 flex flex-col text-left ${border}`}
+      className={`relative w-[112px] h-[140px] rounded-md border-2 shadow-lg p-1.5 flex flex-col text-left ${border} ${
+        flagged ? 'ring-2 ring-oxblood-500 ring-offset-1' : ''
+      }`}
     >
       {/* Top-left strip: support badge + tags stacked, so they stay visible. */}
       <div className="flex flex-col items-start gap-1">
@@ -122,6 +162,17 @@ function MiniCard({ card, tags, matches, isConclusion, conclusionTags }) {
       <div className="flex-1 flex items-end pb-0.5">
         <span className="font-display text-[10px] text-ink-900 leading-tight">{card?.title}</span>
       </div>
+
+      {/* Flag affordance for reviewers */}
+      {flaggable && (
+        <span
+          className={`absolute bottom-1 right-1 font-mono text-[8px] uppercase tracking-wide px-1 rounded ${
+            flagged ? 'bg-oxblood-500 text-cream-50' : 'bg-cream-300 text-ink-700'
+          }`}
+        >
+          {flagged ? '⚑ flagged' : 'flag'}
+        </span>
+      )}
     </div>
   );
 }
