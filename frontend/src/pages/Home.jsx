@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { fetchDecks } from '../api/client.js';
-import { mpListOpenGames, mpCreateGame, mpJoinGame, mpListMyGames } from '../api/multiplayer.js';
-import { saveSession } from '../api/mpSession.js';
+import { mpListOpenGames, mpCreateGame, mpJoinGame, mpListMyGames, mpCancelGame } from '../api/multiplayer.js';
+import { saveSession, clearSession } from '../api/mpSession.js';
 import FleuronDivider from '../components/FleuronDivider.jsx';
 import CornerOrnament from '../components/CornerOrnament.jsx';
 import SkipLink from '../components/SkipLink.jsx';
@@ -64,6 +64,41 @@ export default function Home() {
   function dismissGame(gameId) {
     const base = Array.isArray(dismissedGames) ? dismissedGames : [];
     setDismissedGames([...base, Number(gameId)]);
+  }
+
+  // Remove a game from "Your Games" without entering it. The HOST deletes it
+  // for everyone (mp_cancelGame); anyone else can only hide it from their own
+  // list. Non-ended games ask for confirmation first.
+  async function removeGame(g) {
+    const isHost = !!g.host_name && !!user?.username && g.host_name === user.username;
+
+    if (isHost) {
+      if (g.status !== 'ended' &&
+          !window.confirm('Delete this game for everyone? This cannot be undone.')) {
+        return;
+      }
+      setMpBusy(true);
+      setMpError(null);
+      try {
+        await mpCancelGame(g.player_token);
+        clearSession(g.game_id);
+        dismissGame(g.game_id);
+        setMyGames((prev) => prev.filter((x) => Number(x.game_id) !== Number(g.game_id)));
+      } catch (e) {
+        setMpError(e.message);
+      } finally {
+        setMpBusy(false);
+      }
+      return;
+    }
+
+    // Non-host: hide it from your own list only.
+    if (g.status !== 'ended' &&
+        !window.confirm('Remove this game from your list?')) {
+      return;
+    }
+    dismissGame(g.game_id);
+    setMyGames((prev) => prev.filter((x) => Number(x.game_id) !== Number(g.game_id)));
   }
   const [mpError, setMpError] = useState(null);
   const [mpBusy, setMpBusy] = useState(false);
@@ -439,17 +474,26 @@ export default function Home() {
                                 >
                                   {g.status === 'ended' ? 'Review' : 'Resume'}
                                 </button>
-                                {g.status === 'ended' && (
-                                  <button
-                                    type="button"
-                                    onClick={() => dismissGame(g.game_id)}
-                                    title="Dismiss this game"
-                                    aria-label="Dismiss this game"
-                                    className="w-6 h-6 flex items-center justify-center rounded text-cream-200/50 hover:text-oxblood-300 hover:bg-cream-50/10 transition-colors text-sm leading-none"
-                                  >
-                                    ✕
-                                  </button>
-                                )}
+                                {(() => {
+                                  const isHost = !!g.host_name && !!user?.username && g.host_name === user.username;
+                                  const label = g.status === 'ended'
+                                    ? 'Dismiss this game'
+                                    : isHost
+                                    ? 'Delete this game for everyone'
+                                    : 'Remove this game from your list';
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeGame(g)}
+                                      disabled={mpBusy}
+                                      title={label}
+                                      aria-label={label}
+                                      className="w-6 h-6 flex items-center justify-center rounded text-cream-200/50 hover:text-oxblood-300 hover:bg-cream-50/10 transition-colors text-sm leading-none disabled:opacity-40"
+                                    >
+                                      ✕
+                                    </button>
+                                  );
+                                })()}
                               </div>
                             </li>
                           ))}
