@@ -33,17 +33,24 @@ You'll also want at least one **admin** account in the seed DB (the seed field
 only shows to admins) — register on the seed site, then set that user's admin
 flag in phpMyAdmin the same way you did on live.
 
-## 4. Point the seed backend at the seed database
-In the seed Document Root, create **`config.secret.php`** (copy
+## 4. Point the seed backend at the seed database + copy server-only files
+The deploy intentionally **excludes** the server-only files
+(`config.secret.php, dbConfig.php, vendor/, uploads/, Images/`), so the seed
+docroot needs its own copies. In cPanel File Manager, copy these from the live
+docroot (`public_html/thehistorians.org/`) into the seed docroot:
+
+- **`vendor/`** — PhpSpreadsheet; **required for deck upload** (missing it = 500).
+- **`dbConfig.php`** — then edit it to point at the **seed** DB.
+- **`Images/`** and **`uploads/`** — if your decks use card images.
+
+Then create **`config.secret.php`** in the seed docroot (copy
 `backend/config.secret.example.php`) with the **seed** DB credentials, and add:
 
 ```php
 define('SEED_MODE', true);
 ```
 
-Also place a **`dbConfig.php`** there pointing at the seed DB (same as the live
-one, but the seed DB name/user/pass). These two files live only on the server
-and are never deployed.
+These files live only on the server and are never deployed.
 
 ## 5. Deploy the seed build
 GitHub → **Actions → "Build & Deploy SEED build" → Run workflow**. This builds
