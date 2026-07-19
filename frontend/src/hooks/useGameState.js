@@ -608,6 +608,10 @@ function reducer(state, action) {
         kind: publicationKind,                // 'article' | 'book' | null
         conclusion: conclusion ? { id: conclusion.id, title: conclusion.title } : null,
         evidence: evidence.map((c) => ({ id: c.id, title: c.title })),
+        // Full cards (with tags) so the result dialog can fan them out and show
+        // which evidence supported the conclusion and which didn't.
+        conclusionCard: conclusion || null,
+        evidenceCards: evidence,
         projectId,
       };
 

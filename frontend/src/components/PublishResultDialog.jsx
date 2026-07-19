@@ -1,6 +1,7 @@
 import CornerOrnament from './CornerOrnament.jsx';
 import FleuronDivider from './FleuronDivider.jsx';
-import { tagAsConclusionLabel } from '../lib/tags.js';
+import EvidenceFan from './EvidenceFan.jsx';
+import { tagAsConclusionLabel, getCardTags } from '../lib/tags.js';
 
 /**
  * PublishResultDialog — shown after the player submits an argument for review.
@@ -29,7 +30,7 @@ export default function PublishResultDialog({ result, tagToConclusion, onClose }
       onClick={onClose}
     >
       <article
-        className="relative surface-paper max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-fade-up"
+        className="relative surface-paper max-w-3xl w-full max-h-[90vh] overflow-y-auto animate-fade-up"
         onClick={(e) => e.stopPropagation()}
         style={{
           boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(184, 146, 58, 0.5)',
@@ -77,6 +78,22 @@ export default function PublishResultDialog({ result, tagToConclusion, onClose }
 
           <FleuronDivider className="my-6" />
 
+          {/* Fanned-card visualization — shows which evidence supported the
+              conclusion (shares its theme) and which fell off-topic. */}
+          {result.conclusionCard && (
+            <section className="mb-6">
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700 mb-3 text-center">
+                Your Evidence
+              </p>
+              <EvidenceFan
+                evidence={result.evidenceCards || []}
+                conclusion={result.conclusionCard}
+              />
+              <EvidenceSupportCaption result={result} />
+              <FleuronDivider className="my-6" />
+            </section>
+          )}
+
           {/* The body of the review — different content for accept vs revise */}
           {result.ok ? (
             <SuccessBody result={result} tagToConclusion={tagToConclusion} />
@@ -107,6 +124,43 @@ export default function PublishResultDialog({ result, tagToConclusion, onClose }
         </div>
       </article>
     </div>
+  );
+}
+
+
+/**
+ * EvidenceSupportCaption — one line under the fan summarizing how many cards
+ * supported the conclusion and naming any that fell off-topic. Uses the same
+ * tag-sharing test the fan draws with (getCardTags).
+ */
+function EvidenceSupportCaption({ result }) {
+  const conclusion = result.conclusionCard;
+  const evidence = result.evidenceCards || [];
+  if (!conclusion) return null;
+
+  const conclusionTags = getCardTags(conclusion);
+  const offTopic = evidence.filter((card) => {
+    const tags = Array.from(getCardTags(card));
+    return !tags.some((t) => conclusionTags.has(t));
+  });
+  const supported = evidence.length - offTopic.length;
+
+  return (
+    <p className="font-serif text-center text-sm mt-4">
+      {offTopic.length === 0 ? (
+        <span className="text-verdigris-700">
+          All {evidence.length} of your sources share the conclusion's theme — the evidence fits the thesis.
+        </span>
+      ) : (
+        <span className="text-oxblood-700">
+          {supported} of {evidence.length} sources support the conclusion.{' '}
+          {offTopic.length === 1 ? 'This source falls' : 'These sources fall'} off-topic:{' '}
+          <strong className="font-display">
+            {offTopic.map((c) => c.title).join(', ')}
+          </strong>.
+        </span>
+      )}
+    </p>
   );
 }
 
