@@ -41,9 +41,11 @@ export default function ReviseDecisionDialog({
   }, [onClose]);
 
   const removed = decision.removed_cards || [];
+  const removedCitations = decision.removed_citations || [];
   const added = decision.added_cards || [];
   const kept = decision.kept_cards || [];
   const canObject = tokensRemaining >= 1;
+  const citationKind = (k) => (k === 'book' ? 'Book' : k === 'conference' ? 'Conference paper' : 'Article');
 
   const CardRow = ({ card, tone }) => (
     <li className={`border p-2 ${
@@ -121,6 +123,24 @@ export default function ReviseDecisionDialog({
                   : <ul className="space-y-1.5">{added.map((c) => <CardRow key={c.idCard} card={c} tone="add" />)}</ul>}
               </section>
             </div>
+
+            {removedCitations.length > 0 && (
+              <section className="mb-5">
+                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-oxblood-700 mb-2">
+                  Citations to remove ({removedCitations.length})
+                </div>
+                <ul className="space-y-1.5">
+                  {removedCitations.map((c) => (
+                    <li key={c.work_id} className="border border-oxblood-500 bg-oxblood-500/10 p-2">
+                      <div className="font-display font-semibold text-ink-900 text-sm">“{c.publication_title}”</div>
+                      <div className="font-serif italic text-ink-700 text-xs">
+                        {c.writer_name} · {citationKind(c.kind)}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             {kept.length > 0 && (
               <section className="mb-5">

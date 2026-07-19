@@ -695,12 +695,13 @@ export default function MultiplayerGame() {
   // ── Review phase ──────────────────────────────────────────────
   // Record a verdict on the manuscript currently under review. Throws on
   // error so ReviewPhaseModal can surface it inline before continuing.
-  async function handleReviewPhaseVerdict({ submission_id, verdict, flagged_card_ids, comment }) {
+  async function handleReviewPhaseVerdict({ submission_id, verdict, flagged_card_ids, flagged_work_ids, comment }) {
     await mpSubmitReview({
       player_token: playerToken,
       submission_id,
       verdict,
       flagged_card_ids: flagged_card_ids || [],
+      flagged_work_ids: flagged_work_ids || [],
       comment,
     });
     await refresh();

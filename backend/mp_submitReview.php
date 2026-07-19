@@ -61,6 +61,11 @@ $flagged = (isset($body['flagged_card_ids']) && is_array($body['flagged_card_ids
 $added = (isset($body['added_card_ids']) && is_array($body['added_card_ids']))
   ? array_values(array_map('intval', $body['added_card_ids']))
   : [];
+// Cited works (books/articles/conference papers) the reviewer flags as not
+// fitting the argument — the citation equivalent of flagged_card_ids.
+$flaggedWorks = (isset($body['flagged_work_ids']) && is_array($body['flagged_work_ids']))
+  ? array_values(array_map('intval', $body['flagged_work_ids']))
+  : [];
 $comment = isset($body['comment']) ? trim((string) $body['comment']) : null;
 if ($comment !== null && mb_strlen($comment) > 500) {
   mp_error('comment too long (max 500 chars)', 400);
@@ -70,11 +75,11 @@ if ($sid <= 0) mp_error('submission_id required', 400);
 if (!in_array($verdict, ['approve','reject','revise'], true)) {
   mp_error('verdict must be approve, reject, or revise', 400);
 }
-if ($verdict === 'reject' && count($flagged) === 0) {
-  mp_error('Reject verdicts require at least one flagged card', 400);
+if ($verdict === 'reject' && count($flagged) === 0 && count($flaggedWorks) === 0) {
+  mp_error('Reject verdicts require at least one flagged card or citation', 400);
 }
-if ($verdict === 'revise' && count($flagged) === 0 && count($added) === 0) {
-  mp_error('Revise verdicts require at least one card removed or added', 400);
+if ($verdict === 'revise' && count($flagged) === 0 && count($flaggedWorks) === 0 && count($added) === 0) {
+  mp_error('Revise verdicts require at least one card or citation removed, or a card added', 400);
 }
 
 // ----- Verify the submission and the player's commitment -----
@@ -125,6 +130,19 @@ if (count($flagged) > 0) {
   }
 }
 
+// Flagged citations must actually be cited by this submission.
+if (count($flaggedWorks) > 0) {
+  $citeIds = (isset($row['cited_work_ids']) && $row['cited_work_ids'])
+    ? (json_decode($row['cited_work_ids'], true) ?: [])
+    : [];
+  $citeIds = array_map('intval', $citeIds);
+  foreach ($flaggedWorks as $w) {
+    if (!in_array($w, $citeIds, true)) {
+      mp_error('Flagged citation is not cited by this submission', 400);
+    }
+  }
+}
+
 // If this reviewer previously proposed a revision on THIS submission, the
 // cards they locked into that earlier proposal are returned to their hand
 // first, so the validation below sees an accurate hand and a changed or
@@ -166,23 +184,52 @@ if (count($added) > 0) {
 }
 
 // ----- Upsert the review -----
-$flaggedJson = count($flagged) > 0 ? json_encode($flagged) : null;
-$addedJson   = count($added) > 0 ? json_encode($added) : null;
+$flaggedJson      = count($flagged) > 0 ? json_encode($flagged) : null;
+$flaggedWorksJson = count($flaggedWorks) > 0 ? json_encode($flaggedWorks) : null;
+$addedJson        = count($added) > 0 ? json_encode($added) : null;
 $year = (int) $game['current_year'];
 
 // Use REPLACE INTO so resubmitting overwrites the previous verdict.
 // Note REPLACE deletes and re-inserts, so the review_id may change. That's
 // fine because the unique constraint is on (submission_id, reviewer_player_id).
-$stmt = $mysqli->prepare("
-  REPLACE INTO mp_reviews
-    (submission_id, reviewer_player_id, verdict, flagged_card_ids, added_card_ids, comment, reviewed_year)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
-");
-$stmt->bind_param('iissssi', $sid, $pid, $verdict, $flaggedJson, $addedJson, $comment, $year);
-if (!$stmt->execute()) {
-  mp_error('Failed to record review: ' . $stmt->error, 500);
+//
+// flagged_work_ids is added by migration 31. If that hasn't run yet, the write
+// falls back to the legacy column set so reviewing never breaks (citation
+// flags are simply dropped until the migration is applied).
+// Written defensively so it works whether mysqli is in silent mode (returns
+// false; PHP < 8.1) or throwing mode (mysqli_sql_exception; PHP >= 8.1).
+$wroteNew = false;
+try {
+  $stmt = @$mysqli->prepare("
+    REPLACE INTO mp_reviews
+      (submission_id, reviewer_player_id, verdict, flagged_card_ids, flagged_work_ids, added_card_ids, comment, reviewed_year)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ");
+  if ($stmt) {
+    $stmt->bind_param('iisssssi', $sid, $pid, $verdict, $flaggedJson, $flaggedWorksJson, $addedJson, $comment, $year);
+    if ($stmt->execute()) $wroteNew = true;
+    $stmt->close();
+  }
+} catch (Throwable $e) {
+  // Almost certainly the flagged_work_ids column not existing yet (migration
+  // 31 not run). Fall through to the legacy write below.
+  $wroteNew = false;
 }
-$stmt->close();
+
+if (!$wroteNew) {
+  // Legacy write: no flagged_work_ids column (citation flags are dropped until
+  // migration 31 is applied).
+  $legacy = $mysqli->prepare("
+    REPLACE INTO mp_reviews
+      (submission_id, reviewer_player_id, verdict, flagged_card_ids, added_card_ids, comment, reviewed_year)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  ");
+  $legacy->bind_param('iissssi', $sid, $pid, $verdict, $flaggedJson, $addedJson, $comment, $year);
+  if (!$legacy->execute()) {
+    mp_error('Failed to record review: ' . $legacy->error, 500);
+  }
+  $legacy->close();
+}
 
 // Lock the contributed cards out of the reviewer's hand for the duration of
 // the proposal — they're committed to the writer's manuscript and must not be

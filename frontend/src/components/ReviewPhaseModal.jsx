@@ -55,6 +55,7 @@ export default function ReviewPhaseModal({
   // and reset whenever the manuscript under review changes.
   const [verdict, setVerdict] = useState(null);
   const [flagged, setFlagged] = useState(() => new Set());
+  const [flaggedWorks, setFlaggedWorks] = useState(() => new Set());
   const [comment, setComment] = useState('');
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -65,12 +66,14 @@ export default function ReviewPhaseModal({
     const v = current?.your_verdict;
     setVerdict(v?.verdict ?? null);
     setFlagged(new Set(v?.flagged_card_ids ?? []));
+    setFlaggedWorks(new Set(v?.flagged_work_ids ?? []));
     setComment(v?.comment ?? '');
     setError(null);
   }, [currentSid]);
 
   const needsFlags = verdict === 'revise';
-  const flagsOk = !needsFlags || flagged.size >= 1;
+  // A revise verdict needs at least one flagged card OR citation.
+  const flagsOk = !needsFlags || flagged.size >= 1 || flaggedWorks.size >= 1;
   const verdictReady = isWriter || (verdict && flagsOk);
 
   // Who are we still waiting on for this manuscript?
@@ -92,13 +95,22 @@ export default function ReviewPhaseModal({
     });
   }
 
+  function toggleFlagWork(workId) {
+    setFlaggedWorks((prev) => {
+      const next = new Set(prev);
+      if (next.has(workId)) next.delete(workId);
+      else next.add(workId);
+      return next;
+    });
+  }
+
   async function handleContinue() {
     if (youReady || busy || submitting) return;
     setError(null);
     if (!isWriter) {
       if (!verdict) { setError('Choose a verdict first.'); return; }
-      if (needsFlags && flagged.size < 1) {
-        setError('Flag at least one piece of evidence.');
+      if (needsFlags && flagged.size < 1 && flaggedWorks.size < 1) {
+        setError('Flag at least one piece of evidence or citation.');
         return;
       }
     }
@@ -109,6 +121,7 @@ export default function ReviewPhaseModal({
           submission_id: current.submission_id,
           verdict,
           flagged_card_ids: needsFlags ? [...flagged] : [],
+          flagged_work_ids: needsFlags ? [...flaggedWorks] : [],
           comment: comment.trim() || null,
         });
       }
@@ -220,7 +233,8 @@ export default function ReviewPhaseModal({
               </div>
               {needsFlags && (
                 <p className="font-serif italic text-ink-700 text-xs text-center mb-2">
-                  Click a card to flag evidence that doesn't fit the conclusion ({flagged.size} flagged).
+                  Click a card — or a citation below — to flag evidence that doesn't fit the conclusion
+                  ({flagged.size + flaggedWorks.size} flagged).
                 </p>
               )}
             </>
@@ -231,9 +245,16 @@ export default function ReviewPhaseModal({
             <WriterEvidence evidence={current.evidence} showSignificance={showSignificance} />
           )}
 
-          {/* Citations the manuscript leans on (reviewer context). */}
+          {/* Citations the manuscript leans on. Reviewers can flag a cited work
+              (book / article / conference paper) that doesn't fit the argument,
+              the same way they flag evidence cards. */}
           {!isWriter && current.citations && current.citations.length > 0 && (
-            <ReviewCitations citations={current.citations} />
+            <ReviewCitations
+              citations={current.citations}
+              flaggable={needsFlags}
+              flagged={flaggedWorks}
+              onToggleFlag={toggleFlagWork}
+            />
           )}
 
           {/* Reviewer verdict controls */}
@@ -349,17 +370,49 @@ function WriterEvidence({ evidence, showSignificance }) {
 }
 
 
-/** Citations the manuscript leans on — shown to reviewers beneath the fan. */
-function ReviewCitations({ citations }) {
+/** Citations the manuscript leans on — shown to reviewers beneath the fan.
+ *  When `flaggable`, each cited work can be clicked to flag it for removal. */
+function ReviewCitations({ citations, flaggable = false, flagged, onToggleFlag }) {
+  const kindLabel = (k) => (k === 'book' ? 'Book' : k === 'conference' ? 'Conference paper' : 'Article');
   return (
     <div className="pt-1">
       <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-ink-900 mb-1">Citations</p>
-      {citations.map((c) => (
-        <div key={c.work_id} className="font-serif text-sm text-ink-900">
-          “{c.publication_title}” — {c.writer_name}
-          <span className="font-bold text-gold-800"> · {c.conclusion_tag}</span>
-        </div>
-      ))}
+      <div className="space-y-1">
+        {citations.map((c) => {
+          const isFlagged = flaggable && !!flagged?.has(c.work_id);
+          const inner = (
+            <>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="font-serif text-sm text-ink-900">
+                  “{c.publication_title}” — {c.writer_name}
+                  <span className="font-bold text-gold-800"> · {c.conclusion_tag}</span>
+                </span>
+                {flaggable && (
+                  <span className={`font-mono text-[10px] uppercase tracking-wider flex-shrink-0 ${isFlagged ? 'text-oxblood-700' : 'text-ink-700'}`}>
+                    {isFlagged ? '⚑ flagged' : 'flag'}
+                  </span>
+                )}
+              </div>
+              <div className="font-mono text-[9px] uppercase tracking-wider text-ink-700">{kindLabel(c.kind)}</div>
+            </>
+          );
+          if (!flaggable) {
+            return <div key={c.work_id} className="px-2 py-1">{inner}</div>;
+          }
+          return (
+            <button
+              key={c.work_id}
+              type="button"
+              onClick={() => onToggleFlag(c.work_id)}
+              className={`w-full text-left px-2 py-1 border transition-colors ${
+                isFlagged ? 'bg-oxblood-500/15 border-oxblood-500' : 'bg-cream-50 border-cream-300 hover:border-gold-500'
+              }`}
+            >
+              {inner}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

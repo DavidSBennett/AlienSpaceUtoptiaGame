@@ -73,8 +73,9 @@ try {
                : [];
 
   // Load the revise proposal (latest revise review for this submission).
+  // SELECT * so a not-yet-migrated flagged_work_ids column doesn't break this.
   $stmt = $mysqli->prepare("
-    SELECT reviewer_player_id, flagged_card_ids, added_card_ids
+    SELECT *
     FROM mp_reviews
     WHERE submission_id = ? AND verdict = 'revise'
     ORDER BY review_id DESC
@@ -91,6 +92,11 @@ try {
   $added   = $rev['added_card_ids']   ? (json_decode($rev['added_card_ids'], true) ?: [])   : [];
   $flagged = array_map('intval', $flagged);
   $added   = array_map('intval', $added);
+  // Cited works the reviewer flagged for removal (migration 31; absent → none).
+  $flaggedWorks = (isset($rev['flagged_work_ids']) && $rev['flagged_work_ids'])
+    ? array_map('intval', (json_decode($rev['flagged_work_ids'], true) ?: []))
+    : [];
+  $citeIds = array_map('intval', $citeIds);
 
   if ($decision === 'accept') {
     // Revised evidence = (original minus flagged) + (added cards still in the
@@ -105,16 +111,23 @@ try {
     // published manuscript — no hand check or removal needed here.
     $revisedEv = array_values(array_unique(array_merge($kept, $added)));
 
-    // Persist the revised evidence onto the submission so the approval's
-    // snapshot/discard/prestige all operate on the final manuscript.
+    // Revised citations = original citations minus any the reviewer flagged.
+    $flaggedWorksSet = array_flip($flaggedWorks);
+    $revisedCiteIds = array_values(array_filter($citeIds, function ($w) use ($flaggedWorksSet) {
+      return !isset($flaggedWorksSet[$w]);
+    }));
+
+    // Persist the revised evidence + citations onto the submission so the
+    // approval's snapshot/discard/prestige all operate on the final manuscript.
     $newEvJson = json_encode($revisedEv);
-    $u = $mysqli->prepare("UPDATE mp_submissions SET evidence_card_ids = ? WHERE submission_id = ?");
-    $u->bind_param('si', $newEvJson, $sid);
+    $newCiteJson = json_encode($revisedCiteIds);
+    $u = $mysqli->prepare("UPDATE mp_submissions SET evidence_card_ids = ?, cited_work_ids = ? WHERE submission_id = ?");
+    $u->bind_param('ssi', $newEvJson, $newCiteJson, $sid);
     $u->execute();
     $u->close();
 
     // Full approval (writer prestige + upgrade + published work + discard).
-    mp_apply_approval($mysqli, $gid, $sid, $pid, $kind, $revisedEv, $citeIds, $concId, $year);
+    mp_apply_approval($mysqli, $gid, $sid, $pid, $kind, $revisedEv, $revisedCiteIds, $concId, $year);
 
     // The flagged-out original cards aren't published; return them to the
     // writer's discard so they're not lost (recoverable after reshuffle).

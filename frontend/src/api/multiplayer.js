@@ -130,7 +130,7 @@ export async function mpCommitAction(args) {
 
 /**
  * Submit a review verdict on the manuscript currently under review.
- * @param {{ player_token, submission_id, verdict, flagged_card_ids?, added_card_ids?, comment? }} args
+ * @param {{ player_token, submission_id, verdict, flagged_card_ids?, flagged_work_ids?, added_card_ids?, comment? }} args
  */
 export async function mpSubmitReview(args) {
   try {

@@ -738,7 +738,8 @@ function mp_build_review_phase($mysqli, $gameId, $youId, $reviewIndex) {
     // Your recorded verdict on this manuscript (reviewers only).
     $yourVerdict = null;
     if (!$isWriter) {
-      $vstmt = $mysqli->prepare("SELECT verdict, flagged_card_ids, added_card_ids, comment FROM mp_reviews WHERE submission_id = ? AND reviewer_player_id = ?");
+      // SELECT * so a not-yet-migrated flagged_work_ids column doesn't break this.
+      $vstmt = $mysqli->prepare("SELECT * FROM mp_reviews WHERE submission_id = ? AND reviewer_player_id = ?");
       $vstmt->bind_param('ii', $sid, $youId);
       $vstmt->execute();
       $vr = $vstmt->get_result()->fetch_assoc();
@@ -747,6 +748,7 @@ function mp_build_review_phase($mysqli, $gameId, $youId, $reviewIndex) {
         $yourVerdict = [
           'verdict'          => $vr['verdict'],
           'flagged_card_ids' => $vr['flagged_card_ids'] ? (json_decode($vr['flagged_card_ids'], true) ?: []) : [],
+          'flagged_work_ids' => (isset($vr['flagged_work_ids']) && $vr['flagged_work_ids']) ? (json_decode($vr['flagged_work_ids'], true) ?: []) : [],
           'added_card_ids'   => $vr['added_card_ids'] ? (json_decode($vr['added_card_ids'], true) ?: []) : [],
           'comment'          => $vr['comment'],
         ];
@@ -1026,6 +1028,34 @@ function mp_build_revise_decisions($mysqli, $youId) {
       if ($card) $addedCards[] = mp_card_for_you($card);
     }
 
+    // Cited works the reviewer flagged for removal (migration 31; absent → none).
+    $flaggedWorks = (isset($rev['flagged_work_ids']) && $rev['flagged_work_ids'])
+      ? array_map('intval', (json_decode($rev['flagged_work_ids'], true) ?: []))
+      : [];
+    $removedCitations = [];
+    foreach ($flaggedWorks as $wid) {
+      $cstmt = $mysqli->prepare("
+        SELECT w.work_id, w.publication_title, w.conclusion_tag, w.kind,
+               p.player_name AS writer_name
+        FROM mp_published_works w
+        JOIN mp_game_players p ON p.player_id = w.writer_player_id
+        WHERE w.work_id = ?
+      ");
+      $cstmt->bind_param('i', $wid);
+      $cstmt->execute();
+      $cr = $cstmt->get_result()->fetch_assoc();
+      $cstmt->close();
+      if ($cr) {
+        $removedCitations[] = [
+          'work_id'           => (int) $cr['work_id'],
+          'publication_title' => $cr['publication_title'],
+          'conclusion_tag'    => $cr['conclusion_tag'],
+          'kind'              => $cr['kind'],
+          'writer_name'       => $cr['writer_name'],
+        ];
+      }
+    }
+
     $conc = mp_fetch_card($mysqli, (int) $row['conclusion_card_id']);
 
     $out[] = [
@@ -1038,10 +1068,11 @@ function mp_build_revise_decisions($mysqli, $youId) {
         'title'       => $conc['title'] ?? 'Untitled',
         'description' => $conc['description'] ?? '',
       ] : null,
-      'kept_cards'    => $keptCards,
-      'removed_cards' => $removedCards,
-      'added_cards'   => $addedCards,
-      'auto_pop'      => !((bool) $row['writer_seen_result']),
+      'kept_cards'        => $keptCards,
+      'removed_cards'     => $removedCards,
+      'removed_citations' => $removedCitations,
+      'added_cards'       => $addedCards,
+      'auto_pop'          => !((bool) $row['writer_seen_result']),
     ];
   }
   $stmt->close();
