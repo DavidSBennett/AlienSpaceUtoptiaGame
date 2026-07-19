@@ -98,17 +98,10 @@
                   background-color 0.15s cubic-bezier(0.4,0,0.2,1),
                   border-color 0.15s cubic-bezier(0.4,0,0.2,1);
     }
+    /* All four buttons are identical — no highlighted "primary". */
     .btn:hover {
       background: var(--oxblood); border-color: var(--oxblood); color: var(--cream-50);
     }
-    /* Primary: a deep book-cloth red rather than a bright fill. */
-    .btn-primary {
-      background: var(--oxblood); border-color: var(--oxblood); color: var(--cream-50);
-    }
-    .btn-primary:hover {
-      background: var(--oxblood-dark); border-color: var(--oxblood-dark);
-    }
-    .btn-ghost { background: transparent; }
     .btn small {
       display: block; font-family: 'Spectral', Georgia, serif;
       font-size: 0.62rem; font-style: italic; letter-spacing: 0.03em;
@@ -228,16 +221,16 @@
           </p>
         </div>
         <div class="actions">
-          <a class="btn btn-primary" href="https://game.thehistorians.org/">
+          <a class="btn" href="https://game.thehistorians.org/">
             Enter the Game <small>Sign in &amp; play</small>
           </a>
-          <a class="btn btn-ghost" href="https://game.thehistorians.org/tutorial">
+          <a class="btn" href="https://game.thehistorians.org/tutorial">
             Graduate School <small>Guided walkthrough</small>
           </a>
-          <a class="btn btn-ghost" href="https://game.thehistorians.org/the-historians-sell-sheet.pdf">
+          <a class="btn" href="https://game.thehistorians.org/the-historians-sell-sheet.pdf">
             Sell Sheet <small>One-page overview (PDF)</small>
           </a>
-          <a class="btn btn-ghost" href="rulebook.pdf">
+          <a class="btn" href="rulebook.pdf">
             Rulebook <small>Full rules (PDF)</small>
           </a>
         </div>
