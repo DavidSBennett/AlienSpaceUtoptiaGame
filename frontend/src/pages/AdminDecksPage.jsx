@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AuthFrame from '../auth/AuthFrame.jsx';
-import { adminListDecks, adminUploadDeck, adminDeleteDeck } from '../api/auth.js';
+import { adminListDecks, adminUploadDeck, adminDeleteDeck, adminDownloadDeck } from '../api/auth.js';
 
 export default function AdminDecksPage() {
   const [decks, setDecks] = useState([]);
@@ -31,6 +31,31 @@ export default function AdminDecksPage() {
   // Delete confirm + in-flight tracking
   const [confirmingId, setConfirmingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
+
+  // Export a deck as CSV. The endpoint is Bearer-authenticated, so we fetch the
+  // blob through the api client and save it with a temporary object URL rather
+  // than linking straight to the PHP file.
+  async function handleDownload(deck) {
+    setDownloadingId(deck.idDeck);
+    setError(null);
+    try {
+      const blob = await adminDownloadDeck({ idDeck: deck.idDeck });
+      const safe = String(deck.nameDeck || 'deck').replace(/[^\w.-]+/g, '_');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${safe}-deck-${deck.idDeck}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || 'Download failed.');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -218,13 +243,23 @@ export default function AdminDecksPage() {
                               </button>
                             </span>
                           ) : (
-                            <button
-                              onClick={() => handleDelete(d)}
-                              className="font-mono text-xs uppercase tracking-wider text-oxblood-300 hover:text-oxblood-200 underline"
-                              title="Permanently delete this deck and all its cards"
-                            >
-                              Delete
-                            </button>
+                            <span className="inline-flex items-center gap-3">
+                              <button
+                                onClick={() => handleDownload(d)}
+                                disabled={downloadingId === d.idDeck}
+                                className="font-mono text-xs uppercase tracking-wider text-gold-400 hover:text-gold-300 underline disabled:opacity-50"
+                                title="Download this deck as a CSV you can edit and re-upload"
+                              >
+                                {downloadingId === d.idDeck ? 'Preparing…' : 'Download'}
+                              </button>
+                              <button
+                                onClick={() => handleDelete(d)}
+                                className="font-mono text-xs uppercase tracking-wider text-oxblood-300 hover:text-oxblood-200 underline"
+                                title="Permanently delete this deck and all its cards"
+                              >
+                                Delete
+                              </button>
+                            </span>
                           )}
                         </td>
                       </tr>

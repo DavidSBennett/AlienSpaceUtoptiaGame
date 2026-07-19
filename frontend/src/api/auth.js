@@ -267,6 +267,22 @@ export async function adminDeleteDeck({ idDeck }) {
   } catch (err) { throw normalizeError(err); }
 }
 
+/**
+ * Download a deck as CSV, in the same column order admin_uploadDeck expects
+ * (so it can be edited and re-uploaded). Returns a Blob — the caller saves it.
+ * Fetched through the api instance so the Bearer token rides along; a plain
+ * <a href> link would not be authenticated.
+ */
+export async function adminDownloadDeck({ idDeck }) {
+  try {
+    const res = await api.get('/admin_downloadDeck.php', {
+      params: { idDeck },
+      responseType: 'blob',
+    });
+    return res.data;
+  } catch (err) { throw normalizeError(err); }
+}
+
 export async function adminListPlaytestFeedback() {
   try {
     const res = await api.get('/admin_listPlaytestFeedback.php');

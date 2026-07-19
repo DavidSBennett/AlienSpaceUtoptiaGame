@@ -77,7 +77,13 @@ $SQL->execute([$relPath, $idDeck]);
 try {
   $readerType = ucfirst($ext); // Csv | Xlsx | Xls
   $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader($readerType);
-  if ($readerType === 'Csv') $reader->setInputEncoding('CP1252');
+  if ($readerType === 'Csv') {
+    // Honor a UTF-8 BOM — that's what our own deck export (admin_downloadDeck)
+    // writes, so a downloaded deck round-trips losslessly. Without a BOM assume
+    // CP1252, which is what Excel writes by default on Windows.
+    $bom = @file_get_contents($absPath, false, null, 0, 3);
+    $reader->setInputEncoding($bom === "\xEF\xBB\xBF" ? 'UTF-8' : 'CP1252');
+  }
   $reader->setReadDataOnly(true);
   $spreadsheet = $reader->load($absPath);
   $sheetData = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
