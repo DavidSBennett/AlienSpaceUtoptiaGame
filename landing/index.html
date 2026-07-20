@@ -76,13 +76,17 @@
     /* ── Hero: text + buttons left, video right ── */
     .hero {
       display: grid; grid-template-columns: 1.05fr 1fr;
-      gap: 2.25rem; align-items: center;
+      gap: 2.25rem; align-items: stretch;
     }
-    .lede p { font-size: 1.06rem; margin-bottom: 0.75rem; }
+    /* Fill the column's full height and push the buttons to the bottom, so the
+       copy block squares up with the video beside it. */
+    .hero-copy { display: flex; flex-direction: column; justify-content: space-between; }
+    .lede p { font-size: 1.16rem; line-height: 1.7; margin-bottom: 1.05rem; }
+    .lede p:last-child { margin-bottom: 0; }
     .lede strong { color: var(--gold-300); font-weight: 500; }
 
     .actions {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 0.62rem; margin-top: 1.1rem;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.62rem; margin-top: 1.4rem;
     }
     /* Same language as the tabs: square corners, hairline rules, flat fills,
        and colour-only transitions. No stark gold, no hover "jump". */
@@ -207,7 +211,7 @@
     </header>
 
     <div class="hero">
-      <div>
+      <div class="hero-copy">
         <div class="lede">
           <p>
             Congratulations, Doctor — welcome to the Historians guild. As of right now, you hold a
