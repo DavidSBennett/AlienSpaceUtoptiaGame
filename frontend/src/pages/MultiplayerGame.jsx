@@ -1862,60 +1862,120 @@ function PublishArgumentDialog({ project, argument, onArgumentChange, onCancel, 
   const hasText = argument.trim().length > 0;
   const canSubmit = !busy && (voipMode || hasText);
 
+  const evidence = project.evidence || [];
+
   return (
     <div className="fixed inset-0 bg-black/70 z-[80] flex items-center justify-center p-4">
-      <div className="surface-binding border border-gold-500/40 text-cream-100 max-w-2xl w-full p-6 font-serif">
-        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-400 mb-1">
-          Submit for Peer Review
-        </p>
-        <h2 className="font-display text-2xl text-cream-50 mb-2">
-          {project.conclusion?.title}
-        </h2>
-        <p className="text-sm text-cream-200/70 mb-3">
-          {project.evidence.length} evidence card{project.evidence.length === 1 ? '' : 's'} ·
-          Reviewers will see titles, authors, and tags only — your argument below is what they read.
-        </p>
+      <div className="surface-binding border border-gold-500/40 text-cream-100 max-w-6xl w-full max-h-[92vh] flex flex-col font-serif">
 
-        {/* VOIP toggle — checkbox at the top of the dialog. When enabled,
-            the textbox is optional and reviewers see a "via voice"
-            placeholder if it's left empty. */}
-        <label className="flex items-start gap-2 mb-3 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={voipMode}
-            onChange={toggleVoip}
-            className="mt-1 accent-gold-500"
-          />
-          <span className="text-sm text-cream-100 leading-snug">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-gold-400 block">
-              Explaining via voice
+        {/* Header */}
+        <div className="px-6 pt-5 pb-3 border-b border-gold-500/25 flex-shrink-0">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-400 mb-1">
+            Submit for Peer Review
+          </p>
+          <h2 className="font-display text-2xl text-cream-50">
+            {project.conclusion?.title}
+          </h2>
+          {project.conclusion?.description && (
+            <p className="font-serif italic text-cream-200/80 text-sm mt-1">
+              {project.conclusion.description}
+            </p>
+          )}
+          <p className="text-sm text-cream-200/70 mt-1">
+            {evidence.length} evidence card{evidence.length === 1 ? '' : 's'} ·
+            Reviewers will see titles, authors, and tags only — your argument is what they read.
+          </p>
+        </div>
+
+        {/* Body — evidence on the left so it stays in view while you write. */}
+        <div className="flex-1 min-h-0 grid lg:grid-cols-[1.3fr_1fr] gap-5 px-6 py-4 overflow-hidden">
+
+          <section className="min-h-0 flex flex-col">
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-400 mb-2 flex-shrink-0">
+              Your evidence
+            </p>
+            <div className="min-h-0 overflow-y-auto pr-1">
+              {evidence.length === 0 ? (
+                <p className="font-serif italic text-cream-200/60 text-sm">
+                  No evidence staged in this project.
+                </p>
+              ) : (
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {evidence.map((c, i) => (
+                    <article
+                      key={c.idCard ?? c.id ?? i}
+                      className="surface-paper border border-gold-500/40 p-3 text-ink-900"
+                    >
+                      <h4 className="font-display font-bold text-sm leading-tight">
+                        {c.title || 'Untitled'}
+                      </h4>
+                      {(c.author || c.date || c.location || c.source_type) && (
+                        <p className="font-mono text-[9px] uppercase tracking-wider text-ink-700 mt-1">
+                          {[c.author, c.date, c.location, c.source_type].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
+                      {c.content && (
+                        <p className="font-serif text-xs leading-snug mt-2">{c.content}</p>
+                      )}
+                      {c.significance && (
+                        <p className="font-serif italic text-xs text-ink-700 leading-snug mt-2">
+                          {c.significance}
+                        </p>
+                      )}
+                      {c.citation && (
+                        <p className="font-mono text-[9px] text-ink-700/70 mt-2 break-words">
+                          {c.citation}
+                        </p>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Composer */}
+          <section className="min-h-0 flex flex-col">
+            {/* VOIP toggle — when enabled the textbox is optional and reviewers
+                see a "via voice" placeholder if it's left empty. */}
+            <label className="flex items-start gap-2 mb-3 cursor-pointer select-none flex-shrink-0">
+              <input
+                type="checkbox"
+                checked={voipMode}
+                onChange={toggleVoip}
+                className="mt-1 accent-gold-500"
+              />
+              <span className="text-sm text-cream-100 leading-snug">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-gold-400 block">
+                  Explaining via voice
+                </span>
+                I'll explain my argument out loud (Discord, Zoom, in person, etc).
+                The textbox becomes optional.
+              </span>
+            </label>
+
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-400 flex-shrink-0">
+              {voipMode ? 'Notes (optional)' : 'Your argument'}
             </span>
-            I'll explain my argument out loud (Discord, Zoom, in person, etc).
-            The textbox below becomes optional.
-          </span>
-        </label>
+            <textarea
+              value={argument}
+              onChange={(e) => onArgumentChange(e.target.value)}
+              maxLength={2000}
+              placeholder={voipMode
+                ? 'Optional. Jot down anything you want the reviewer to see in writing — or leave blank and explain by voice.'
+                : 'Explain in your own words how the evidence supports the conclusion.'
+              }
+              className="input-dark w-full mt-1 text-sm flex-1 min-h-[8rem] resize-none"
+              autoFocus
+            />
+            <div className="font-mono text-[10px] text-cream-200/50 text-right flex-shrink-0">
+              {argument.length}/2000
+            </div>
+          </section>
+        </div>
 
-        <label className="block mb-4">
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-400">
-            {voipMode ? 'Notes (optional)' : 'Your argument'}
-          </span>
-          <textarea
-            value={argument}
-            onChange={(e) => onArgumentChange(e.target.value)}
-            maxLength={2000}
-            rows={6}
-            placeholder={voipMode
-              ? 'Optional. Jot down anything you want the reviewer to see in writing — or leave blank and explain by voice.'
-              : 'Explain in your own words how the evidence supports the conclusion.'
-            }
-            className="input-dark w-full mt-1 text-sm"
-            autoFocus
-          />
-          <div className="font-mono text-[10px] text-cream-200/50 text-right">
-            {argument.length}/2000
-          </div>
-        </label>
-        <div className="flex justify-end gap-2">
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-gold-500/25 flex justify-end gap-2 flex-shrink-0">
           <button onClick={onCancel} className="btn-ghost">Cancel</button>
           <button onClick={onConfirm} disabled={!canSubmit} className="btn-primary">
             {busy ? 'Submitting…' : 'Submit manuscript'}
