@@ -60,16 +60,16 @@
     header { text-align: center; margin-bottom: 1.4rem; }
     .kicker {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.7rem; letter-spacing: 0.4em; text-transform: uppercase;
+      font-size: 0.76rem; letter-spacing: 0.4em; text-transform: uppercase;
       color: var(--gold-500); margin-bottom: 0.55rem;
     }
     h1 {
       font-family: 'Cormorant Garamond', Georgia, serif;
-      font-weight: 700; font-size: 4.85rem;
+      font-weight: 700; font-size: 5.5rem;
       line-height: 1.0; color: var(--cream-50); letter-spacing: 0.01em;
     }
     .tagline {
-      font-style: italic; font-size: 1.36rem;
+      font-style: italic; font-size: 1.5rem;
       color: var(--cream-200); margin-top: 0.55rem;
     }
 
@@ -178,7 +178,7 @@
     .feature { border-top: 0.0625rem solid rgba(184,146,58,0.35); padding-top: 0.5rem; }
     .feature h3 {
       font-family: 'Cormorant Garamond', Georgia, serif;
-      font-weight: 600; font-size: 1.18rem; color: var(--gold-300); margin-bottom: 0.12rem;
+      font-weight: 600; font-size: 1.28rem; color: var(--gold-300); margin-bottom: 0.12rem;
     }
     .feature p { font-size: 0.81rem; line-height: 1.4; color: var(--cream-100); }
 
@@ -247,8 +247,15 @@
           <div class="tab-group">
             <span class="tab-group-label">Digital</span>
             <div class="tab-btns">
-              <button type="button" class="tab-btn active" data-video="p8_6CFx8aPA">Solo</button>
+              <button type="button" class="tab-btn" data-video="p8_6CFx8aPA">Solo</button>
               <button type="button" class="tab-btn" data-video="aNDIKc5arNo">Multiplayer</button>
+            </div>
+          </div>
+          <div class="tab-group">
+            <!-- Spacer keeps this group's button on the same line as the others. -->
+            <span class="tab-group-label" aria-hidden="true">&nbsp;</span>
+            <div class="tab-btns">
+              <button type="button" class="tab-btn active" data-status="in-process">Sizzle Reel</button>
             </div>
           </div>
           <div class="tab-group">
@@ -263,12 +270,13 @@
         <div class="video-frame">
           <iframe
             id="player"
-            src="https://www.youtube-nocookie.com/embed/p8_6CFx8aPA"
+            src="about:blank"
             title="The Historians — playthrough"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowfullscreen
-            referrerpolicy="strict-origin-when-cross-origin"></iframe>
-          <div class="video-placeholder" id="placeholder" hidden>
+            referrerpolicy="strict-origin-when-cross-origin"
+            hidden></iframe>
+          <div class="video-placeholder" id="placeholder">
             <span class="ip-label">In process</span>
             <p>This walkthrough is being filmed — check back soon.</p>
           </div>
