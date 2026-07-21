@@ -930,6 +930,13 @@ function ArchiveMarket({
  *
  * Hidden entirely when no conclusions are available (early game).
  */
+/**
+ * A full conclusion shelf holds seven. Decks with fewer show the remaining
+ * slots as unused, so the column keeps its height (and lines up with the
+ * archive market beside it).
+ */
+const CONCLUSION_SLOTS = 7;
+
 function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showSignificance, dragGate }) {
   if (!conclusionShelf || conclusionShelf.length === 0) {
     return null;
@@ -958,7 +965,6 @@ function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showS
               {({ dragHandleProps, isDragging }) => (
                 <div {...dragHandleProps} className={`${isDragging ? 'opacity-50' : ''} ${draggable ? '' : 'opacity-30'}`}>
                   <ConclusionSpine
-                    thin
                     card={card}
                     onClick={() => onConclusionClick?.(card)}
                     showTags={showTags} showSignificance={showSignificance}
@@ -968,6 +974,19 @@ function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showS
             </DraggableCard>
           );
         })}
+
+        {/* Pad out to a full shelf. A deck with fewer conclusions shows the
+            remaining slots as unused rather than leaving the column short. */}
+        {Array.from({ length: Math.max(0, CONCLUSION_SLOTS - conclusionShelf.length) }).map((_, i) => (
+          <div
+            key={`empty-slot-${i}`}
+            className="w-64 h-14 border border-dashed border-cream-50/20 flex items-center justify-center"
+          >
+            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-200/40">
+              not used
+            </span>
+          </div>
+        ))}
       </div>
     </aside>
   );
