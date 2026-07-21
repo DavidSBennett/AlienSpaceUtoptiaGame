@@ -191,6 +191,12 @@ $drawPhase = (($game['phase'] ?? 'action') === 'draw')
   ? mp_build_draw_phase($mysqli, $gameId, $playerId)
   : null;
 
+// 6b-iii. The archive market itself is on the board in EVERY phase, so players
+//         can see what's on offer while deciding whether to spend the year
+//         drawing. During the draw phase reuse the piles already built above
+//         rather than querying for them a second time.
+$archivePiles = $drawPhase ? $drawPhase['piles'] : mp_build_archive_piles($mysqli, $gameId);
+
 // 6c. Conference phase — the card-draft pool, pick order, and whose turn it is.
 $conference = (($game['phase'] ?? 'action') === 'conference')
   ? mp_build_conference($mysqli, $gameId, $playerId)
@@ -322,6 +328,7 @@ mp_json([
   'pending_submissions'          => $pendingSubmissions,
   'review_phase'                 => $reviewPhase,
   'draw_phase'                   => $drawPhase,
+  'archive_piles'                => $archivePiles,
   'conference'                   => $conference,
   'aftermath'                    => $aftermath,
   'resolved_submissions_for_you' => $resolvedForYou,
@@ -654,7 +661,19 @@ function mp_build_pending_submissions($mysqli, $gameId, $youId) {
  * are stripped, exactly as on a card's printed face. Context tags stay (they're
  * printed on the front).
  */
-function mp_build_draw_phase($mysqli, $gameId, $youId) {
+/**
+ * The four archive piles with their top card FACE-UP.
+ *
+ * Sent in EVERY phase, not just the draw phase. Seeing a card you want sitting
+ * on top of a pile is precisely the information that should make you choose
+ * "draw" as this year's action, so the market has to be readable while you are
+ * still deciding — not only once drawing has already begun.
+ *
+ * The top cards are public — that's the point of the market — but argument tags
+ * are stripped, exactly as on a card's printed face. Context tags stay (they're
+ * printed on the front).
+ */
+function mp_build_archive_piles($mysqli, $gameId) {
   $counts = mp_draw_pile_counts($mysqli, $gameId);
 
   $piles = [];
@@ -684,6 +703,12 @@ function mp_build_draw_phase($mysqli, $gameId, $youId) {
     }
     $piles[] = ['index' => $p, 'count' => (int) $counts[$p], 'top' => $face];
   }
+  return $piles;
+}
+
+
+function mp_build_draw_phase($mysqli, $gameId, $youId) {
+  $piles = mp_build_archive_piles($mysqli, $gameId);
 
   // Everyone still owed cards, in round-robin order.
   $players = [];

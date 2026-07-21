@@ -57,7 +57,7 @@ import ActionCommitBar from '../components/ActionCommitBar.jsx';
 import ActionHistoryModal from '../components/ActionHistoryModal.jsx';
 import TutorialManager from '../components/TutorialManager.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
-import DrawPhaseModal from '../components/DrawPhaseModal.jsx';
+import ArchiveMarket from '../components/ArchiveMarket.jsx';
 import ReviewPhaseModal from '../components/ReviewPhaseModal.jsx';
 import ConferencePhaseModal from '../components/ConferencePhaseModal.jsx';
 import AftermathPhaseModal from '../components/AftermathPhaseModal.jsx';
@@ -392,6 +392,22 @@ export default function MultiplayerGame() {
   const drawCount = rawDraw === 'capacity' ? capacity : rawDraw;
   const articleMin = MP_ARTICLE_MIN;
   const freePublishing = (you.stat_levels.workspaces || 1) >= 4;
+
+  // ── Archive market ────────────────────────────────────────────
+  // On the board in every phase so you can see what's on offer while deciding
+  // your action; only takeable on your turn during the draw phase.
+  const isDrawPhase = game.phase === 'draw';
+  const drawPhase = state.draw_phase;
+  const archivePiles = state.archive_piles || drawPhase?.piles || [];
+  const yourDrawsLeft = drawPhase?.your_draws_remaining || 0;
+  const canTakeArchive =
+    isDrawPhase && !!drawPhase?.you_are_up && yourDrawsLeft > 0 && !busy
+    && !you.game_over_reason && !you.is_ghost;
+  const archiveCaption = isDrawPhase
+    ? (drawPhase?.you_are_up
+        ? `Your pick · ${yourDrawsLeft} left`
+        : `${drawPhase?.current_player_name || '…'} is drawing`)
+    : `Draw takes ${drawCount} · + 1 year`;
   // Game length depends on the mode (short=10, medium=18, long=25).
   const totalYears = game.total_years || TOTAL_YEARS;
   const yearProgress = (game.current_year - 1) / totalYears;
@@ -710,11 +726,19 @@ export default function MultiplayerGame() {
   }
 
   // ── Draw phase ────────────────────────────────────────────────
-  // Take the face-up top card of a pile on your turn. Throws so the modal can
-  // show the error inline (e.g. someone else claimed the card first).
+  // Take the face-up top card of a pile on your turn. The market is part of the
+  // board rather than a dialog, so errors go to the board's own error bar —
+  // most often "someone else claimed that card first", which is a normal race
+  // when two players reach for the same top card.
   async function handleDrawTake(pile) {
-    await mpDrawTake({ player_token: playerToken, pile });
-    await refresh();
+    if (busy) return;
+    setError(null);
+    try {
+      await mpDrawTake({ player_token: playerToken, pile });
+      await refresh();
+    } catch (e) {
+      setError(e.message || 'Could not take that card.');
+    }
   }
 
   // Mark yourself ready for the current manuscript (the barrier).
@@ -1076,6 +1100,17 @@ export default function MultiplayerGame() {
           const visibleShelf = conclusionShelf.filter((c) => !inUse.has(c.idCard));
           return (
             <div className="flex-1 flex gap-4 p-4 min-h-0">
+              {/* The archive market sits to the LEFT of the conclusions and is
+                  present in every phase — seeing a card you want is what should
+                  push you to spend the year drawing. It only becomes takeable
+                  on your turn during the draw phase. */}
+              <ArchiveMarket
+                piles={archivePiles}
+                focused={isDrawPhase}
+                canTake={canTakeArchive}
+                caption={archiveCaption}
+                onTake={handleDrawTake}
+              />
               <ConclusionSidebar
                 shelf={visibleShelf}
                 onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
@@ -1126,7 +1161,10 @@ export default function MultiplayerGame() {
           activeOnly={!you.game_over_reason && !you.is_ghost}
         />
 
-        {/* ── 6. Notebook (deck stack on left, hand on right) ── */}
+        {/* ── 6. Notebook (deck stack on left, hand on right) ──
+            Lifted above the draw mask so your hand stays fully visible and
+            readable while you're choosing cards to add to it. */}
+        <div className={isDrawPhase ? 'relative z-50' : undefined}>
         <NotebookArea
           hand={orderedHand}
           capacity={capacity}
@@ -1139,6 +1177,14 @@ export default function MultiplayerGame() {
           onSelectDraw={selectDraw}
           actionsDisabled={busy || !!you.game_over_reason || !!you.is_ghost}
         />
+        </div>
+
+        {/* The draw mask. Everything not explicitly lifted above it (the archive
+            market and the notebook) dims, so the eye goes to the cards you're
+            choosing between without ever hiding the hand you're adding to. */}
+        {isDrawPhase && (
+          <div className="fixed inset-0 bg-ink-900/75 z-40" aria-hidden="true" />
+        )}
 
         {/* ── Stats strip — sits directly below the notebook ── */}
         <StatsStrip
@@ -1368,15 +1414,13 @@ export default function MultiplayerGame() {
           />
         )}
 
-        {/* Synchronous draw phase — the four-pile archive market. Players take
-            cards one at a time in round-robin seat order. */}
-        {game.phase === 'draw' && state.draw_phase && (
-          <DrawPhaseModal
-            drawPhase={state.draw_phase}
-            you={you}
-            busy={busy}
-            onTake={handleDrawTake}
-          />
+        {/* Synchronous draw phase. Deliberately NOT a modal: the archive market
+            lives on the board, and a floating dialog dimmed the hand — you
+            couldn't see what you already held while choosing what to add to it.
+            Instead everything EXCEPT the archive and the notebook is masked,
+            and those two are lifted above it (see drawFocus below). */}
+        {isDrawPhase && state.draw_phase && (
+          <DrawFocusPanel drawPhase={state.draw_phase} />
         )}
 
         {/* Synchronous review phase — overlays and blocks the board while the
@@ -1593,6 +1637,45 @@ function ConclusionRail({ shelf, onConclusionClick, showTags, showSignificance, 
     <section data-tutorial="conclusion-rail" className="surface-binding border-b border-edge-on-dark px-6 py-2">
       {inner}
     </section>
+  );
+}
+
+
+/**
+ * DrawFocusPanel — the draw phase's status readout.
+ *
+ * Deliberately a small floating panel rather than a dialog. The archive market
+ * and the notebook stay live and readable underneath; this only says whose turn
+ * it is and who the table is still waiting on. It sits above the draw mask but
+ * takes no pointer events, so it can never intercept a click meant for a card.
+ */
+function DrawFocusPanel({ drawPhase }) {
+  const yourTurn = !!drawPhase.you_are_up;
+  const left = drawPhase.your_draws_remaining || 0;
+  const waiting = (drawPhase.players || []).filter((p) => p.draws_remaining > 0);
+
+  return (
+    <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[60] pointer-events-none
+                    surface-paper border-2 border-gold-500 shadow-2xl px-6 py-3 text-center animate-fade-in">
+      <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700">
+        The Archive
+      </p>
+      <p className="font-display text-2xl font-bold text-ink-900 leading-none mt-1">
+        {yourTurn
+          ? `Your pick — ${left} card${left === 1 ? '' : 's'} left`
+          : `Waiting on ${drawPhase.current_player_name || '…'}`}
+      </p>
+      <p className="font-serif italic text-ink-700 text-sm mt-1">
+        {yourTurn
+          ? 'Take a card from any pile.'
+          : 'Players take one card at a time, in turn order.'}
+      </p>
+      {waiting.length > 0 && (
+        <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-ink-700/80 mt-2">
+          Still drawing: {waiting.map((p) => `${p.player_name} (${p.draws_remaining})`).join(' · ')}
+        </p>
+      )}
+    </div>
   );
 }
 

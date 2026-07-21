@@ -30,6 +30,7 @@ import SignificanceToggle from '../components/SignificanceToggle.jsx';
 import Bookshelf from '../components/Bookshelf.jsx';
 import Tooltip from '../components/Tooltip.jsx';
 import FleuronDivider from '../components/FleuronDivider.jsx';
+import ArchiveMarket from '../components/ArchiveMarket.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import UpgradeCountdown from '../components/UpgradeCountdown.jsx';
 import SkipLink from '../components/SkipLink.jsx';
@@ -598,17 +599,17 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
               normal game — the walkthrough keeps its single deck below. */}
           {state.archivePiles.length > 1 && (
             <ArchiveMarket
-              piles={state.archivePiles}
-              drawSession={state.drawSession}
+              piles={state.archivePiles.map((p) => ({ top: p[0] || null, count: p.length }))}
+              focused={!!state.drawSession}
+              draggable
               canTake={
                 !state.gameOver
                 && !tutLockDraw
                 && state.hand.length < derived.capacity
                 && (!state.drawSession || state.drawSession.remaining > 0)
               }
-              maxPicks={Math.min(derived.drawCount, derived.capacity - state.hand.length)}
+              caption={`Take up to ${Math.min(derived.drawCount, derived.capacity - state.hand.length)} · + 1 year`}
               onTake={takeArchiveCard}
-              onEndDraw={endDraw}
             />
           )}
           <ConclusionSidebar
@@ -830,88 +831,6 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
         />
       </div>
     </DndContext>
-  );
-}
-
-
-/**
- * ArchiveMarket — the four archive piles, top card face-up, sitting to the left
- * of the conclusions. Cards are rendered at the SAME size as every other card
- * on the board (CardThumbnail), so the market reads as real cards rather than
- * miniature decks. Clicking one takes it; the pile's next card flips up.
- */
-function ArchiveMarket({
-  piles = [],
-  drawSession,
-  canTake,
-  maxPicks = 0,
-  onTake,
-  onEndDraw,
-}) {
-  return (
-    <aside
-      data-tutorial="draw-zone"
-      className={`shrink-0 flex flex-col overflow-y-auto ${
-        drawSession ? 'relative z-50' : ''
-      }`}
-    >
-      <div className="text-center">
-        <span className="font-display text-sm uppercase tracking-[0.3em] text-gold-300">
-          ❧ Archive ❧
-        </span>
-        <FleuronDivider className="my-1" />
-      </div>
-
-      {/* 2x2 of full-size cards. */}
-      <div className="grid grid-cols-2 gap-1.5">
-        {piles.map((pile, i) => {
-          const top = pile[0] || null;
-          const clickable = canTake && !!top;
-          return (
-            <div key={i} className="relative">
-              {top ? (
-                <DraggableCard
-                  id={`archive-${i}-${top.id}`}
-                  data={{ cardId: top.id, from: { kind: 'archive', pileIndex: i } }}
-                  disabled={!clickable}
-                >
-                  {({ dragHandleProps, isDragging }) => (
-                    /* Click takes the card; dragging it out does the same (and
-                       drops straight into a project if you aim there). The drag
-                       sensor needs 6px of travel, so a plain click still fires.
-                       The thumbnail gets no onClick — the click bubbles to here
-                       — and pointer events stay on so hover tooltips work. */
-                    <div
-                      {...dragHandleProps}
-                      onClick={() => clickable && onTake(i)}
-                      className={clickable ? 'cursor-grab active:cursor-grabbing' : 'opacity-50 cursor-not-allowed'}
-                    >
-                      <CardThumbnail card={top} isDragging={isDragging} />
-                    </div>
-                  )}
-                </DraggableCard>
-              ) : (
-                <div className="w-32 h-[12.5rem] border border-dashed border-gold-500/30 flex items-center justify-center">
-                  <span className="font-serif italic text-cream-200/50 text-xs">empty</span>
-                </div>
-              )}
-              {top && (
-                <span className="absolute bottom-1 right-1 font-mono text-[8px] text-ink-700/70 bg-cream-50/80 px-1">
-                  {pile.length}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Fixed caption — the live pick counter lives in the draw overlay, so
-          this column's height never changes mid-draw (which used to push the
-          notebook down). */}
-      <p className="font-mono text-[9px] uppercase tracking-wider text-cream-200 mt-2 text-center leading-snug">
-        Take up to {maxPicks} · + 1 year
-      </p>
-    </aside>
   );
 }
 
