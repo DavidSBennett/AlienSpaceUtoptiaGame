@@ -27,6 +27,8 @@ export default function SoloConferenceModal({
 }) {
   const pool = conference?.pool || [];
   const keepLimit = conference?.keepLimit ?? 0;
+  const stagedCount = conference?.stagedCount ?? keepLimit;
+  const keepBonus = conference?.keepBonus ?? 0;
   const citationGrant = conference?.citationGrant ?? 0;
 
   // You can never take more than your notebook has room for.
@@ -59,9 +61,13 @@ export default function SoloConferenceModal({
           <h2 className="font-display text-3xl font-bold text-ink-900 leading-tight">The Conference Floor</h2>
 
           <p className="font-serif italic text-ink-700 mt-3">
-            You sent <strong className="not-italic">{keepLimit}</strong> card{keepLimit === 1 ? '' : 's'} to
-            the conference. Draft up to <strong className="not-italic">{maxKeep}</strong> from the pool below
-            to bring home, and bank{' '}
+            You brought <strong className="not-italic">{stagedCount}</strong> card{stagedCount === 1 ? '' : 's'};
+            the archive matched {stagedCount === 1 ? 'it' : 'them'}. Draft up to{' '}
+            <strong className="not-italic">{maxKeep}</strong> from the pool below to bring home
+            {keepBonus > 0 && (
+              <> — your {stagedCount} plus <strong className="not-italic">{keepBonus}</strong> from your memberships</>
+            )}
+            , and bank{' '}
             <strong className="not-italic">{citationGrant}</strong> citation token{citationGrant === 1 ? '' : 's'}.
             Click a card to read it in full.
           </p>

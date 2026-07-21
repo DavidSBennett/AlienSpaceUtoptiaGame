@@ -642,9 +642,23 @@ function mp_enter_conference_phase($mysqli, $gameId) {
   $isSolo = count($attendees) === 1;
   $order  = 0;
 
+  // Every attendee's staged cards go into the pool, and each may take back
+  // what they brought PLUS their membership bonus — so a conference always
+  // sends you home with more than you carried in.
+  //
+  // The fresh cards the archive adds are counted ONCE for the table, not once
+  // per attendee: the highest contribution plus the highest membership rank
+  // among those attending. Per-attendee fresh draws would balloon the pool at
+  // a full table (five players staging four cards each would have drafted from
+  // forty), which is the opposite of a focused conference floor.
+  $maxContrib = 0;
+  $maxBonus   = 0;
+  $firstPid   = null;
+
   foreach ($attendees as $a) {
     $pid      = (int) $a['player_id'];
     $repLevel = max(1, min(4, (int) $a['reputation_level']));
+    $bonus    = mp_conf_fresh_count($repLevel);
     $data     = $a['pending_action_data'] ? json_decode($a['pending_action_data'], true) : null;
     $slot     = (is_array($data) && isset($data['projectId'])) ? (int) $data['projectId'] : 0;
 
@@ -656,7 +670,11 @@ function mp_enter_conference_phase($mysqli, $gameId) {
     $cstmt->close();
     $contrib = ($prow && $prow['evidence_card_ids']) ? (json_decode($prow['evidence_card_ids'], true) ?: []) : [];
     $contrib = array_map('intval', $contrib);
-    $takeLimit = count($contrib);
+
+    $takeLimit = count($contrib) + $bonus;
+    if (count($contrib) > $maxContrib) $maxContrib = count($contrib);
+    if ($bonus > $maxBonus) $maxBonus = $bonus;
+    if ($firstPid === null) $firstPid = $pid;
 
     // Clear the staged slot — the cards now live in the pool.
     $u = $mysqli->prepare("UPDATE mp_projects SET conclusion_card_id = NULL, evidence_card_ids = NULL WHERE player_id = ? AND slot_index = ?");
@@ -669,25 +687,24 @@ function mp_enter_conference_phase($mysqli, $gameId) {
     $ai->execute(); $ai->close();
     $order++;
 
-    if ($isSolo) {
-      // Solo: contributed cards are discarded; pool is fresh cards of size
-      // (sent + reputation bonus). They take up to (sent).
-      foreach ($contrib as $cid) {
-        $d = $mysqli->prepare("INSERT IGNORE INTO mp_player_discards (player_id, idCard, discarded_year) VALUES (?, ?, ?)");
-        $d->bind_param('iii', $pid, $cid, $year);
-        $d->execute(); $d->close();
-      }
-      mp_conference_add_fresh($mysqli, $gameId, $pid, $takeLimit + mp_conf_fresh_count($repLevel));
-    } else {
-      // Group: contributed cards go into the pool (takeable by OTHERS).
-      foreach ($contrib as $cid) {
+    // Contributed cards go into the pool. At a table they're marked with their
+    // contributor so nobody drafts their own back; alone at the conference
+    // there IS nobody else, so they go in unattributed and can be reclaimed —
+    // which is what the solo game does too.
+    foreach ($contrib as $cid) {
+      if ($isSolo) {
+        $pi = $mysqli->prepare("INSERT INTO mp_conference_pool (game_id, idCard, contributor_player_id) VALUES (?, ?, NULL)");
+        $pi->bind_param('ii', $gameId, $cid);
+      } else {
         $pi = $mysqli->prepare("INSERT INTO mp_conference_pool (game_id, idCard, contributor_player_id) VALUES (?, ?, ?)");
         $pi->bind_param('iii', $gameId, $cid, $pid);
-        $pi->execute(); $pi->close();
       }
-      mp_conference_add_fresh($mysqli, $gameId, $pid, mp_conf_fresh_count($repLevel));
+      $pi->execute(); $pi->close();
     }
   }
+
+  // One fresh draw for the whole floor.
+  mp_conference_add_fresh($mysqli, $gameId, $firstPid, $maxContrib + $maxBonus);
 
   $u = $mysqli->prepare("UPDATE mp_games SET phase = 'conference', state_version = state_version + 1 WHERE game_id = ?");
   $u->bind_param('i', $gameId);

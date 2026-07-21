@@ -882,9 +882,13 @@ function reducer(state, action) {
       const staged = project.evidence;
       if (!staged || staged.length === 0) return state;  // need ≥1 staged card
 
+      // The staged cards now go INTO the pool rather than straight to the
+      // discard, and the archive matches them one for one. So a conference
+      // drafts from twice what you brought, and reputation buys keeps instead
+      // of pool size: you leave with more than you came with at every rank.
       const rep = state.statLevels.reputation || 1;
-      const keepLimit = staged.length;
-      const poolSize = keepLimit + conferenceFresh(rep);
+      const poolSize = staged.length;                        // fresh cards drawn
+      const keepLimit = staged.length + conferenceFresh(rep);
 
       // Empty the project's evidence (its conclusion, if any, stays put).
       const projects = state.projects.map((p, i) =>
@@ -922,9 +926,11 @@ function reducer(state, action) {
         pool.push(card);
       }
 
-      // Send the staged cards to the conference (discarded) AFTER drawing the
-      // pool, so they can never be reshuffled into the pool you draft from.
-      discard = [...discard, ...staged];
+      // The staged cards join the pool instead of being discarded — they're
+      // what you're offering the table, and you can take one back if nothing
+      // better turns up. Drawn AFTER the fresh cards so they can't be
+      // reshuffled into their own draw.
+      const fullPool = [...staged, ...pool];
 
       return {
         ...state,
@@ -934,8 +940,13 @@ function reducer(state, action) {
         rngState,
         conference: {
           projectId,
-          pool,
+          pool: fullPool,
           keepLimit,
+          // Carried separately now that keepLimit is staged + reputation bonus
+          // rather than just the staged count — the modal needs both to explain
+          // where the allowance came from.
+          stagedCount: staged.length,
+          keepBonus: conferenceFresh(rep),
           citationGrant: conferenceCitations(rep),
         },
       };
