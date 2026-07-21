@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Historians — Rulebook</title>
+<meta name="description" content="The full rulebook for The Historians, as a book you can page through.">
+
+<!--
+  The Historians — rulebook reader.
+
+  Renders rulebook.pdf as a two-page spread you turn in 3D. The PDF is the
+  single source of truth: the page you are reading and the file the Download
+  button hands you are the same document, so the reader can never be looking at
+  a stale transcription of the rules.
+
+  Pages are rasterised on demand by PDF.js and cached, with the next spread
+  prefetched, so a 73-page book doesn't render 73 canvases up front.
+
+  Progressive enhancement: if PDF.js can't load (blocked CDN, ancient browser),
+  the fallback below leaves a working download link rather than a blank page.
+-->
+
+<style>
+  :root {
+    --ink:      #2b2118;
+    --paper:    #f4ecdc;
+    --board:    #22301f;
+    --gold:     #c9a24b;
+    --gold-dim: #8d7333;
+    --oxblood:  #6b1e1e;
+    --shadow:   rgba(0,0,0,.55);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background:
+      radial-gradient(ellipse at 50% 0%, #2c3d29 0%, var(--board) 60%, #16200f 100%);
+    color: var(--paper);
+    font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: clamp(8px, 2vh, 24px);
+    overflow-x: hidden;
+  }
+
+  /* ── Masthead ───────────────────────────────────────────── */
+  header {
+    text-align: center;
+    margin-bottom: clamp(6px, 1.4vh, 14px);
+    flex: 0 0 auto;
+  }
+  h1 {
+    font-size: clamp(18px, 2.6vh, 30px);
+    font-weight: 600;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    text-indent: .28em;
+    color: var(--gold);
+  }
+  .sub {
+    font-size: clamp(11px, 1.5vh, 14px);
+    font-style: italic;
+    color: #cfc6b0;
+    margin-top: 2px;
+  }
+
+  /* ── The book ───────────────────────────────────────────── */
+  /* perspective on the stage, not the pages, so both leaves of the
+     spread share one vanishing point and the turn reads as one object. */
+  #stage {
+    flex: 1 1 auto;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    perspective: 2600px;
+    perspective-origin: 50% 45%;
+    min-height: 0;
+  }
+
+  #book {
+    position: relative;
+    display: flex;
+    transform-style: preserve-3d;
+    box-shadow: 0 24px 60px var(--shadow);
+    background: #1a1409;
+    /* Sized in JS from the PDF's own aspect ratio. */
+  }
+
+  .leaf {
+    position: relative;
+    background: var(--paper);
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .leaf canvas { display: block; width: 100%; height: 100%; }
+
+  /* The gutter shadow: ink pooling into the spine. */
+  .leaf.left::after,
+  .leaf.right::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 9%;
+    pointer-events: none;
+  }
+  .leaf.left::after  { right: 0; background: linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,.28) 100%); }
+  .leaf.right::after { left:  0; background: linear-gradient(to left,  rgba(0,0,0,0) 0%, rgba(0,0,0,.28) 100%); }
+
+  /* The turning leaf, stacked above the static spread. */
+  #flipper {
+    position: absolute;
+    top: 0;
+    transform-style: preserve-3d;
+    transform-origin: left center;
+    z-index: 5;
+    pointer-events: none;
+    display: none;
+  }
+  #flipper.turning { display: block; }
+  #flipper .face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    background: var(--paper);
+    overflow: hidden;
+  }
+  #flipper .face canvas { display: block; width: 100%; height: 100%; }
+  #flipper .back { transform: rotateY(180deg); }
+  /* Light rakes across the leaf as it lifts. */
+  #flipper .face::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(to left, rgba(0,0,0,.30), rgba(0,0,0,0) 45%);
+    opacity: 0;
+    transition: opacity .18s linear;
+  }
+  #flipper.turning .face::after { opacity: 1; }
+
+  /* ── Controls ───────────────────────────────────────────── */
+  .controls {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(8px, 1.4vw, 18px);
+    flex-wrap: wrap;
+    margin-top: clamp(8px, 1.6vh, 18px);
+  }
+
+  .btn {
+    font-family: inherit;
+    font-size: clamp(10px, 1.35vh, 13px);
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--paper);
+    background: transparent;
+    border: 1px solid var(--gold-dim);
+    padding: .6em 1.3em;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background .18s, color .18s, border-color .18s;
+    white-space: nowrap;
+  }
+  .btn:hover:not(:disabled)   { background: var(--oxblood); border-color: var(--oxblood); color: #fff; }
+  .btn:disabled               { opacity: .3; cursor: default; }
+  .btn.download               { border-color: var(--gold); color: var(--gold); }
+  .btn.download:hover         { background: var(--gold); border-color: var(--gold); color: #22301f; }
+
+  .counter {
+    font-size: clamp(11px, 1.5vh, 14px);
+    font-variant-numeric: tabular-nums;
+    color: #cfc6b0;
+    min-width: 8ch;
+    text-align: center;
+  }
+  .counter input {
+    width: 3.4ch;
+    font: inherit;
+    color: var(--gold);
+    background: transparent;
+    border: none;
+    border-bottom: 1px dotted var(--gold-dim);
+    text-align: center;
+  }
+  .counter input::-webkit-outer-spin-button,
+  .counter input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* A download control pinned to the book itself, so it's reachable from
+     whatever page you happen to be on without going back to the controls. */
+  #corner-download {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 20;
+    font-size: 10px;
+    letter-spacing: .14em;
+    padding: .5em 1em;
+    background: rgba(34,48,31,.86);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    text-decoration: none;
+    text-transform: uppercase;
+    font-weight: 700;
+    transition: background .18s, color .18s;
+  }
+  #corner-download:hover { background: var(--gold); color: #22301f; }
+
+  .hint {
+    flex: 0 0 auto;
+    font-size: clamp(9px, 1.2vh, 11px);
+    font-style: italic;
+    color: #9d9683;
+    margin-top: 6px;
+    text-align: center;
+  }
+
+  /* ── Loading / fallback ─────────────────────────────────── */
+  #status {
+    text-align: center;
+    font-style: italic;
+    color: #cfc6b0;
+    padding: 3rem 1rem;
+    line-height: 1.7;
+  }
+  #status .btn { margin-top: 1.2rem; display: inline-block; }
+
+  /* Single page on narrow screens: a two-page spread on a phone renders
+     each page too small to read. */
+  @media (max-width: 900px) {
+    .leaf.left { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #flipper { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>The Historians</h1>
+  <div class="sub">The Rulebook</div>
+</header>
+
+<div id="status">Opening the book&hellip;</div>
+
+<div id="stage" hidden>
+  <div id="book">
+    <a id="corner-download" href="rulebook.pdf" download="The-Historians-Rulebook.pdf">Download PDF</a>
+    <div class="leaf left"  id="leafL"></div>
+    <div class="leaf right" id="leafR"></div>
+    <div id="flipper">
+      <div class="face front" id="flipFront"></div>
+      <div class="face back"  id="flipBack"></div>
+    </div>
+  </div>
+</div>
+
+<div class="controls" id="controls" hidden>
+  <button class="btn" id="first" title="First page">&laquo; First</button>
+  <button class="btn" id="prev"  title="Previous page (&larr;)">&lsaquo; Back</button>
+  <span class="counter">
+    <input id="pageInput" type="number" min="1" value="1" aria-label="Page number">
+    <span id="pageRange"></span>
+    <span id="pageTotal">/ ?</span>
+  </span>
+  <button class="btn" id="next" title="Next page (&rarr;)">Forward &rsaquo;</button>
+  <button class="btn" id="last" title="Last page">Last &raquo;</button>
+  <a class="btn download" href="rulebook.pdf" download="The-Historians-Rulebook.pdf">Download the Rulebook</a>
+</div>
+
+<div class="hint" id="hint" hidden>Use the arrow keys, or click the edge of a page.</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var PDF_URL   = 'rulebook.pdf';
+  var FLIP_MS   = 620;
+  var SCALE_CAP = 2;      // cap devicePixelRatio: a 3x canvas on every page is
+                          // memory we never get back for detail nobody sees.
+  var RENDER_TIMEOUT_MS = 20000;
+
+  var statusEl = document.getElementById('status');
+
+  if (!window.pdfjsLib) {
+    statusEl.innerHTML =
+      'The page-turning reader could not load in this browser.' +
+      '<br><a class="btn download" href="rulebook.pdf" download="The-Historians-Rulebook.pdf">Download the Rulebook (PDF)</a>';
+    return;
+  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  var stage    = document.getElementById('stage');
+  var book     = document.getElementById('book');
+  var leafL    = document.getElementById('leafL');
+  var leafR    = document.getElementById('leafR');
+  var flipper  = document.getElementById('flipper');
+  var flipFront= document.getElementById('flipFront');
+  var flipBack = document.getElementById('flipBack');
+  var controls = document.getElementById('controls');
+  var hint     = document.getElementById('hint');
+  var elFirst  = document.getElementById('first');
+  var elPrev   = document.getElementById('prev');
+  var elNext   = document.getElementById('next');
+  var elLast   = document.getElementById('last');
+  var pageInput= document.getElementById('pageInput');
+  var pageRange= document.getElementById('pageRange');
+  var pageTotal= document.getElementById('pageTotal');
+
+  var pdf = null;
+  var total = 0;
+  var leftIndex = 0;      // page number shown on the LEFT leaf; 0 = cover alone
+  var pageW = 0, pageH = 0;
+  var busy = false;
+  var cache = {};         // pageNumber -> { canvas, width } (width it was cut for)
+  var inflight = {};      // pageNumber -> Promise of the render in progress
+
+  // ── Rendering ────────────────────────────────────────────
+  // One canvas per page, cached. Returns null for out-of-range pages so
+  // callers can render a blank leaf without branching everywhere.
+  // PDF.js will not run two render() calls against the same page proxy at
+  // once — start a second while the first is live and BOTH hang, which strands
+  // every promise waiting on them (and, because turn() sets busy before it
+  // waits, wedges the whole reader). So renders for a page are chained: a new
+  // request waits for the in-flight one to settle before starting its own.
+  //
+  // Cached canvases record the width they were cut for, so a resize
+  // invalidates them by comparison rather than by clearing state out from
+  // under renders that are still running.
+  function renderPage(n) {
+    if (n < 1 || n > total) return Promise.resolve(null);
+
+    var hit = cache[n];
+    if (hit && hit.width === pageW) return Promise.resolve(hit.canvas);
+
+    var prior = inflight[n] || Promise.resolve();
+    var p = prior.catch(function () {}).then(function () {
+      // Someone else may have rendered it at this width while we queued.
+      var again = cache[n];
+      if (again && again.width === pageW) return again.canvas;
+
+      var forWidth = pageW;
+      return pdf.getPage(n).then(function (page) {
+        var dpr = Math.min(window.devicePixelRatio || 1, SCALE_CAP);
+        var base = page.getViewport({ scale: 1 });
+        var viewport = page.getViewport({ scale: (forWidth * dpr) / base.width });
+
+        var canvas = document.createElement('canvas');
+        canvas.width  = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        var ctx = canvas.getContext('2d', { alpha: false });
+
+        var task = page.render({ canvasContext: ctx, viewport: viewport });
+
+        // A render that never settles would strand every promise waiting on
+        // it — and because turn() marks itself busy before it waits, that
+        // wedges the reader for good with no way back. Give up rather than
+        // hang, and leave nothing cached so the next attempt retries.
+        var timer;
+        var guard = new Promise(function (_, reject) {
+          timer = setTimeout(function () {
+            try { task.cancel(); } catch (e) {}
+            reject(new Error('render timed out on page ' + n));
+          }, RENDER_TIMEOUT_MS);
+        });
+
+        return Promise.race([task.promise, guard]).then(function () {
+          clearTimeout(timer);
+          cache[n] = { canvas: canvas, width: forWidth };
+          return canvas;
+        }, function (err) {
+          clearTimeout(timer);
+          if (inflight[n] === p) delete inflight[n];
+          throw err;
+        });
+      });
+    });
+
+    inflight[n] = p;
+    return p;
+  }
+
+  // Rendering a page is async, so two draws racing (a fast turn, a resize
+  // landing mid-turn) can resolve out of order and leave an older spread
+  // painted over a newer one — mismatched leaves and a page counter that
+  // disagrees with what's on screen. Every draw takes a generation token and
+  // anything stale drops its result instead of writing it.
+  var generation = 0;
+
+  function place(host, n, gen) {
+    return renderPage(n).then(function (canvas) {
+      if (gen !== generation) return;
+      host.innerHTML = '';
+      if (canvas) host.appendChild(cloneCanvas(canvas));
+      host.style.background = canvas ? 'var(--paper)' : '#1a1409';
+    });
+  }
+
+  // A canvas can only live in one place in the DOM, and the same page can be
+  // on a leaf and on the flipper at once mid-turn, so hand out copies.
+  function cloneCanvas(src) {
+    var c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    c.getContext('2d').drawImage(src, 0, 0);
+    return c;
+  }
+
+  // ── Layout ───────────────────────────────────────────────
+  function sizeBook() {
+    if (!pdf) return;
+    var narrow = window.matchMedia('(max-width: 900px)').matches;
+    var stageRect = stage.getBoundingClientRect();
+    var availW = stageRect.width  - 20;
+    var availH = stageRect.height - 20;
+    if (availH <= 0) availH = window.innerHeight * 0.7;
+
+    var spreadW = narrow ? aspect : aspect * 2;      // width:height of what's shown
+    var byH = availH * spreadW;
+    var w = Math.min(availW, byH);
+    var h = w / spreadW;
+
+    pageW = Math.floor(narrow ? w : w / 2);
+    pageH = Math.floor(h);
+
+    leafL.style.width  = pageW + 'px';
+    leafL.style.height = pageH + 'px';
+    leafR.style.width  = pageW + 'px';
+    leafR.style.height = pageH + 'px';
+
+    flipper.style.width  = pageW + 'px';
+    flipper.style.height = pageH + 'px';
+    flipper.style.left   = (narrow ? 0 : pageW) + 'px';
+
+    // Cached canvases are keyed by the width they were cut for, so they
+    // invalidate themselves. Deliberately NOT cleared here: wiping state while
+    // renders are in flight is what allowed two renders onto one page proxy.
+  }
+
+  var aspect = 0.72;   // page width / height, replaced from the real PDF
+
+  // ── Spread state ─────────────────────────────────────────
+  function draw() {
+    var gen = ++generation;
+    var narrow = window.matchMedia('(max-width: 900px)').matches;
+    var right = leftIndex + 1;
+    // Single-page mode reads leftIndex as a 0-based index of the page on show
+    // (0 -> page 1). Treating 0 and 1 as the same page, as this once did, ate
+    // the first forward tap on every phone.
+    var jobs = [place(leafR, narrow ? leftIndex + 1 : right, gen)];
+    if (!narrow) jobs.push(place(leafL, leftIndex, gen));
+    return Promise.all(jobs).then(function () {
+      if (gen !== generation) return;
+      // Prefetch the next spread so the turn doesn't stall on a blank leaf.
+      renderPage(right + 1);
+      renderPage(right + 2);
+      syncControls();
+    });
+  }
+
+  // The counter reports the spread you're on, not one arbitrary leaf of it:
+  // type 6 on a two-page spread and you should see 6 come back, not 7.
+  function syncControls() {
+    var narrow = window.matchMedia('(max-width: 900px)').matches;
+    if (narrow) {
+      pageInput.value = leftIndex + 1;
+      pageRange.textContent = '';
+    } else {
+      var left  = leftIndex === 0 ? 1 : leftIndex;
+      var right = leftIndex === 0 ? 0 : Math.min(leftIndex + 1, total);
+      pageInput.value = left;
+      pageRange.textContent = right > left ? '–' + right : '';
+    }
+    elPrev.disabled = elFirst.disabled = (leftIndex <= 0);
+    elNext.disabled = elLast.disabled  = (leftIndex + 1 >= total);
+  }
+
+  // ── Turning ──────────────────────────────────────────────
+  // Forward: the current right-hand page lifts and rotates to the left,
+  // revealing the next spread underneath it.
+  function turn(dir) {
+    if (busy) return;
+    var narrow = window.matchMedia('(max-width: 900px)').matches;
+    var step = narrow ? 1 : 2;
+    var target = leftIndex + dir * step;
+    if (dir > 0 && leftIndex + 1 >= total) return;
+    if (dir < 0 && leftIndex <= 0) return;
+    if (target < 0) target = 0;
+
+    busy = true;
+
+    var frontPage, backPage;
+    if (dir > 0) {
+      frontPage = leftIndex + 1;                        // the page turning away
+      backPage  = narrow ? target + 1 : target;         // what's on its reverse
+    } else {
+      frontPage = target + 1;
+      backPage  = leftIndex + (narrow ? 1 : 0);
+    }
+
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    Promise.all([renderPage(frontPage), renderPage(backPage)]).then(function (pair) {
+      flipFront.innerHTML = '';
+      flipBack.innerHTML  = '';
+      if (pair[0]) flipFront.appendChild(cloneCanvas(pair[0]));
+      if (pair[1]) flipBack.appendChild(cloneCanvas(pair[1]));
+
+      // Put the destination spread underneath before the leaf moves, so what
+      // is revealed behind the turning page is already the right content.
+      leftIndex = target;
+      var under = draw();
+
+      if (reduce) {
+        return under.then(function () { busy = false; });
+      }
+
+      flipper.style.transition = 'none';
+      flipper.style.transform  = dir > 0 ? 'rotateY(0deg)' : 'rotateY(-180deg)';
+      flipper.classList.add('turning');
+
+      // Force a reflow so the starting transform is committed before we
+      // animate away from it; without this the browser coalesces both
+      // writes and the leaf jumps straight to its end state.
+      void flipper.offsetWidth;
+
+      flipper.style.transition = 'transform ' + FLIP_MS + 'ms cubic-bezier(.32,.06,.28,1)';
+      flipper.style.transform  = dir > 0 ? 'rotateY(-180deg)' : 'rotateY(0deg)';
+
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          flipper.classList.remove('turning');
+          flipper.style.transition = 'none';
+          flipper.style.transform  = 'rotateY(0deg)';
+          busy = false;
+          resolve();
+        }, FLIP_MS + 30);
+      });
+    }).catch(function (err) {
+      // Never swallow this silently: a failed turn leaves the reader stuck on
+      // a page with no indication why.
+      busy = false;
+      if (window.console) console.error('page turn failed:', err);
+    });
+  }
+
+  // Jump straight to a page (no turn animation). On a spread, snap to the
+  // spread CONTAINING that page: left leaf holds even page numbers, so page 7
+  // lives on the spread whose left leaf is 6.
+  function goTo(n) {
+    if (busy) return;
+    n = Math.max(1, Math.min(total, n | 0));
+    if (window.matchMedia('(max-width: 900px)').matches) {
+      leftIndex = n - 1;
+    } else {
+      leftIndex = (n % 2 === 0) ? n : n - 1;
+    }
+    if (leftIndex < 0) leftIndex = 0;
+    draw();
+  }
+
+  // ── Wiring ───────────────────────────────────────────────
+  elNext.addEventListener('click', function () { turn(1); });
+  elPrev.addEventListener('click', function () { turn(-1); });
+  elFirst.addEventListener('click', function () { goTo(1); });
+  elLast.addEventListener('click', function () { goTo(total); });
+  pageInput.addEventListener('change', function () { goTo(parseInt(pageInput.value, 10) || 1); });
+
+  leafR.addEventListener('click', function () { turn(1); });
+  leafL.addEventListener('click', function () { turn(-1); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.target === pageInput) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); turn(1); }
+    if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   { e.preventDefault(); turn(-1); }
+    if (e.key === 'Home') { e.preventDefault(); goTo(1); }
+    if (e.key === 'End')  { e.preventDefault(); goTo(total); }
+  });
+
+  var resizeTimer;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () { sizeBook(); draw(); }, 160);
+  });
+
+  // ── Boot ─────────────────────────────────────────────────
+  pdfjsLib.getDocument(PDF_URL).promise.then(function (doc) {
+    pdf = doc;
+    total = doc.numPages;
+    pageTotal.textContent = '/ ' + total;
+    pageInput.max = total;
+
+    return doc.getPage(1).then(function (p) {
+      var v = p.getViewport({ scale: 1 });
+      aspect = v.width / v.height;
+
+      statusEl.hidden = true;
+      stage.hidden = false;
+      controls.hidden = false;
+      hint.hidden = false;
+
+      sizeBook();
+      return draw();
+    });
+  }).catch(function (err) {
+    statusEl.innerHTML =
+      'The rulebook could not be opened in this browser.' +
+      '<br><a class="btn download" href="rulebook.pdf" download="The-Historians-Rulebook.pdf">Download the Rulebook (PDF)</a>';
+    if (window.console) console.error(err);
+  });
+})();
+</script>
+</body>
+</html>
