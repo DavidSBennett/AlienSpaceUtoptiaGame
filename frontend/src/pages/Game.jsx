@@ -794,6 +794,47 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
 
 
 /**
+ * MiniDeckFace — the compact stack visual for a quarter-size archive pile.
+ * Unlike DeckStack (which hard-codes a full card's dimensions) this fills
+ * whatever cell it's given, so four of them tile into one card's footprint.
+ */
+function MiniDeckFace({ count }) {
+  const layers = count === 0 ? 0 : count < 5 ? 1 : count < 15 ? 2 : 3;
+
+  if (layers === 0) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center text-cream-200 italic font-serif text-[10px]">
+        empty
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute inset-0">
+      {layers >= 3 && (
+        <div
+          className="absolute inset-0 border border-gold-500/30 surface-paper"
+          style={{ transform: 'translate(4px, 3px)' }}
+        />
+      )}
+      {layers >= 2 && (
+        <div
+          className="absolute inset-0 border border-gold-500/40 surface-paper"
+          style={{ transform: 'translate(2px, 1.5px)' }}
+        />
+      )}
+      <div className="absolute inset-0 border border-gold-500/60 surface-paper flex flex-col items-center justify-center">
+        <p className="font-display text-xl text-ink-900 leading-none">{count}</p>
+        <p className="font-mono text-[8px] uppercase tracking-widest text-ink-700 mt-0.5">
+          {count === 1 ? 'card' : 'cards'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+/**
  * ArchivePile — one of the archive stacks the player can draw from.
  *
  * Clicking draws from THIS pile (and advances the year, same as before).
@@ -814,18 +855,20 @@ function ArchivePile({ index, cards = [], wouldDraw, canDraw, onDraw }) {
         disabled={!clickable}
         title={count === 0 ? 'This pile is empty' : `Draw ${wouldDraw} from this pile · + 1 year`}
         className={`
-          relative h-[12.5rem] w-[4.6rem]
+          relative w-full h-full
           transition-transform duration-200 ease-desk
-          ${clickable ? 'hover:-translate-y-1 cursor-pointer' : 'cursor-not-allowed opacity-40'}
+          ${clickable ? 'hover:-translate-y-0.5 cursor-pointer' : 'cursor-not-allowed opacity-40'}
         `}
       >
-        <DeckStack count={count} />
+        <MiniDeckFace count={count} />
       </button>
 
-      {/* Hover peek — the top card's face, no tags. */}
+      {/* Hover peek — the top card's face, no tags. Anchored to the pile's LEFT
+          edge and opening rightward: the archive sits at the far left of the
+          screen, so a centred tooltip ran off the window. */}
       {top && (
         <div
-          className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50
+          className="hidden group-hover:block absolute bottom-full left-0 mb-3 z-50
                      w-72 surface-paper border-2 border-gold-500 shadow-2xl p-3 text-left pointer-events-none"
         >
           <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-gold-700 mb-1">
@@ -994,8 +1037,9 @@ function NotebookArea({
             walkthrough keeps a single pile and renders the original deck
             below, so its scripted flow is unchanged. */}
         {archivePiles.length > 1 ? (
-          <div className="flex-shrink-0 flex flex-col items-center" data-tutorial="draw-zone">
-            <div className="flex gap-2">
+          <div className="flex-shrink-0 w-36 flex flex-col items-center" data-tutorial="draw-zone">
+            {/* 2x2 — the four piles together occupy one card's footprint. */}
+            <div className="grid grid-cols-2 grid-rows-2 gap-1.5 w-32 h-[12.5rem]">
               {archivePiles.map((pile, i) => (
                 <ArchivePile
                   key={i}
