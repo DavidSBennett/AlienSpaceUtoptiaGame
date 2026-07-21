@@ -935,36 +935,40 @@ function mp_build_conference($mysqli, $gameId, $youId) {
   }
   $stmt->close();
 
-  // Pool you may draft from: untaken, and not one you contributed — unless you
-  // are the only attendee, in which case your own cards ARE draftable (there's
-  // nobody to trade with) and hiding them would leave a lone attendee staring
-  // at a floor missing everything they brought.
-  $soloAttendee = mp_conference_attendee_count($mysqli, $gameId) <= 1;
-  $sql = $soloAttendee
-    ? "SELECT pool_id, idCard FROM mp_conference_pool
-       WHERE game_id = ? AND taken_by_player_id IS NULL AND ? = ?
-       ORDER BY pool_id ASC"
-    : "SELECT pool_id, idCard FROM mp_conference_pool
-       WHERE game_id = ? AND taken_by_player_id IS NULL
-         AND (contributor_player_id IS NULL OR contributor_player_id <> ?)
-       ORDER BY pool_id ASC";
-  $stmt = $mysqli->prepare($sql);
-  if ($soloAttendee) {
-    // Bind the same value twice so the placeholder count matches without
-    // building a second, near-identical prepare/bind path.
-    $one = 1;
-    $stmt->bind_param('iii', $gameId, $one, $one);
-  } else {
-    $stmt->bind_param('ii', $gameId, $youId);
-  }
+  // THE WHOLE FLOOR, to everyone. Cards you may not draft are sent anyway,
+  // flagged, rather than filtered out.
+  //
+  // This used to hide the cards you contributed, which meant no attendee ever
+  // saw the floor as it actually stood — each looked at a different, partial
+  // pool. That makes the stocking step unreadable, since the entire point of
+  // watching cards accumulate is judging what the floor still needs.
+  //
+  // can_take is the draft rule: your own contributions are off-limits (that's
+  // what makes it a trade) unless you're the only attendee, in which case
+  // there's nobody to trade with. Cards the archive supplied carry no
+  // contributor and are open to all.
+  $attendeeCount = mp_conference_attendee_count($mysqli, $gameId);
+  $stmt = $mysqli->prepare("
+    SELECT pool_id, idCard, contributor_player_id
+    FROM mp_conference_pool
+    WHERE game_id = ? AND taken_by_player_id IS NULL
+    ORDER BY pool_id ASC
+  ");
+  $stmt->bind_param('i', $gameId);
   $stmt->execute();
   $res = $stmt->get_result();
   $pool = [];
   while ($r = $res->fetch_assoc()) {
     $card = mp_fetch_card($mysqli, (int) $r['idCard']);
     if (!$card) continue;
+    $contributor = $r['contributor_player_id'] !== null ? (int) $r['contributor_player_id'] : null;
+    $isYours = ($contributor !== null && $contributor === (int) $youId);
+
     $entry = mp_card_for_you($card);
-    $entry['pool_id'] = (int) $r['pool_id'];
+    $entry['pool_id']     = (int) $r['pool_id'];
+    $entry['from_archive'] = ($contributor === null);
+    $entry['yours']       = $isYours;
+    $entry['can_take']    = !$isYours || $attendeeCount <= 1;
     $pool[] = $entry;
   }
   $stmt->close();
