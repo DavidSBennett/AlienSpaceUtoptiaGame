@@ -1,7 +1,55 @@
 import { useEffect } from 'react';
 import CornerOrnament from './CornerOrnament.jsx';
 import FleuronDivider from './FleuronDivider.jsx';
+import Tooltip from './Tooltip.jsx';
 import { getCardTagsByField } from '../lib/tags.js';
+
+/** Context tags are pipe-separated (unlike argument tags, which use commas). */
+export function getContextTags(card) {
+  return String(card?.context_tags ?? '')
+    .split('|')
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+/**
+ * The card's FACE, as tooltip content — what's printed on the card itself:
+ * title, provenance, the source passage, and its significance. Argument tags
+ * are deliberately excluded; they're hidden scaffolding, and the face doesn't
+ * show them either. Context tags are fine (they're printed on the front).
+ */
+export function cardFaceTooltip(card) {
+  if (!card) return null;
+  const provenance = [card.author, card.date, card.location, card.source_type]
+    .filter(Boolean)
+    .join(' · ');
+  const context = getContextTags(card);
+  return (
+    <span className="block text-left">
+      <strong className="block font-display text-sm text-gold-300 leading-tight">
+        {card.title || 'Untitled'}
+      </strong>
+      {provenance && (
+        <span className="block font-mono text-[9px] uppercase tracking-wider text-cream-200/70 mt-1">
+          {provenance}
+        </span>
+      )}
+      {card.content && (
+        <span className="block font-serif text-xs leading-snug mt-2">{card.content}</span>
+      )}
+      {card.significance && (
+        <span className="block font-serif italic text-xs leading-snug mt-2 text-cream-200/85">
+          {card.significance}
+        </span>
+      )}
+      {context.length > 0 && (
+        <span className="block font-mono text-[9px] uppercase tracking-wider text-verdigris-300 mt-2">
+          {context.join(' · ')}
+        </span>
+      )}
+    </span>
+  );
+}
 
 /**
  * TagChips — renders a card's argument and sub_argument tags as small chips.
@@ -82,7 +130,7 @@ export function CardThumbnail({ card, onClick, isDragging = false, showTags = fa
         tagsHeight: '16rem',
         sigHeight: '19rem',
         bothHeight: '20rem',
-        titleClass: 'font-display text-base leading-tight font-bold text-ink-900 line-clamp-4',
+        titleClass: 'font-display text-base leading-tight font-bold text-ink-900 line-clamp-3',
         datePadX: 'px-3',
         datePadY: 'py-2',
         dateClass: 'font-mono text-[10px] text-ink-700 mt-1 truncate',
@@ -94,7 +142,7 @@ export function CardThumbnail({ card, onClick, isDragging = false, showTags = fa
         tagsHeight: '13.5rem',
         sigHeight: '16.5rem',
         bothHeight: '17.5rem',
-        titleClass: 'font-display text-sm leading-tight font-bold text-ink-900 line-clamp-4',
+        titleClass: 'font-display text-sm leading-tight font-bold text-ink-900 line-clamp-3',
         datePadX: 'px-2',
         datePadY: 'py-1.5',
         dateClass: 'font-mono text-[9px] text-ink-700 mt-1 truncate',
@@ -103,7 +151,13 @@ export function CardThumbnail({ card, onClick, isDragging = false, showTags = fa
   // Significance is intentionally NOT shown on the card face / hand — only in
   // the card modal when unlocked. The thumbnail height depends only on tags.
 
+  const contextTags = getContextTags(card);
+
+  // Hovering ANY card — hand, project slot, archive market, conference draft —
+  // shows its face. Tooltip portals to <body> and clamps to the viewport, so it
+  // never gets clipped by a scrolling container or run off a screen edge.
   return (
+    <Tooltip content={cardFaceTooltip(card)} side="right" width="w-72" delay={250}>
     <button
       type="button"
       onClick={onClick}
@@ -137,14 +191,30 @@ export function CardThumbnail({ card, onClick, isDragging = false, showTags = fa
         )}
       </div>
 
-      {/* Title + date */}
-      <div className={`flex-1 ${v.datePadX} ${v.datePadY} flex flex-col justify-between`}>
+      {/* Title + context tags + date. Context tags are printed on the front of
+          the card (unlike argument tags, which stay hidden behind the toggle). */}
+      <div className={`flex-1 ${v.datePadX} ${v.datePadY} flex flex-col justify-between min-h-0`}>
         <h3 className={v.titleClass}>
           {card.title}
         </h3>
-        <p className={v.dateClass}>
-          {card.date || '—'}
-        </p>
+        <div className="mt-1">
+          {contextTags.length > 0 && (
+            <div className="flex flex-wrap gap-0.5 mb-1">
+              {contextTags.slice(0, 3).map((t) => (
+                <span
+                  key={t}
+                  className="font-mono text-[7px] uppercase tracking-wider px-1 py-px
+                             border border-verdigris-500/60 text-verdigris-600 bg-cream-50/60"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className={v.dateClass}>
+            {card.date || '—'}
+          </p>
+        </div>
       </div>
 
       {/* Tag footer band — only when tags toggled on */}
@@ -162,6 +232,7 @@ export function CardThumbnail({ card, onClick, isDragging = false, showTags = fa
         № {card.sequence_number ?? '—'}
       </span>
     </button>
+    </Tooltip>
   );
 }
 

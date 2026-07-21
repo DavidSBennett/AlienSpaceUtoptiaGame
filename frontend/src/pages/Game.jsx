@@ -581,6 +581,23 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
             4. PLAY AREA — conclusions (skinny left rail) + project rows
             ═══════════════════════════════════════════════════ */}
         <div className="flex-1 flex gap-4 p-4 min-h-0">
+          {/* The archive market sits to the LEFT of the conclusions. Only in a
+              normal game — the walkthrough keeps its single deck below. */}
+          {state.archivePiles.length > 1 && (
+            <ArchiveMarket
+              piles={state.archivePiles}
+              drawSession={state.drawSession}
+              canTake={
+                !state.gameOver
+                && !tutLockDraw
+                && state.hand.length < derived.capacity
+                && (!state.drawSession || state.drawSession.remaining > 0)
+              }
+              maxPicks={Math.min(derived.drawCount, derived.capacity - state.hand.length)}
+              onTake={takeArchiveCard}
+              onEndDraw={endDraw}
+            />
+          )}
           <ConclusionSidebar
             conclusionShelf={state.conclusionShelf}
             onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
@@ -621,9 +638,6 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
           showTags={state.showTags} showSignificance={state.showSignificance}
           onCardClick={(card) => setOpenCard({ card, source: 'hand' })}
           archivePiles={state.archivePiles}
-          drawSession={state.drawSession}
-          onTakeCard={takeArchiveCard}
-          onEndDraw={endDraw}
           deckRemaining={derived.deckRemaining}
           discardRemaining={state.discard.length}
           drawCount={derived.drawCount}
@@ -799,114 +813,84 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
 
 
 /**
- * FaceUpPile — a quarter-size archive pile with its TOP CARD face-up. Unlike
- * DeckStack (which hard-codes a full card's dimensions) this fills whatever
- * cell it's given, so four tile into one card's footprint. The stacked edges
- * behind it hint at how deep the pile still is.
+ * ArchiveMarket — the four archive piles, top card face-up, sitting to the left
+ * of the conclusions. Cards are rendered at the SAME size as every other card
+ * on the board (CardThumbnail), so the market reads as real cards rather than
+ * miniature decks. Clicking one takes it; the pile's next card flips up.
  */
-function FaceUpPile({ card, count }) {
-  const layers = count <= 1 ? 0 : count < 5 ? 1 : count < 15 ? 2 : 3;
-
-  if (!card) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center text-cream-200 italic font-serif text-[10px]">
-        empty
-      </div>
-    );
-  }
-
+function ArchiveMarket({
+  piles = [],
+  drawSession,
+  canTake,
+  maxPicks = 0,
+  onTake,
+  onEndDraw,
+}) {
   return (
-    <div className="absolute inset-0">
-      {/* Depth: the un-drawn cards sitting under the face-up one. */}
-      {layers >= 3 && (
-        <div className="absolute inset-0 border border-gold-500/30 surface-paper"
-             style={{ transform: 'translate(4px, 3px)' }} />
-      )}
-      {layers >= 2 && (
-        <div className="absolute inset-0 border border-gold-500/40 surface-paper"
-             style={{ transform: 'translate(2px, 1.5px)' }} />
-      )}
-
-      {/* The face-up top card. */}
-      <div className="absolute inset-0 border border-gold-500/70 surface-paper p-1 flex flex-col overflow-hidden">
-        <p className="font-display font-bold text-[10px] text-ink-900 leading-tight line-clamp-4">
-          {card.title}
-        </p>
-        {card.date && (
-          <p className="font-mono text-[7px] uppercase tracking-wider text-ink-700 mt-auto">
-            {card.date}
-          </p>
-        )}
-        <span className="absolute bottom-0.5 right-0.5 font-mono text-[7px] text-ink-700/70">
-          {count}
+    <aside data-tutorial="draw-zone" className="shrink-0 flex flex-col overflow-y-auto">
+      <div className="text-center">
+        <span className="font-display text-sm uppercase tracking-[0.3em] text-gold-300">
+          ❧ Archive ❧
         </span>
+        <FleuronDivider className="my-1" />
       </div>
-    </div>
-  );
-}
 
+      {/* 2x2 of full-size cards. */}
+      <div className="grid grid-cols-2 gap-1.5">
+        {piles.map((pile, i) => {
+          const top = pile[0] || null;
+          const clickable = canTake && !!top;
+          return (
+            <div key={i} className="relative">
+              {top ? (
+                <div
+                  onClick={() => clickable && onTake(i)}
+                  className={clickable ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}
+                  title={clickable ? `Take “${top.title}” into your notebook` : undefined}
+                >
+                  {/* Pointer events off so the click lands on the wrapper, not
+                      the thumbnail's own button (which opens the card modal). */}
+                  <div className="pointer-events-none">
+                    <CardThumbnail card={top} />
+                  </div>
+                </div>
+              ) : (
+                <div className="w-32 h-[12.5rem] border border-dashed border-gold-500/30 flex items-center justify-center">
+                  <span className="font-serif italic text-cream-200/50 text-xs">empty</span>
+                </div>
+              )}
+              {top && (
+                <span className="absolute bottom-1 right-1 font-mono text-[8px] text-ink-700/70 bg-cream-50/80 px-1">
+                  {pile.length}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
-/**
- * ArchivePile — one of the archive stacks the player can draw from.
- *
- * Clicking draws from THIS pile (and advances the year, same as before).
- * Hovering peeks at the pile's top card: the face of the card only — title,
- * provenance, passage, significance. Tags are deliberately excluded; they stay
- * hidden scaffolding, exactly as on the card face itself.
- */
-function ArchivePile({ index, cards = [], canTake, onTake }) {
-  const count = cards.length;
-  const top = cards[0] || null;
-  const clickable = canTake && count > 0;
-
-  return (
-    <div className="relative group">
-      <button
-        type="button"
-        onClick={() => onTake(index)}
-        disabled={!clickable}
-        title={count === 0 ? 'This pile is empty' : `Take "${top?.title}" into your notebook`}
-        className={`
-          relative w-full h-full
-          transition-transform duration-200 ease-desk
-          ${clickable ? 'hover:-translate-y-0.5 cursor-pointer' : 'cursor-not-allowed opacity-40'}
-        `}
-      >
-        <FaceUpPile card={top} count={count} />
-      </button>
-
-      {/* Hover peek — the top card's face, no tags. Anchored to the pile's LEFT
-          edge and opening rightward: the archive sits at the far left of the
-          screen, so a centred tooltip ran off the window. */}
-      {top && (
-        <div
-          className="hidden group-hover:block absolute bottom-full left-0 mb-3 z-50
-                     w-72 surface-paper border-2 border-gold-500 shadow-2xl p-3 text-left pointer-events-none"
-        >
-          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-gold-700 mb-1">
-            Top of pile {index + 1}
+      {drawSession ? (
+        <div className="mt-2 flex flex-col items-center gap-1">
+          <p className="font-mono text-[9px] uppercase tracking-wider text-gold-300 text-center">
+            {drawSession.remaining} pick{drawSession.remaining === 1 ? '' : 's'} left
           </p>
-          <h4 className="font-display font-bold text-ink-900 text-sm leading-tight">
-            {top.title || 'Untitled'}
-          </h4>
-          {(top.author || top.date || top.location || top.source_type) && (
-            <p className="font-mono text-[9px] uppercase tracking-wider text-ink-700 mt-1">
-              {[top.author, top.date, top.location, top.source_type].filter(Boolean).join(' · ')}
-            </p>
-          )}
-          {top.content && (
-            <p className="font-serif text-xs text-ink-900 leading-snug mt-2">{top.content}</p>
-          )}
-          {top.significance && (
-            <p className="font-serif italic text-xs text-ink-700 leading-snug mt-2">
-              {top.significance}
-            </p>
-          )}
+          <button
+            type="button"
+            onClick={onEndDraw}
+            className="font-mono text-[9px] uppercase tracking-wider px-2 py-1 border border-gold-500 text-cream-100 hover:bg-gold-500 hover:text-teal-950 transition-colors"
+          >
+            Done · +1 year
+          </button>
         </div>
+      ) : (
+        <p className="font-mono text-[9px] uppercase tracking-wider text-cream-200 mt-2 text-center leading-snug">
+          Take up to {maxPicks} · + 1 year
+        </p>
       )}
-    </div>
+    </aside>
   );
 }
+
 
 
 /**
@@ -1010,9 +994,6 @@ function NotebookArea({
   onCardClick,
   // Phase 10 props — passed through for the embedded deck + draw control
   archivePiles = [],
-  drawSession = null,
-  onTakeCard,
-  onEndDraw,
   deckRemaining = 0,
   discardRemaining = 0,
   drawCount = 0,
@@ -1031,11 +1012,6 @@ function NotebookArea({
   const totalAvailable = deckRemaining + discardRemaining;
   const canDraw = !disabled && totalAvailable > 0 && hand.length < capacity;
   const wouldDraw = Math.min(drawCount, capacity - hand.length, totalAvailable);
-  // Market draw: you can take a face-up card whenever there's room, and either
-  // no draw is underway (this starts one) or you still have picks left.
-  const canTake = !disabled
-    && hand.length < capacity
-    && (!drawSession || drawSession.remaining > 0);
 
   return (
     <footer
@@ -1052,45 +1028,10 @@ function NotebookArea({
             overlay sits on top of the deck face, with a "+1 year" caption
             beneath. When draw isn't possible (empty deck or full notebook)
             the deck dims and the click is disabled. */}
-        {/* Multi-pile archive: the deck is split into several stacks and you
-            choose which to draw from, hovering to peek at the top card. The
-            walkthrough keeps a single pile and renders the original deck
-            below, so its scripted flow is unchanged. */}
-        {archivePiles.length > 1 ? (
-          <div className="flex-shrink-0 w-36 flex flex-col items-center" data-tutorial="draw-zone">
-            {/* 2x2 — the four face-up cards together occupy one card's footprint. */}
-            <div className="grid grid-cols-2 grid-rows-2 gap-1.5 w-32 h-[12.5rem]">
-              {archivePiles.map((pile, i) => (
-                <ArchivePile
-                  key={i}
-                  index={i}
-                  cards={pile}
-                  canTake={canTake}
-                  onTake={onTakeCard}
-                />
-              ))}
-            </div>
-
-            {drawSession ? (
-              <div className="mt-2 flex flex-col items-center gap-1">
-                <p className="font-mono text-[9px] uppercase tracking-wider text-gold-300 text-center">
-                  {drawSession.remaining} pick{drawSession.remaining === 1 ? '' : 's'} left
-                </p>
-                <button
-                  type="button"
-                  onClick={onEndDraw}
-                  className="font-mono text-[9px] uppercase tracking-wider px-2 py-1 border border-gold-500 text-cream-100 hover:bg-gold-500 hover:text-teal-950 transition-colors"
-                >
-                  Done · +1 year
-                </button>
-              </div>
-            ) : (
-              <p className="font-mono text-[9px] uppercase tracking-wider text-cream-200 mt-2 text-center leading-snug">
-                Take up to {wouldDraw} · + 1 year
-              </p>
-            )}
-          </div>
-        ) : (
+        {/* A normal game draws from the ArchiveMarket beside the conclusions,
+            so no deck sits here. The walkthrough keeps its single deck and the
+            original batch draw, unchanged. */}
+        {archivePiles.length <= 1 && (
         <div className="flex-shrink-0 w-36 flex flex-col items-center">
           <button
             type="button"
