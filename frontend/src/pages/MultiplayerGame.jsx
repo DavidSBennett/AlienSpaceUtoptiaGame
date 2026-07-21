@@ -121,11 +121,6 @@ export default function MultiplayerGame() {
   // Local UI state (NOT server state)
   const [openCard, setOpenCard] = useState(null);              // null | { card, source }
   const [headerCollapsed, setHeaderCollapsed] = useState(true);
-  const [collapsedProjects, setCollapsedProjects] = useState(() => {
-    const init = new Set();
-    for (let i = 1; i < 3; i++) init.add(i);
-    return init;
-  });
   const [showTags, setShowTags] = useUserSetting('show_tags', false);
   // The library band grows all game; let players fold it away for board room.
   // Local rather than server-backed: user_settings has no column for it, and a
@@ -438,15 +433,6 @@ export default function MultiplayerGame() {
   // ─────────────────────────────────────────────────────────
   // HANDLERS
   // ─────────────────────────────────────────────────────────
-
-  function toggleProjectCollapse(projectId) {
-    setCollapsedProjects((prev) => {
-      const next = new Set(prev);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
-      return next;
-    });
-  }
 
   // Drag start — capture which draggable is active so DragOverlay can
   // render its floating preview.
@@ -1194,39 +1180,27 @@ export default function MultiplayerGame() {
               <div className="flex-1 flex flex-col min-w-0 self-stretch">
               <div className="flex-1 relative min-w-0">
               <main id="main-content" tabIndex={-1} className="absolute inset-0 flex flex-col gap-4 overflow-y-auto">
-                {projects.map((project, i) => {
-                  const isLocked = i >= workspaces;
-                  const isCollapsed = collapsedProjects.has(project.id);
-                  // Open projects share the leftover height so three of them
-                  // fill the column instead of leaving a fourth project's worth
-                  // of dead space beneath. Collapsed and locked rows keep their
-                  // natural (small) height — stretching a title bar would just
-                  // move the dead space around.
-                  const grows = !isLocked && !isCollapsed;
-                  return (
-                    <div
-                      key={project.id}
-                      className={grows ? 'flex-1 min-h-0 flex' : 'shrink-0'}
-                    >
-                      <ProjectRow
-                        project={project}
-                        locked={isLocked}
-                        collapsed={isCollapsed}
-                        onToggleCollapse={() => toggleProjectCollapse(project.id)}
-                        showTags={effTags} showSignificance={effSignificance}
-                        onCardClick={(card) => setOpenCard({ card, source: 'project' })}
-                        onPublish={(projectId) => startPublishFlow(projectId)}
-                        onAttendConference={(projectId) => selectConference(projectId)}
-                        onReturnToHand={returnFromProject}
-                        onRemoveCitation={removeCitation}
-                        useSpines
-                        articleMin={articleMin}
-                        freePublishing={freePublishing}
-                        statLevels={you.stat_levels || {}}
-                      />
-                    </div>
-                  );
-                })}
+                {/* Every slot renders at the same fixed size, locked ones
+                    faded. No stretching to fill: a rank-1 player would get one
+                    enormous project, which is worse than a little space at the
+                    bottom of the column. */}
+                {projects.map((project, i) => (
+                  <ProjectRow
+                    key={project.id}
+                    project={project}
+                    locked={i >= workspaces}
+                    showTags={effTags} showSignificance={effSignificance}
+                    onCardClick={(card) => setOpenCard({ card, source: 'project' })}
+                    onPublish={(projectId) => startPublishFlow(projectId)}
+                    onAttendConference={(projectId) => selectConference(projectId)}
+                    onReturnToHand={returnFromProject}
+                    onRemoveCitation={removeCitation}
+                    useSpines
+                    articleMin={articleMin}
+                    freePublishing={freePublishing}
+                    statLevels={you.stat_levels || {}}
+                  />
+                ))}
               </main>
               </div>
 

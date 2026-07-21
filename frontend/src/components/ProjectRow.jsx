@@ -9,41 +9,35 @@ import { computePrestigeMpPreview } from '../lib/validation.js';
 /**
  * ProjectRow — a single research project workspace, laid out horizontally.
  *
- *   Expanded:
  *   ┌────────────────────────────────────────────────────────────────────┐
- *   │ ▾ PROJECT 1                              [4 evidence · with concl] │
+ *   │ PROJECT 1                                [4 evidence · with concl] │
  *   ├──────────┬──────────────────────────────────────────────┬──────────┤
  *   │          │ ┌────┐ ┌────┐ ┌────┐ ┌──────┐                │  PUBLISH │
  *   │  Conc    │ │ ev │ │ ev │ │ ev │ │empty │   (scrolls →)  │   ────   │
  *   │          │ └────┘ └────┘ └────┘ └──────┘                │          │
  *   └──────────┴──────────────────────────────────────────────┴──────────┘
  *
- *   Collapsed (just the bar):
- *   ┌────────────────────────────────────────────────────────────────────┐
- *   │ ▸ PROJECT 1                              [4 evidence · with concl] │
- *   └────────────────────────────────────────────────────────────────────┘
+ * Every row is this one fixed size. Rows used to collapse to a title bar, and
+ * the column stretched whatever stayed open to fill the space — which meant a
+ * rank-1 player with a single unlocked slot got one enormous project. A stable
+ * board that doesn't resize under the player is worth more than filling every
+ * pixel.
  *
- * Clicking anywhere on the top bar toggles between expanded and collapsed.
- * When collapsed, the work area is hidden and drag-and-drop is NOT accepted —
- * the player must expand the project first to add cards.
+ * A LOCKED slot renders this same layout, faded and non-interactive, with a
+ * lock in place of the contents badge. The player can see exactly what the
+ * workspace upgrade buys them rather than a bare "locked" strip.
  *
- * Locked projects render a similar single bar but can't be expanded; they
- * show a "Requires workspace upgrade" message instead of a badge.
- *
- * Interactions on placed cards (expanded only):
+ * Interactions on placed cards:
  *  - Click: opens the card modal (via onCardClick)
  *  - Drag: moves the card to another zone (via DndContext in Game.jsx)
  *  - Right-click (context menu): returns the card to its origin
  *
- * @param {boolean}  collapsed         render only the header bar
- * @param {Function} onToggleCollapse  () => void
- * @param {Function} onReturnToHand    (cardId, from) => void
+ * @param {boolean}  locked          faded, non-interactive placeholder slot
+ * @param {Function} onReturnToHand  (cardId, from) => void
  */
 export default function ProjectRow({
   project,
   locked = false,
-  collapsed = false,
-  onToggleCollapse,
   showTags,
   showSignificance,
   onCardClick,
@@ -58,10 +52,6 @@ export default function ProjectRow({
   lockPublish = false,
   lockConference = false,
 }) {
-  if (locked) {
-    return <LockedRow projectId={project.id} />;
-  }
-
   const projectNumber = project.id + 1;
 
   // Build the badge string shown on the right of the header bar:
@@ -74,55 +64,40 @@ export default function ProjectRow({
     `${evidenceCount} evidence${citationCount > 0 ? ` · ${citationCount} cite` : ''} · ${hasConclusion ? 'with conclusion' : 'no conclusion'}`
   );
 
-  // Header bar — always rendered, identical whether expanded or collapsed.
-  // The chevron rotates to indicate state; clicking anywhere on the bar
-  // toggles via onToggleCollapse.
+  // Header bar. Projects no longer collapse: every slot shows its full
+  // workspace at a fixed height, so the column's shape never shifts under the
+  // player. A locked slot shows the same layout, faded, with a lock in place
+  // of the contents badge — you can see exactly what the upgrade buys you.
   const headerBar = (
-    <button
-      type="button"
-      onClick={onToggleCollapse}
-      className="w-full border-b border-wood-900 bg-wood-800 hover:bg-wood-700 transition-colors px-3 py-1 flex items-center justify-between gap-3 flex-shrink-0 text-left"
-      aria-expanded={!collapsed}
-      aria-label={`${collapsed ? 'Expand' : 'Collapse'} Project ${projectNumber}`}
-    >
+    <div className="w-full border-b border-wood-900 bg-wood-800 px-3 py-1 flex items-center justify-between gap-3 flex-shrink-0 text-left">
       <span className="flex items-center gap-2 flex-shrink-0">
-        <span
-          className="font-mono text-xs text-gold-400 transition-transform inline-block"
-          style={{ transform: collapsed ? 'rotate(-90deg)' : 'rotate(0)' }}
-        >
-          ▾
-        </span>
+        {locked && <span className="font-mono text-xs text-gold-400" aria-hidden="true">🔒</span>}
         <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-cream-100/80">
           Project {projectNumber}
         </span>
       </span>
-      <span className="font-mono text-[10px] uppercase tracking-wider text-cream-100">
-        {badgeText}
+      <span className={`font-mono text-[10px] uppercase tracking-wider ${locked ? 'text-cream-200 italic' : 'text-cream-100'}`}>
+        {locked ? 'Locked · upgrade workspaces' : badgeText}
       </span>
-    </button>
+    </div>
   );
 
-  // Collapsed: just the header bar, nothing below.
-  if (collapsed) {
-    return (
-      <div className="surface-wood relative w-full flex flex-col rounded-sm shadow-card overflow-hidden">
-        {headerBar}
-      </div>
-    );
-  }
-
-  // Expanded: header bar + the work area.
   return (
-    <div className="surface-wood relative w-full flex flex-col rounded-sm shadow-card overflow-hidden">
+    <div
+      className={`surface-wood relative w-full flex flex-col rounded-sm shadow-card overflow-hidden ${
+        locked ? 'opacity-50 pointer-events-none select-none' : ''
+      }`}
+      aria-disabled={locked || undefined}
+    >
 
       {headerBar}
 
-      {/* The horizontal work area: conclusion on the left, evidence flowing right,
-          publish button anchored at the right end.
-          flex-1 so that when the parent stretches this row to fill a column,
-          the work area takes the extra height instead of leaving a dead band
-          under the row. Its contents are vertically centred already. */}
-      <div className="flex flex-1 min-h-0">
+      {/* The horizontal work area: conclusion on the left, evidence flowing
+          right, buttons anchored at the right end. Every cell carries the same
+          py-2, and every tile in them is the same height, so the conclusion
+          slot, the evidence slot and the sticky tabs all start at the same
+          gap from the header. */}
+      <div className="flex">
 
         {/* === Conclusion column — fixed left, always visible.
               In MP context (useSpines=true), renders as a vertical
@@ -419,32 +394,3 @@ function PublishColumn({ project, onPublish, onAttendConference, articleMin = 2,
   );
 }
 
-
-/**
- * LockedRow — dimmed project bar for slots not yet unlocked
- * by the workspaces stat. Visually similar to a collapsed project bar
- * (so the layout stays uniform), but non-interactive and shows a
- * "locked" indicator instead of evidence/conclusion counts.
- */
-function LockedRow({ projectId }) {
-  const projectNumber = projectId + 1;
-  // Note: this row is intentionally "dimmed" to read as locked/inactive,
-  // but we achieve that with muted-yet-compliant solid colors rather than
-  // a parent opacity, since opacity would drag every child's text below
-  // the WCAG contrast minimum.
-  return (
-    <div className="surface-wood relative w-full flex flex-col rounded-sm overflow-hidden">
-      <div className="border-b border-wood-900 bg-wood-800 px-3 py-2 flex items-center justify-between gap-3">
-        <span className="flex items-center gap-2 flex-shrink-0">
-          <span className="font-mono text-xs text-gold-400">🔒</span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-cream-200">
-            Project {projectNumber}
-          </span>
-        </span>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-cream-200 italic">
-          Locked · upgrade workspaces
-        </span>
-      </div>
-    </div>
-  );
-}

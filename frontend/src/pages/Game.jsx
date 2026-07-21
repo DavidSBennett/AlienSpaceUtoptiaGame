@@ -212,29 +212,6 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
   // The source determines whether the modal shows "Place in Project N" buttons.
   const [openCard, setOpenCard] = useState(null);
 
-  // Which projects are collapsed to their header bar. Per design choice
-  // (Phase 10.1), Project 1 starts expanded and the rest start collapsed,
-  // so a fresh game focuses the player on a single workspace. Players
-  // expand additional projects as they unlock and want to use them.
-  // Stored as a Set<projectId> for cheap has/add/delete operations.
-  const [collapsedProjects, setCollapsedProjects] = useState(() => {
-    // Build the initial set: every project EXCEPT project 0 starts collapsed.
-    // state.projects has 3 entries (ids 0, 1, 2) — Phase 10.4 removed
-    // Project 4. The function form of useState only runs on mount.
-    const initial = new Set();
-    for (let i = 1; i < 3; i++) initial.add(i);
-    return initial;
-  });
-
-  function toggleProjectCollapse(projectId) {
-    setCollapsedProjects((prev) => {
-      const next = new Set(prev);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
-      return next;
-    });
-  }
-
   // Whether the top header bar (title, player name, prestige, tags toggle,
   // reset link) is collapsed. Phase 10.7: starts collapsed by default —
   // the timeline strip below remains visible and provides at-a-glance
@@ -622,34 +599,24 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
               the row past the conclusion shelf; they fill it and scroll. */}
           <div className="flex-1 relative min-w-0 self-stretch">
           <main id="main-content" tabIndex={-1} data-tutorial="project-area" className="absolute inset-0 flex flex-col gap-4 overflow-y-auto">
-            {state.projects.map((project, i) => {
-              const isLocked = i >= derived.workspaces;
-              const isCollapsed = collapsedProjects.has(project.id);
-              // Open projects share the leftover height so they fill the
-              // column rather than leaving dead space beneath the last one.
-              // Collapsed and locked rows keep their natural small height.
-              const grows = !isLocked && !isCollapsed;
-              return (
-                <div key={project.id} className={grows ? 'flex-1 min-h-0 flex' : 'shrink-0'}>
-                  <ProjectRow
-                    project={project}
-                    locked={isLocked}
-                    collapsed={isCollapsed}
-                    onToggleCollapse={() => toggleProjectCollapse(project.id)}
-                    showTags={state.showTags} showSignificance={state.showSignificance}
-                    onCardClick={(card) => setOpenCard({ card, source: 'project' })}
-                    onPublish={publishArgument}
-                    onAttendConference={attendConference}
-                    onReturnToHand={removeFromProject}
-                    useSpines
-                    articleMin={derived.articleMin}
-                    freePublishing={state.statLevels.workspaces >= 4}
-                    lockPublish={tutLockPublish}
-                    lockConference={tutLockConference}
-                  />
-                </div>
-              );
-            })}
+            {/* Every slot renders at the same fixed size, locked ones faded. */}
+            {state.projects.map((project, i) => (
+              <ProjectRow
+                key={project.id}
+                project={project}
+                locked={i >= derived.workspaces}
+                showTags={state.showTags} showSignificance={state.showSignificance}
+                onCardClick={(card) => setOpenCard({ card, source: 'project' })}
+                onPublish={publishArgument}
+                onAttendConference={attendConference}
+                onReturnToHand={removeFromProject}
+                useSpines
+                articleMin={derived.articleMin}
+                freePublishing={state.statLevels.workspaces >= 4}
+                lockPublish={tutLockPublish}
+                lockConference={tutLockConference}
+              />
+            ))}
           </main>
           </div>
         </div>
