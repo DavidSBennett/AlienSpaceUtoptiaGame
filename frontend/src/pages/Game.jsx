@@ -846,13 +846,11 @@ function ArchiveMarket({
                 <div
                   onClick={() => clickable && onTake(i)}
                   className={clickable ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}
-                  title={clickable ? `Take “${top.title}” into your notebook` : undefined}
                 >
-                  {/* Pointer events off so the click lands on the wrapper, not
-                      the thumbnail's own button (which opens the card modal). */}
-                  <div className="pointer-events-none">
-                    <CardThumbnail card={top} />
-                  </div>
+                  {/* The thumbnail gets no onClick, so the click bubbles up to
+                      this wrapper and takes the card. Do NOT disable pointer
+                      events here — that would also kill the hover tooltip. */}
+                  <CardThumbnail card={top} />
                 </div>
               ) : (
                 <div className="w-32 h-[12.5rem] border border-dashed border-gold-500/30 flex items-center justify-center">
