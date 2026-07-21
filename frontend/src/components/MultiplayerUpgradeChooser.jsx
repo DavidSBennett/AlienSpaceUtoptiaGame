@@ -59,7 +59,7 @@ export default function MultiplayerUpgradeChooser({
       title: 'Association Memberships',
       subtitle: 'Conference Rewards',
       cells: [1, 2, 3, 6],
-      lead: 'Citation tokens earned at a conference (1–4 fresh cards added to the draft pool too).',
+      lead: 'Citation tokens earned each time you attend a conference. The pool size no longer depends on this — it is always two cards per attendee.',
     },
     {
       key: 'renown',

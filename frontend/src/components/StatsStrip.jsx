@@ -27,10 +27,6 @@ const STAT_LABELS = {
 
 const STAT_ORDER = ['research', 'notebookCapacity', 'influence', 'workspaces', 'reputation', 'renown'];
 
-// Conference pool bonus by reputation level. Same in every version
-// (mp_conf_fresh_count server-side, CONFERENCE_FRESH in solo).
-const FRESH_BY_REPUTATION = [1, 2, 3, 4];
-
 /**
  * Render a stat's level ladder from the table actually in force, e.g.
  * "7 → 9 → 11 → 15". A hardcoded ladder would misinform whichever version
@@ -62,12 +58,11 @@ const STAT_TOOLTIPS = {
     rows: [`${ladder((tables.workspaces || []).slice(0, 3))} → free publishing`],
   }),
   reputation: (tables) => ({
-    lead: 'Your payoff at a conference: citation tokens earned, and fresh cards added to the pool.',
-    // Two tracks, so two rows.
-    rows: [
-      `Citations: ${ladder(tables.reputation)}`,
-      `Fresh cards: ${ladder(FRESH_BY_REPUTATION)}`,
-    ],
+    lead: 'How many citation tokens you earn each time you attend a conference.',
+    // One track now. The conference pool is a flat two cards per attendee and
+    // no longer moves with this rank, so listing a fresh-card ladder here would
+    // promise something the conference doesn't do.
+    rows: [`Citations: ${ladder(tables.reputation)}`],
   }),
   renown: (tables) => ({
     lead: 'At end of game, your total citation tokens pay out × this multiplier.',

@@ -52,8 +52,9 @@ export const STAT_TABLES = {
   // Reputation — now drives the "Attend a Conference" action (it no longer
   // lowers publication thresholds; those are fixed, see PUBLISH_THRESHOLDS).
   // The value is the number of CITATION TOKENS a conference grants you at
-  // that level (1/2/3/6). Reputation also controls the conference's pool
-  // size via CONFERENCE_FRESH below. Mirrors the multiplayer reputation.
+  // that level (1/2/3/6), and that is ALL it does. Mirrors the multiplayer
+  // reputation. The conference pool no longer depends on this rank — it is a
+  // flat two cards per attendee.
   reputation:      [1, 2, 3, 6],
   // Renown — at end of game, you gain bonus prestige equal to your banked
   // citation tokens × this multiplier (×1/2/3/5). In solo, citations come
@@ -65,10 +66,6 @@ export const STAT_TABLES = {
 // conferences instead, so the article/book split is a constant (mirrors the
 // multiplayer MP_ARTICLE_MIN / MP_BOOK_MIN).
 export const PUBLISH_THRESHOLDS = { articleMin: 2, bookMin: 6 };
-
-// Conference fresh-card pool bonus by reputation level (1-4): the pool you
-// draft from is (cards you staged) + this many extra fresh cards.
-export const CONFERENCE_FRESH = [1, 2, 3, 4];
 
 /**
  * How many archive piles a normal game splits the deck into. The guided
@@ -92,11 +89,6 @@ function dealIntoPiles(cards, count) {
 /** Citation tokens a conference grants, by reputation level (1-4). */
 export function conferenceCitations(level) {
   return STAT_TABLES.reputation[Math.max(0, Math.min(3, (level || 1) - 1))];
-}
-
-/** Extra fresh cards a conference adds to the pool, by reputation level. */
-export function conferenceFresh(level) {
-  return CONFERENCE_FRESH[Math.max(0, Math.min(3, (level || 1) - 1))];
 }
 
 /** Renown multiplier (×1/2/3/5) applied to banked citations at game end. */
@@ -882,13 +874,13 @@ function reducer(state, action) {
       const staged = project.evidence;
       if (!staged || staged.length === 0) return state;  // need ≥1 staged card
 
-      // The staged cards now go INTO the pool rather than straight to the
-      // discard, and the archive matches them one for one. So a conference
-      // drafts from twice what you brought, and reputation buys keeps instead
-      // of pool size: you leave with more than you came with at every rank.
+      // The staged cards go INTO the pool, and the archive adds two per
+      // attendee — one attendee here, so two. Flat, and unrelated to rank:
+      // Association Memberships buys CITATIONS, not a bigger floor to look at.
+      // Same rule the table plays by (mp_enter_conference).
       const rep = state.statLevels.reputation || 1;
-      const poolSize = staged.length;                        // fresh cards drawn
-      const keepLimit = staged.length + conferenceFresh(rep);
+      const poolSize = 2;                       // fresh cards drawn: 2 × attendees
+      const keepLimit = staged.length;          // take back what you brought
 
       // Empty the project's evidence (its conclusion, if any, stays put).
       const projects = state.projects.map((p, i) =>
@@ -942,11 +934,7 @@ function reducer(state, action) {
           projectId,
           pool: fullPool,
           keepLimit,
-          // Carried separately now that keepLimit is staged + reputation bonus
-          // rather than just the staged count — the modal needs both to explain
-          // where the allowance came from.
           stagedCount: staged.length,
-          keepBonus: conferenceFresh(rep),
           citationGrant: conferenceCitations(rep),
         },
       };
@@ -1367,7 +1355,6 @@ export function useGameState(setup) {
       deckRemaining: totalInPiles(state.archivePiles),
       handFull: state.hand.length >= capacity,
       // Conference / citation economy (reputation + renown).
-      conferenceFresh: conferenceFresh(state.statLevels.reputation || 1),
       conferenceCitations: conferenceCitations(state.statLevels.reputation || 1),
       renownMultiplier: renownMultiplier(state.statLevels.renown || 1),
       // End-game projection: prestige + banked citations × renown.

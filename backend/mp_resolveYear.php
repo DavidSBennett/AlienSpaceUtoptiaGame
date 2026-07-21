@@ -601,7 +601,6 @@ function mp_maybe_finish_aftermath($mysqli, $gameId) {
 
 // Reputation → citation tokens granted, and fresh cards injected into the pool.
 function mp_conf_citation_grant($repLevel) { $t = [1, 2, 3, 6]; return $t[max(0, min(3, $repLevel - 1))]; }
-function mp_conf_fresh_count($repLevel)    { $t = [1, 2, 3, 4]; return $t[max(0, min(3, $repLevel - 1))]; }
 
 /** Count live players who committed Attend a Conference this round. */
 function mp_count_conference_attendees($mysqli, $gameId) {
@@ -642,30 +641,13 @@ function mp_enter_conference_phase($mysqli, $gameId) {
   $isSolo = count($attendees) === 1;
   $order  = 0;
 
-  // Every attendee's staged cards go into the pool, and the archive adds ONE
-  // batch for the floor: the highest contribution plus the highest membership
-  // rank among those attending. Per-attendee fresh draws would balloon the
-  // pool at a full table (five players staging four cards each drafted from
-  // forty), which is the opposite of a focused conference floor.
-  //
-  // A player takes back as many as they contributed — NOT contributed plus
-  // their rank bonus. The bonus-to-keeps rule is solo-only, and it does not
-  // survive contact with a full table: keeps would scale with the number of
-  // players while the fresh draw is sized off maxima, so the two diverge. Five
-  // rank-4 players staging four cards each would have been entitled to 40 from
-  // a pool of 28, and the last to draft would find an empty floor — turning the
-  // draft into a seat-order race. Keeping take limits at contributions means
-  // total demand can never exceed the pool, at any table size.
-  //
-  // The surplus isn't wasted: leftovers are what become conference papers.
-  $maxContrib = 0;
-  $maxBonus   = 0;
-  $firstPid   = null;
+  // Every attendee's staged cards go into the pool, and each takes back as many
+  // as they contributed. Rank does not enter into either number — see the fresh
+  // draw below.
+  $firstPid = null;
 
   foreach ($attendees as $a) {
     $pid      = (int) $a['player_id'];
-    $repLevel = max(1, min(4, (int) $a['reputation_level']));
-    $bonus    = mp_conf_fresh_count($repLevel);
     $data     = $a['pending_action_data'] ? json_decode($a['pending_action_data'], true) : null;
     $slot     = (is_array($data) && isset($data['projectId'])) ? (int) $data['projectId'] : 0;
 
@@ -679,8 +661,6 @@ function mp_enter_conference_phase($mysqli, $gameId) {
     $contrib = array_map('intval', $contrib);
 
     $takeLimit = count($contrib);
-    if (count($contrib) > $maxContrib) $maxContrib = count($contrib);
-    if ($bonus > $maxBonus) $maxBonus = $bonus;
     if ($firstPid === null) $firstPid = $pid;
 
     // Clear the staged slot — the cards now live in the pool.
@@ -710,21 +690,21 @@ function mp_enter_conference_phase($mysqli, $gameId) {
     }
   }
 
-  // One fresh draw for the whole floor, floored at the number of attendees.
+  // The archive adds two cards per attendee. Flat, and deliberately unrelated
+  // to anybody's rank: Association Memberships buys CITATIONS, not a bigger
+  // floor to look at. One rule, countable at a table without consulting a
+  // single player's board.
   //
-  // With take limits equal to contributions, every contributed card can be
-  // drafted away, so the leftovers ARE the fresh draw — and one leftover per
-  // attendee is what the conference-paper award needs. Without the floor, five
-  // players each staging two cards at rank 1 produce three leftovers for five
-  // attendees, and two of them attend, contribute, and get no paper, decided by
-  // shuffle order rather than by anything they did.
+  // Two per attendee is what makes the rest hold together. Take limits equal
+  // contributions, so every contributed card can be drafted away and the
+  // leftovers ARE this draw — and leftovers are what become conference papers,
+  // one per attendee. 2n leftovers for n attendees means nobody who attends
+  // goes home without one, at any table size, with no floor or special case.
   //
-  // The floor is deliberately a floor and not a sum of every attendee's bonus.
-  // Summing also guarantees the papers, but five maxed players staging four
-  // cards each would then draft from 44 cards and discard 19 of them — an
-  // unreadable spread on a physical table. This binds only when the pool would
-  // otherwise be too small, and never fires at the high end (8 > 5).
-  $freshCount = max($maxContrib + $maxBonus, count($attendees));
+  // (This is also why the rank bonus can't return to take limits: demand would
+  // become sumContrib + sumBonus against a pool of sumContrib + 2n, and five
+  // rank-4 players would be owed 20 bonus keeps from 10 fresh cards.)
+  $freshCount = 2 * count($attendees);
   mp_conference_add_fresh($mysqli, $gameId, $firstPid, $freshCount);
 
   $u = $mysqli->prepare("UPDATE mp_games SET phase = 'conference', state_version = state_version + 1 WHERE game_id = ?");

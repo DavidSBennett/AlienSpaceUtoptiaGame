@@ -62,12 +62,9 @@ export default function SoloConferenceModal({
 
           <p className="font-serif italic text-ink-700 mt-3">
             You brought <strong className="not-italic">{stagedCount}</strong> card{stagedCount === 1 ? '' : 's'};
-            the archive matched {stagedCount === 1 ? 'it' : 'them'}. Draft up to{' '}
-            <strong className="not-italic">{maxKeep}</strong> from the pool below to bring home
-            {keepBonus > 0 && (
-              <> — your {stagedCount} plus <strong className="not-italic">{keepBonus}</strong> from your memberships</>
-            )}
-            , and bank{' '}
+            the conference added two more. Draft up to{' '}
+            <strong className="not-italic">{maxKeep}</strong> from the pool below to bring home,
+            and bank{' '}
             <strong className="not-italic">{citationGrant}</strong> citation token{citationGrant === 1 ? '' : 's'}.
             Click a card to read it in full.
           </p>

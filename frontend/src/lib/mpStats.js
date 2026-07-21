@@ -18,14 +18,12 @@ export const MP_STAT_TABLES = {
   influence:        [0, 1, 2, 4],
   // Workspaces — concurrent project slots (L4 also makes publishing free)
   workspaces:       [1, 2, 3, 3],
-  // Reputation — conference payoff: citations granted + fresh cards injected
+  // Reputation — citation tokens granted per conference attended. It no longer
+  // affects the pool, which is a flat two cards per attendee.
   reputation:       [1, 2, 3, 6],
   // Renown — end-game multiplier on total citation tokens
   renown:           [1, 2, 3, 5],
 };
-
-// Fresh cards a conference injects into the pool, by reputation level.
-export const MP_CONFERENCE_FRESH = [1, 2, 3, 4];
 
 export const MP_BOOK_MIN = 6;     // >= this many real evidence → a "book"
 export const MP_ARTICLE_MIN = 2;  // minimum evidence to publish an article

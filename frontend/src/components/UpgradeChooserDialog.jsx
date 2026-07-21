@@ -1,5 +1,5 @@
 import UpgradeBoard from './UpgradeBoard.jsx';
-import { STAT_TABLES, CONFERENCE_FRESH } from '../hooks/useGameState.js';
+import { STAT_TABLES } from '../hooks/useGameState.js';
 
 /**
  * UpgradeChooserDialog — appears after a successful publication (or conference)
@@ -53,7 +53,7 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade, reason = '
       title: 'Association Memberships',
       subtitle: 'Conference Rewards',
       cells: [rep[0], rep[1], rep[2], rep[3]],
-      lead: `Citation tokens earned at a conference (${CONFERENCE_FRESH[0]}–${CONFERENCE_FRESH[3]} fresh cards added to the draft pool too).`,
+      lead: 'Citation tokens earned each time you attend a conference. The pool size no longer depends on this — it is always two cards per attendee.',
     },
     {
       key: 'renown',
