@@ -34,9 +34,15 @@ export const STAT_TABLES = {
   // notebook capacity, not a fixed number. The 'capacity' marker here is
   // a sentinel; derived.drawCount handles it (see useGameState hook).
   research:        [3, 5, 7, 'capacity'],
-  // Notebook L4 jumped from 19 to 25 in Phase 10.5 (huge endgame capacity).
-  notebookCapacity:[7, 11, 15, 25],
-  influence:       [0, 1, 2, 3],         // prestige bonus per publish (L4 is per-CARD)
+  // Matches multiplayer (mp_resolveYear.php's $notebookCapTable). Solo used to
+  // run 7/11/15/25 — a far larger endgame hand than a multiplayer player ever
+  // sees, which made the two versions of the same stat mean different things.
+  notebookCapacity:[7, 9, 11, 15],
+  // Per-CARD prestige bonus, at every level — same table and same semantics as
+  // multiplayer ($infTable × evidence count in mp_apply_approval). Solo used to
+  // add this flat per publish until L4, so an upgrade bought something
+  // different depending on which version you were playing.
+  influence:       [0, 1, 2, 4],
   // Workspaces tops out at 3 project slots. L1-L3 unlock projects;
   // L4 doesn't unlock another slot (Project 4 was removed in Phase 10.4)
   // but instead removes the year cost from publishing. The slot count
@@ -706,14 +712,13 @@ function reducer(state, action) {
       let critique = null;
 
       if (validation.ok) {
-        // Influence: L1-L3 give a flat per-publish bonus (0/+1/+2). L4 changes
-        // semantics — it's "+3 prestige PER CARD in the argument" rather than
-        // a single flat add. We scale the bonus by evidence count at L4 so
-        // computePrestige still sees a single additive number.
-        const flatBonus = STAT_TABLES.influence[state.statLevels.influence - 1];
-        const influenceBonus = state.statLevels.influence >= 4
-          ? flatBonus * (evidence?.length || 0)
-          : flatBonus;
+        // Influence is a PER-CARD bonus at every level, matching multiplayer
+        // (mp_apply_approval multiplies its table by the evidence count). It
+        // used to be flat here until L4, which meant the same upgrade bought
+        // something different in solo than it did at a table. Scaled by
+        // evidence count so computePrestige still sees one additive number.
+        const perCard = STAT_TABLES.influence[state.statLevels.influence - 1];
+        const influenceBonus = perCard * (evidence?.length || 0);
         prestigeResult = computePrestige(evidence, conclusion, influenceBonus);
       } else {
         critique = critiqueArgument(conclusion, evidence);

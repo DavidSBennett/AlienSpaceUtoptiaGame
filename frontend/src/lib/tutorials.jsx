@@ -238,7 +238,7 @@ export const TUTORIALS = [
         <p className="mt-2">
           Invest it in one upgrade — <strong>Research Funding</strong> (draw
           more), <strong>Personal Archive</strong> (hold more),{' '}
-          <strong>Literary Agent</strong> (prestige per publication),{' '}
+          <strong>Literary Agent</strong> (prestige per evidence card),{' '}
           <strong>Workspaces</strong> (more projects at once),{' '}
           <strong>Association Memberships</strong> (your payoff at conferences),
           or <strong>Publicist</strong> (what your citations are worth at game

@@ -37,9 +37,9 @@ export default function UpgradeChooserDialog({ statLevels, onUpgrade, reason = '
     {
       key: 'influence',
       title: 'Literary Agent',
-      subtitle: 'Prestige Per Publish',
-      cells: [`+${inf[0]}`, `+${inf[1]}`, `+${inf[2]}`, `+${inf[3]}/card`],
-      lead: 'Bonus prestige added to every publication. The final level pays out per card in the argument.',
+      subtitle: 'Prestige Per Card',
+      cells: [`+${inf[0]}`, `+${inf[1]}`, `+${inf[2]}`, `+${inf[3]}`],
+      lead: 'A prestige bonus added to every evidence card in a publication, so it grows with article size.',
     },
     {
       key: 'workspaces',
