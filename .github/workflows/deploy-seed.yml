@@ -5,12 +5,11 @@ name: Build & Deploy SEED build to GreenGeeks (SSH)
 # seed subdomain, which points at its OWN database (config.secret.php there sets
 # SEED_MODE). The live site is never touched by this workflow.
 #
-# Manual trigger only, so it never fails in CI before the seed subdomain exists.
-# Once seed.thehistorians.org is set up, you can add:
-#   push:
-#     branches: [ main ]
-# to keep it in sync automatically.
+# Deploys on every push to main (the seed subdomain is set up), so the seed
+# installation stays in lockstep with the live game. Still triggerable by hand.
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
