@@ -1188,12 +1188,16 @@ export default function MultiplayerGame() {
                 onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
                 showTags={effTags} showSignificance={effSignificance}
               />
-              {/* The projects are absolutely positioned inside this wrapper so
-                  their content can't drive the row's height. That's what keeps
-                  the column from growing past the conclusion shelf beside it:
-                  the row is sized by the archive and conclusions, and the
-                  projects fill exactly that and scroll if they overrun. */}
-              <div className="flex-1 relative min-w-0 self-stretch">
+              {/* The project column: projects on top, commit bar tucked under
+                  them. Living here rather than spanning the board is what puts
+                  the bar's left edge against the conclusions' right wall.
+                  The projects are absolutely positioned inside their own
+                  wrapper so their content can't drive the row's height — the
+                  row is sized by the archive and conclusion columns, and the
+                  projects fill what's left above the bar, scrolling if they
+                  overrun. */}
+              <div className="flex-1 flex flex-col min-w-0 self-stretch">
+              <div className="flex-1 relative min-w-0">
               <main id="main-content" tabIndex={-1} className="absolute inset-0 flex flex-col gap-4 overflow-y-auto">
                 {projects.map((project, i) => (
                   <ProjectRow
@@ -1216,6 +1220,22 @@ export default function MultiplayerGame() {
                 ))}
               </main>
               </div>
+
+              <div className="shrink-0 mt-3">
+                <ActionCommitBar
+                  pendingAction={you.pending_action}
+                  pendingActionData={you.pending_action_data}
+                  pendingActionCommitted={you.pending_action_committed}
+                  timerSecondsRemaining={game.timer_seconds_remaining}
+                  opponents={state.opponents}
+                  busy={busy}
+                  onCommit={handleCommitYear}
+                  onUncommit={handleUncommit}
+                  drawCount={drawCount}
+                  activeOnly={!you.game_over_reason && !you.is_ghost}
+                />
+              </div>
+              </div>
             </div>
           );
         })()}
@@ -1226,19 +1246,8 @@ export default function MultiplayerGame() {
           </div>
         )}
 
-        {/* ── 5. Action commit bar (just above hand) ── */}
-        <ActionCommitBar
-          pendingAction={you.pending_action}
-          pendingActionData={you.pending_action_data}
-          pendingActionCommitted={you.pending_action_committed}
-          timerSecondsRemaining={game.timer_seconds_remaining}
-          opponents={state.opponents}
-          busy={busy}
-          onCommit={handleCommitYear}
-          onUncommit={handleUncommit}
-          drawCount={drawCount}
-          activeOnly={!you.game_over_reason && !you.is_ghost}
-        />
+        {/* (5. The action commit bar moved up into the project column, so it
+            sits under the projects rather than spanning the whole board.) */}
 
         {/* ── 6. Notebook (deck stack on left, hand on right) ──
             Lifted above the draw mask so your hand stays fully visible and

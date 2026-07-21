@@ -59,22 +59,24 @@ export default function ActionCommitBar({
       {/* PROMINENT ACTION BANNER + End Year button on the same line.
           The big color-coded label shows what's queued for this year so
           a player can't mistake one action for another. */}
-      <div className={`px-6 py-3 border-b ${banner.borderClass} ${banner.bgClass}`}>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-baseline gap-3 min-w-0 flex-1">
-            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-400 flex-shrink-0">
+      {/* One line. The reminder subline is gone — it told an experienced
+          player nothing and cost the bar half its height. */}
+      <div className={`px-4 py-1.5 border-b ${banner.borderClass} ${banner.bgClass}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-baseline gap-2 min-w-0 flex-1">
+            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-gold-400 flex-shrink-0">
               This year you will
             </span>
-            <span className={`font-display text-xl truncate ${banner.textClass}`}>
+            <span className={`font-display text-base truncate ${banner.textClass}`}>
               {banner.label}
             </span>
           </div>
 
           {/* Right-side controls on the same line as the banner */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {pendingActionCommitted ? (
               <>
-                <span className="font-mono text-[10px] uppercase tracking-wider text-verdigris-400">
+                <span className="font-mono text-[9px] uppercase tracking-wider text-verdigris-400">
                   ✓ committed
                   {waitingOn.length > 0 && (
                     <span className="text-cream-200/70 ml-1">
@@ -85,7 +87,7 @@ export default function ActionCommitBar({
                 <button
                   onClick={onUncommit}
                   disabled={busy}
-                  className="btn-ghost text-xs px-3 py-1.5"
+                  className="btn-ghost text-xs px-2.5 py-1"
                 >
                   Uncommit
                 </button>
@@ -94,19 +96,13 @@ export default function ActionCommitBar({
               <button
                 onClick={onCommit}
                 disabled={busy || !pendingAction}
-                className="btn-primary text-sm px-6 py-2"
+                className="btn-primary text-xs px-4 py-1.5"
               >
                 {busy ? 'Working…' : 'End Year'}
               </button>
             )}
           </div>
         </div>
-
-        {actionLabelSubline(pendingAction, pendingActionData, drawCount) && (
-          <p className="font-serif italic text-cream-200/80 text-xs mt-0.5 truncate">
-            {actionLabelSubline(pendingAction, pendingActionData, drawCount)}
-          </p>
-        )}
       </div>
     </div>
   );
@@ -157,23 +153,5 @@ function bannerFor(action) {
       bgClass:   'bg-teal-900/40',
       borderClass: 'border-gold-500/20',
     };
-  }
-}
-
-
-/**
- * Smaller serif subline under the main banner label — gives the SPECIFIC
- * details (which project, how many cards, etc.) without making the
- * primary banner cluttered.
- */
-function actionLabelSubline(action, data, drawCount) {
-  switch (action) {
-    case 'draw':    return `Up to ${drawCount} card${drawCount === 1 ? '' : 's'} from the archive`;
-    case 'publish': return `Project ${(data?.projectId ?? 0) + 1} goes out for peer review`;
-    case 'review':  return `Submission #${data?.submissionId ?? '?'}`;
-    case 'attend_conference': return `Project ${(data?.projectId ?? 0) + 1}'s cards go to the conference`;
-    case null:
-    case undefined: return 'Click the deck on the left to draw, click Publish on a ready project, or open a manuscript in the inbox to review.';
-    default: return null;
   }
 }
