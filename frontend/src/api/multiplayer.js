@@ -142,6 +142,21 @@ export async function mpSubmitReview(args) {
 }
 
 /**
+ * Submit a manuscript WITHOUT spending the year's action — the Workspaces L4
+ * perk. Unlike mpCommitAction('publish'), this leaves pending_action untouched,
+ * so the player still chooses draw / conference / review for the same year.
+ * @param {{ player_token, projectId, argumentText? }} args
+ */
+export async function mpPublishFree(args) {
+  try {
+    const res = await api.post('/mp_publishFree.php', args);
+    return res.data;
+  } catch (err) {
+    throw normalizeError(err);
+  }
+}
+
+/**
  * Draw phase: take the face-up top card of one of the four archive piles.
  * Only valid on your turn (round-robin seat order).
  * @param {{ player_token, pile }} args

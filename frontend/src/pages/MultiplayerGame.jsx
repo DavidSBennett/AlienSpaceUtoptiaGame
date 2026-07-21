@@ -27,6 +27,7 @@ import {
   mpSpendObjection,
   mpResolveRevise,
   mpDrawTake,
+  mpPublishFree,
   mpReviewContinue,
   mpConferenceTake,
   mpAftermathReady,
@@ -605,10 +606,26 @@ export default function MultiplayerGame() {
     // Empty argument is allowed — the writer is explaining via voice
     // (Discord/Zoom/in-person). The reviewer dialog handles the empty
     // case with a "via voice" placeholder.
-    await commitAction('publish', {
-      projectId: publishingProject.slot_index,
-      argumentText: text,
-    }, false);
+    if (freePublishing) {
+      // Workspaces L4: the submission goes in immediately and does NOT become
+      // this year's action, so the player still gets to draw, confer or review.
+      setError(null);
+      try {
+        await mpPublishFree({
+          player_token: playerToken,
+          projectId: publishingProject.slot_index,
+          argumentText: text,
+        });
+        await refresh();
+      } catch (e) {
+        setError(e.message || 'Could not submit that manuscript.');
+      }
+    } else {
+      await commitAction('publish', {
+        projectId: publishingProject.slot_index,
+        argumentText: text,
+      }, false);
+    }
     setPublishingProject(null);
   }
 
