@@ -710,8 +710,22 @@ function mp_enter_conference_phase($mysqli, $gameId) {
     }
   }
 
-  // One fresh draw for the whole floor.
-  mp_conference_add_fresh($mysqli, $gameId, $firstPid, $maxContrib + $maxBonus);
+  // One fresh draw for the whole floor, floored at the number of attendees.
+  //
+  // With take limits equal to contributions, every contributed card can be
+  // drafted away, so the leftovers ARE the fresh draw — and one leftover per
+  // attendee is what the conference-paper award needs. Without the floor, five
+  // players each staging two cards at rank 1 produce three leftovers for five
+  // attendees, and two of them attend, contribute, and get no paper, decided by
+  // shuffle order rather than by anything they did.
+  //
+  // The floor is deliberately a floor and not a sum of every attendee's bonus.
+  // Summing also guarantees the papers, but five maxed players staging four
+  // cards each would then draft from 44 cards and discard 19 of them — an
+  // unreadable spread on a physical table. This binds only when the pool would
+  // otherwise be too small, and never fires at the high end (8 > 5).
+  $freshCount = max($maxContrib + $maxBonus, count($attendees));
+  mp_conference_add_fresh($mysqli, $gameId, $firstPid, $freshCount);
 
   $u = $mysqli->prepare("UPDATE mp_games SET phase = 'conference', state_version = state_version + 1 WHERE game_id = ?");
   $u->bind_param('i', $gameId);
