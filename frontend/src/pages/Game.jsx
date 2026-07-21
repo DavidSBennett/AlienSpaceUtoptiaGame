@@ -599,10 +599,10 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
               the row past the conclusion shelf; they fill it and scroll. */}
           <div className="flex-1 relative min-w-0 self-stretch">
           <main id="main-content" tabIndex={-1} data-tutorial="project-area" className="absolute inset-0 flex flex-col gap-4 overflow-y-auto">
-            {/* Every slot renders at the same fixed size, locked ones faded. */}
+            {/* All three slots share the column equally, locked ones included. */}
             {state.projects.map((project, i) => (
+              <div key={project.id} className="flex-1 min-h-0 flex">
               <ProjectRow
-                key={project.id}
                 project={project}
                 locked={i >= derived.workspaces}
                 showTags={state.showTags} showSignificance={state.showSignificance}
@@ -616,6 +616,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
                 lockPublish={tutLockPublish}
                 lockConference={tutLockConference}
               />
+              </div>
             ))}
           </main>
           </div>

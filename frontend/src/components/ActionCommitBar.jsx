@@ -130,9 +130,13 @@ function bannerFor(action) {
     };
     case 'review': return {
       label: 'Review a manuscript',
-      textClass: 'text-periwinkle-300',
-      bgClass:   'bg-periwinkle-600/20',
-      borderClass: 'border-periwinkle-400/40',
+      // 'periwinkle' is not a colour in this theme and never was, so these
+      // three classes resolved to nothing and the review banner rendered with
+      // no colour at all. Indigo is what the seat-3 player colour actually
+      // uses under that name (see playerColors.js).
+      textClass: 'text-indigo-300',
+      bgClass:   'bg-indigo-600/20',
+      borderClass: 'border-indigo-400/40',
     };
     case 'attend_conference': return {
       label: 'Attend a conference',

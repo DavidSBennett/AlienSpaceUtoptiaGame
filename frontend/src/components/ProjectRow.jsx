@@ -93,11 +93,11 @@ export default function ProjectRow({
       {headerBar}
 
       {/* The horizontal work area: conclusion on the left, evidence flowing
-          right, buttons anchored at the right end. Every cell carries the same
-          py-2, and every tile in them is the same height, so the conclusion
-          slot, the evidence slot and the sticky tabs all start at the same
-          gap from the header. */}
-      <div className="flex">
+          right, buttons anchored at the right end. flex-1 so it takes the
+          height the column hands the row, and every cell centres its contents
+          in that height — evidence tabs, conclusion and buttons all sit on one
+          middle line however tall the row gets. */}
+      <div className="flex flex-1 min-h-0 items-stretch">
 
         {/* === Conclusion column — fixed left, always visible.
               In MP context (useSpines=true), renders as a vertical
@@ -162,7 +162,7 @@ export default function ProjectRow({
         </div>
 
         {/* === Evidence rail — flows right, scrolls horizontally if it overflows === */}
-        <div className="flex-1 min-w-0 overflow-x-auto">
+        <div className="flex-1 min-w-0 overflow-x-auto flex items-center">
           <div className="flex gap-3 px-4 py-2 items-center">
 
             {project.evidence.map((card) => (
@@ -338,31 +338,32 @@ function PublishColumn({ project, onPublish, onAttendConference, articleMin = 2,
     /* Side by side rather than stacked: two buttons in a column were the
        tallest thing in the row and set its height on their own. */
     <div className="flex-shrink-0 px-3 py-2 border-l border-gold-500/30 flex items-center justify-center gap-2">
-      <div className="flex flex-col items-center gap-0.5">
-        <Tooltip content={richTooltip} side="left" width="w-72">
-          <button
-            type="button"
-            onClick={() => canPublish && onPublish?.(project.id)}
-            disabled={!canPublish}
-            data-tutorial={canPublish ? 'publish-button' : undefined}
-            className={`
-              font-display font-bold uppercase tracking-[0.12em] text-xs leading-tight
-              px-3 py-2 border-2 transition-all duration-200 ease-desk
-              ${canPublish
-                ? 'bg-oxblood-500 hover:bg-oxblood-600 text-cream-50 border-oxblood-600 hover:shadow-card-hover hover:-translate-y-0.5 cursor-pointer'
-                : 'bg-wood-900 text-cream-100/70 border-wood-800 cursor-not-allowed'
-              }
-            `}
-          >
-            Submit
-            <br />
-            for Review
-          </button>
-        </Tooltip>
-        <p className={`font-mono text-[8px] uppercase tracking-wider text-center ${canPublish ? 'text-cream-100' : 'text-cream-100/70'}`}>
-          {freePublishing ? 'free' : '+ 1 year'}
-        </p>
-      </div>
+      {/* The button carries its own cost instead of a caption under it: red
+          when submitting spends a year, blue once Workspaces L4 makes it free.
+          Colour and wording move together, so the state is readable without
+          reading. */}
+      <Tooltip content={richTooltip} side="left" width="w-72">
+        <button
+          type="button"
+          onClick={() => canPublish && onPublish?.(project.id)}
+          disabled={!canPublish}
+          data-tutorial={canPublish ? 'publish-button' : undefined}
+          className={`
+            font-display font-bold uppercase tracking-[0.12em] text-xs leading-tight
+            px-3 py-2 border-2 transition-all duration-200 ease-desk
+            ${!canPublish
+              ? 'bg-wood-900 text-cream-100/70 border-wood-800 cursor-not-allowed'
+              : freePublishing
+                ? 'bg-indigo-700 hover:bg-indigo-600 text-cream-50 border-indigo-400 hover:shadow-card-hover hover:-translate-y-0.5 cursor-pointer'
+                : 'bg-oxblood-500 hover:bg-oxblood-600 text-cream-50 border-oxblood-600 hover:shadow-card-hover hover:-translate-y-0.5 cursor-pointer'
+            }
+          `}
+        >
+          {freePublishing ? 'Submit Free' : 'Submit'}
+          <br />
+          for Review
+        </button>
+      </Tooltip>
 
       {/* Attend a Conference — stage cards here and swap them at a conference.
           Needs at least one staged card; no conclusion required. */}

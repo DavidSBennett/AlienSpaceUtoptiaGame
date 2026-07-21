@@ -1180,13 +1180,14 @@ export default function MultiplayerGame() {
               <div className="flex-1 flex flex-col min-w-0 self-stretch">
               <div className="flex-1 relative min-w-0">
               <main id="main-content" tabIndex={-1} className="absolute inset-0 flex flex-col gap-4 overflow-y-auto">
-                {/* Every slot renders at the same fixed size, locked ones
-                    faded. No stretching to fill: a rank-1 player would get one
-                    enormous project, which is worse than a little space at the
-                    bottom of the column. */}
+                {/* All three slots share the column equally, locked ones
+                    included. Every slot is always present at the same size now,
+                    so an even split fills the space without the rank-1 problem
+                    that stretching only the OPEN rows caused — one unlocked
+                    slot used to swell to the whole column. */}
                 {projects.map((project, i) => (
+                  <div key={project.id} className="flex-1 min-h-0 flex">
                   <ProjectRow
-                    key={project.id}
                     project={project}
                     locked={i >= workspaces}
                     showTags={effTags} showSignificance={effSignificance}
@@ -1200,6 +1201,7 @@ export default function MultiplayerGame() {
                     freePublishing={freePublishing}
                     statLevels={you.stat_levels || {}}
                   />
+                  </div>
                 ))}
               </main>
               </div>
