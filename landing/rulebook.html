@@ -193,26 +193,6 @@
   .counter input::-webkit-outer-spin-button,
   .counter input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-  /* A download control pinned to the book itself, so it's reachable from
-     whatever page you happen to be on without going back to the controls. */
-  #corner-download {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 20;
-    font-size: 10px;
-    letter-spacing: .14em;
-    padding: .5em 1em;
-    background: rgba(34,48,31,.86);
-    border: 1px solid var(--gold);
-    color: var(--gold);
-    text-decoration: none;
-    text-transform: uppercase;
-    font-weight: 700;
-    transition: background .18s, color .18s;
-  }
-  #corner-download:hover { background: var(--gold); color: #22301f; }
-
   .hint {
     flex: 0 0 auto;
     font-size: clamp(9px, 1.2vh, 11px);
@@ -254,7 +234,6 @@
 
 <div id="stage" hidden>
   <div id="book">
-    <a id="corner-download" href="rulebook.pdf" download="The-Historians-Rulebook.pdf">Download PDF</a>
     <div class="leaf left"  id="leafL"></div>
     <div class="leaf right" id="leafR"></div>
     <div id="flipper">
@@ -516,13 +495,25 @@
       if (pair[0]) flipFront.appendChild(cloneCanvas(pair[0]));
       if (pair[1]) flipBack.appendChild(cloneCanvas(pair[1]));
 
-      // Put the destination spread underneath before the leaf moves, so what
-      // is revealed behind the turning page is already the right content.
       leftIndex = target;
-      var under = draw();
 
+      // Reduced motion: no turn, just settle on the destination spread.
       if (reduce) {
-        return under.then(function () { busy = false; });
+        return draw().then(function () { busy = false; });
+      }
+
+      // Reveal only the page BEHIND the lifting leaf; leave the leaf the turn
+      // LANDS on showing its OLD content until the paper covers it. Painting the
+      // whole destination spread up front made the landing page pop into view
+      // before it had been turned to — the "appears on the left before the flip"
+      // effect. Forward lands on the LEFT leaf, so only the right is revealed
+      // now; backward lands on the right, so only the left. The full spread is
+      // settled underneath at the very end, while the leaf still covers it.
+      var gen = ++generation;
+      if (narrow || dir > 0) {
+        place(leafR, target + 1, gen);   // new right, uncovered as the page lifts
+      } else {
+        place(leafL, target, gen);       // new left
       }
 
       flipper.style.transition = 'none';
@@ -539,11 +530,15 @@
 
       return new Promise(function (resolve) {
         setTimeout(function () {
-          flipper.classList.remove('turning');
-          flipper.style.transition = 'none';
-          flipper.style.transform  = 'rotateY(0deg)';
-          busy = false;
-          resolve();
+          // Settle the whole destination spread underneath, THEN drop the leaf,
+          // so the side it was covering never flashes its old page as it lifts.
+          draw().then(function () {
+            flipper.classList.remove('turning');
+            flipper.style.transition = 'none';
+            flipper.style.transform  = 'rotateY(0deg)';
+            busy = false;
+            resolve();
+          });
         }, FLIP_MS + 30);
       });
     }).catch(function (err) {
