@@ -40,13 +40,13 @@ export function EvidenceSpine({ card, onClick, dragHandleProps }) {
           hover:bg-cream-50 hover:border-gold-500
           transition-colors duration-200 ease-desk
           cursor-grab active:cursor-grabbing
-          overflow-hidden text-left
+          overflow-hidden
         "
       >
         {/* Coloured edge down the left, like the tab of a filed card */}
         <span className="absolute top-0 bottom-0 left-0 w-1 bg-gold-700" aria-hidden="true" />
-        <span className="absolute inset-0 pl-2 pr-1.5 py-1 flex items-center">
-          <span className="font-display text-[10px] leading-tight text-ink-900 line-clamp-3">
+        <span className="absolute inset-0 pl-2 pr-1.5 py-1 flex items-center justify-center">
+          <span className="font-display text-[10px] leading-tight text-center text-ink-900 line-clamp-3">
             {card.title}
           </span>
         </span>
