@@ -166,7 +166,7 @@ export default function ProjectRow({
             <DroppableSlot
               id={`drop-conclusion-${project.id}`}
               data={{ to: { kind: 'projectConclusion', projectId: project.id } }}
-              className={`${useSpines ? 'w-24' : 'w-32'} flex items-center justify-center`}
+              className={`${useSpines ? 'w-28' : 'w-32'} flex items-center justify-center`}
               /* In spine mode this empty slot was 7rem — twice the height of a
                  placed spine — so an empty project was the tallest row on the
                  board. Match the spine it will be replaced by. */
@@ -264,7 +264,7 @@ export default function ProjectRow({
             <DroppableSlot
               id={`drop-evidence-${project.id}`}
               data={{ to: { kind: 'projectEvidence', projectId: project.id } }}
-              className={`${useSpines ? 'w-20' : 'w-40'} flex items-center justify-center flex-shrink-0`}
+              className={`${useSpines ? 'w-28' : 'w-40'} flex items-center justify-center flex-shrink-0`}
               style={{ height: useSpines ? '3.5rem' : '8rem' }}
             >
               <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-cream-100 text-center leading-tight">

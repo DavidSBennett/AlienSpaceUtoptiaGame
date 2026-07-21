@@ -88,9 +88,28 @@ const STAT_TOOLTIPS = {
   },
 };
 
-export default function StatsStrip({ statLevels, citationsReceived = 0 }) {
+export default function StatsStrip({ statLevels, citationsReceived = 0, pendingUpgrade = 0 }) {
+  const hasPending = Number(pendingUpgrade) > 0;
   return (
     <div className="flex items-stretch justify-center gap-2 px-6 py-2 border-y border-gold-500/20 bg-teal-950/40">
+      {/* The upgrade nudge rides with the stats it applies to, rather than up
+          in the header away from them. Only present when one is unspent. */}
+      {hasPending && (
+        <Tooltip
+          content="You've earned a stat upgrade. Pick one to raise a level — it applies immediately."
+          side="top"
+          width="w-64"
+        >
+          <div className="flex flex-col items-center justify-center min-w-[5.5rem] px-2 py-1 border-2 border-verdigris-400 bg-verdigris-500/20 cursor-default animate-fade-in">
+            <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-verdigris-300 leading-tight">
+              Upgrade
+            </span>
+            <span className="font-display text-lg text-cream-50 leading-tight">
+              {Number(pendingUpgrade) > 1 ? `${pendingUpgrade} ready` : 'Ready'}
+            </span>
+          </div>
+        </Tooltip>
+      )}
       {STAT_ORDER.map((key) => {
         const level = statLevels?.[key] ?? 1;
         const table = MP_STAT_TABLES[key];

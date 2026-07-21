@@ -73,7 +73,6 @@ import { stageLabel, rankIndex } from '../lib/career.js';
 import { useNarrativeEnabled } from '../lib/narrativeSetting.js';
 import YearProgressBar from '../components/YearProgressBar.jsx';
 import StatsStrip from '../components/StatsStrip.jsx';
-import UpgradeCountdown from '../components/UpgradeCountdown.jsx';
 import { isConclusionCard } from '../lib/cardIdentifier.js';
 import Tooltip from '../components/Tooltip.jsx';
 import FleuronDivider from '../components/FleuronDivider.jsx';
@@ -1040,12 +1039,8 @@ export default function MultiplayerGame() {
                 totalYears={totalYears}
                 className="font-serif italic text-cream-50 text-lg leading-snug"
               />
-              <UpgradeCountdown
-                year={game.current_year}
-                totalYears={totalYears}
-                pending={you.pending_upgrade}
-                variant="panel"
-              />
+              {/* (The upgrade nudge moved down into the stats strip, beside the
+                  stats it actually spends on.) */}
             </div>
 
             <div className="shrink-0 text-center">
@@ -1275,6 +1270,7 @@ export default function MultiplayerGame() {
         <StatsStrip
           statLevels={you.stat_levels}
           citationsReceived={you.citations_received_count ?? 0}
+          pendingUpgrade={you.pending_upgrade}
         />
 
         {/* (The published-works library moved up beside the conclusion shelf.) */}
