@@ -41,6 +41,7 @@ export default function SoloConferenceModal({
   const stagedCount = conference?.stagedCount ?? keepLimit;
   const citationGrant = conference?.citationGrant ?? 0;
   const contributeLeft = conference?.contributeLeft ?? 0;
+  const stocking = contributeLeft > 0;
 
   // You can never take more than your notebook has room for.
   const room = Math.max(0, (capacity ?? 0) - (handCount ?? 0));
@@ -58,43 +59,6 @@ export default function SoloConferenceModal({
     });
   }
 
-  // ── Step 1: stock the floor from the face-up piles ──────────────────
-  if (contributeLeft > 0) {
-    return (
-      <div className="fixed inset-0 z-[70] bg-teal-950/90 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto animate-fade-in">
-        <div
-          className="relative surface-paper max-w-3xl w-full my-6 animate-fade-up"
-          style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(184, 146, 58, 0.5)' }}
-        >
-          <div className="absolute inset-2 border border-gold-500/30 pointer-events-none" />
-
-          <div className="px-10 py-8">
-            <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-gold-700 mb-1">Conference</p>
-            <h2 className="font-display text-3xl font-bold text-ink-900 leading-tight">
-              Add to the floor — {contributeLeft} card{contributeLeft === 1 ? '' : 's'} to go
-            </h2>
-            <p className="font-serif italic text-ink-700 mt-1">
-              Your {stagedCount} card{stagedCount === 1 ? ' is' : 's are'} already on the floor.
-              Take {contributeLeft === 1 ? 'one more' : 'two'} from the archive — you'll draft from
-              the whole pool, so anything you add is yours to take back.
-            </p>
-
-            <FleuronDivider className="my-4" />
-
-            <div className="flex justify-center">
-              <ArchiveMarket
-                piles={(archivePiles || []).map((p) => ({ top: p[0] || null, count: p.length }))}
-                canTake
-                onTake={(pileIndex) => onContribute?.(pileIndex)}
-                caption={`On the floor: ${pool.length}`}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="fixed inset-0 z-[70] bg-teal-950/90 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto animate-fade-in">
       <div
@@ -109,20 +73,46 @@ export default function SoloConferenceModal({
           <h2 className="font-display text-3xl font-bold text-ink-900 leading-tight">The Conference Floor</h2>
 
           <p className="font-serif italic text-ink-700 mt-3">
-            You brought <strong className="not-italic">{stagedCount}</strong> card{stagedCount === 1 ? '' : 's'}
-            {' '}and chose the rest of the floor yourself. Draft up to{' '}
-            <strong className="not-italic">{maxKeep}</strong> from the pool below to bring home,
-            and bank{' '}
-            <strong className="not-italic">{citationGrant}</strong> citation token{citationGrant === 1 ? '' : 's'}.
-            Click a card to read it in full.
+            {stocking
+              ? <>
+                  Your <strong className="not-italic">{stagedCount}</strong> card{stagedCount === 1 ? ' is' : 's are'} on
+                  the floor. Add <strong className="not-italic">{contributeLeft}</strong> more from the archive —
+                  you'll draft from the whole floor, so anything you add is yours to take back.
+                </>
+              : <>
+                  You brought <strong className="not-italic">{stagedCount}</strong> card{stagedCount === 1 ? '' : 's'}
+                  {' '}and chose the rest of the floor yourself. Draft up to{' '}
+                  <strong className="not-italic">{maxKeep}</strong> from the pool below to bring home,
+                  and bank{' '}
+                  <strong className="not-italic">{citationGrant}</strong> citation token{citationGrant === 1 ? '' : 's'}.
+                  Click a card to read it in full.
+                </>}
           </p>
-          {maxKeep < keepLimit && (
+          {!stocking && maxKeep < keepLimit && (
             <p className="font-serif italic text-oxblood-600 text-sm mt-1">
               Your notebook only has room for {maxKeep} more — the rest stay at the conference.
             </p>
           )}
 
-          {/* Pool */}
+          {/* The archive, while the floor is being stocked. Sits above the
+              floor so the two read in order: what you're adding from, then
+              what's accumulated. */}
+          {stocking && (
+            <>
+              <FleuronDivider className="my-4" />
+              <div className="flex justify-center">
+                <ArchiveMarket
+                  piles={(archivePiles || []).map((p) => ({ top: p[0] || null, count: p.length }))}
+                  canTake
+                  onTake={(pileIndex) => onContribute?.(pileIndex)}
+                  caption={`On the floor: ${pool.length}`}
+                />
+              </div>
+              <FleuronDivider className="my-4" />
+            </>
+          )}
+
+          {/* The floor */}
           <div className="mt-4 flex flex-wrap gap-3 justify-center min-h-[8rem]">
             {pool.length === 0 ? (
               <p className="font-serif italic text-ink-600 self-center">The pool is empty.</p>
@@ -140,6 +130,7 @@ export default function SoloConferenceModal({
                         showSignificance={showSignificance}
                       />
                     </div>
+                    {!stocking && (
                     <button
                       type="button"
                       onClick={() => toggle(card.id)}
@@ -154,13 +145,15 @@ export default function SoloConferenceModal({
                     >
                       {isSel ? '✓ Keep' : 'Keep'}
                     </button>
+                    )}
                   </div>
                 );
               })
             )}
           </div>
 
-          {/* Action */}
+          {/* Action — only once the floor is stocked. */}
+          {!stocking && (
           <div className="flex items-center justify-between gap-4 mt-5 pt-4 border-t border-gold-500/20">
             <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-ink-700">
               Keeping {selected.size} / {maxKeep}
@@ -184,6 +177,7 @@ export default function SoloConferenceModal({
                 : 'Keep nothing (+ 1 year)'}
             </button>
           </div>
+          )}
         </div>
       </div>
 

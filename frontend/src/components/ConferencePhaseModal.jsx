@@ -102,77 +102,9 @@ export default function ConferencePhaseModal({ conference, you, busy, onTake, on
     );
   }
 
-  if (stocking) {
-    const yourTurn = !!contributing.you_are_up;
-    const left = contributing.your_contributions_left || 0;
-    return (
-      <div className="fixed inset-0 z-[120] bg-teal-950/90 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto animate-fade-in">
-        <div
-          className="relative surface-paper max-w-4xl w-full my-6 animate-fade-up"
-          style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(184, 146, 58, 0.5)' }}
-        >
-          <div className="absolute inset-2 border border-gold-500/30 pointer-events-none" />
-
-          <button
-            type="button"
-            onClick={() => setMinimized(true)}
-            title="Minimize — check your hand"
-            className="absolute top-3 right-3 z-30 px-3 py-1 font-mono text-[10px] uppercase tracking-wider bg-cream-50 border border-gold-500 text-ink-900 hover:bg-gold-500 hover:text-teal-950 transition-colors"
-          >
-            — Minimize
-          </button>
-
-          <div className="px-10 py-8">
-            <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-gold-700 mb-1">Conference</p>
-            <h2 className="font-display text-3xl font-bold text-ink-900 leading-tight pr-28">
-              {yourTurn
-                ? `Add to the floor — ${left} card${left === 1 ? '' : 's'} to go`
-                : `${contributing.current_player_name || '…'} is adding to the floor`}
-            </h2>
-            <p className="font-serif italic text-ink-700 mt-1">
-              {yourTurn
-                ? 'Take a card from any pile. It joins the pool everyone drafts from — including you.'
-                : 'Each attendee adds two cards from the archive before the draft begins.'}
-            </p>
-
-            <FleuronDivider className="my-4" />
-
-            <div className="flex justify-center">
-              <ArchiveMarket
-                piles={contributing.piles || []}
-                canTake={yourTurn && !busy && !submitting}
-                onTake={handleContribute}
-                caption={`Floor: ${contributing.contributed} of ${contributing.needed}`}
-              />
-            </div>
-
-            {error && (
-              <p className="font-serif italic text-oxblood-600 text-sm mt-3 text-center">{error}</p>
-            )}
-
-            <FleuronDivider className="my-4" />
-
-            <div className="flex flex-wrap gap-2 justify-center">
-              {attendees.map((a) => {
-                const isCur = a.player_id === contributing.current_player_id;
-                const me = a.player_id === you?.player_id;
-                return (
-                  <span
-                    key={a.player_id}
-                    className={`font-mono text-[10px] uppercase tracking-[0.12em] px-2 py-1 border ${
-                      isCur ? 'border-gold-500 bg-gold-500/15 text-ink-900' : 'border-cream-300 text-ink-700'
-                    }`}
-                  >
-                    {a.player_name}{me ? ' (you)' : ''}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Whose turn it is right now, whichever step we're on.
+  const contribYourTurn = stocking && !!contributing.you_are_up;
+  const contribLeft = (contributing && contributing.your_contributions_left) || 0;
 
   return (
     <div className="fixed inset-0 z-[120] bg-teal-950/90 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto animate-fade-in">
@@ -197,11 +129,16 @@ export default function ConferencePhaseModal({ conference, you, busy, onTake, on
           <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-gold-700 mb-1">Conference</p>
           <h2 className="font-display text-3xl font-bold text-ink-900 leading-tight">The Conference Floor</h2>
 
-          {/* Pick order */}
+          {/* Turn order. During stocking the highlight follows the contributor
+              rather than the drafter — currentPickerId is deliberately null
+              until the floor is finished, so without this nobody would appear
+              to be up. */}
           <div className="flex flex-wrap gap-2 mt-3">
             {attendees.map((a) => {
               const col = colorForSeat(a.seat_index);
-              const isCur = a.player_id === currentPickerId;
+              const isCur = stocking
+                ? a.player_id === contributing.current_player_id
+                : a.player_id === currentPickerId;
               const me = a.player_id === you?.player_id;
               return (
                 <span
@@ -215,25 +152,65 @@ export default function ConferencePhaseModal({ conference, you, busy, onTake, on
                   <span className={`inline-block w-2 h-2 mr-1.5 ${col.spineBg}`} aria-hidden="true" />
                   {a.player_name}{me && ' (you)'}
                   {' · '}
-                  {a.done ? `took ${a.taken_count}` : isCur ? 'drafting…' : `waiting (${a.take_limit})`}
+                  {stocking
+                    ? (isCur ? 'stocking…' : 'waiting')
+                    : a.done ? `took ${a.taken_count}` : isCur ? 'drafting…' : `waiting (${a.take_limit})`}
                 </span>
               );
             })}
           </div>
 
-          {/* Status line */}
+          {/* Status line — reflects whichever step is live. */}
           <p className="font-serif italic text-ink-700 mt-3">
-            {isYourTurn
-              ? <>Your turn — take up to <strong className="not-italic">{takeLimit}</strong> card{takeLimit === 1 ? '' : 's'}. Click a card to read it in full.</>
-              : youAttendee
-                ? <>Waiting for <strong className="not-italic">{currentPicker?.player_name || 'the next scholar'}</strong> to draft…</>
-                : <>A conference is underway. Waiting for it to finish…</>}
+            {stocking
+              ? (contribYourTurn
+                  ? <>Your turn to stock the floor — <strong className="not-italic">{contribLeft}</strong> card{contribLeft === 1 ? '' : 's'} to add from the archive below.</>
+                  : <><strong className="not-italic">{contributing.current_player_name || 'Another scholar'}</strong> is adding to the floor. Everything they add joins the pool you'll draft from.</>)
+              : isYourTurn
+                ? <>Your turn — take up to <strong className="not-italic">{takeLimit}</strong> card{takeLimit === 1 ? '' : 's'}. Click a card to read it in full.</>
+                : youAttendee
+                  ? <>Waiting for <strong className="not-italic">{currentPicker?.player_name || 'the next scholar'}</strong> to draft…</>
+                  : <>A conference is underway. Waiting for it to finish…</>}
           </p>
 
-          {/* Pool */}
+          {/* The archive, while the floor is being stocked. Present for
+              everyone so you can watch the pool being built, but masked off
+              when it isn't your turn — the cards you'd click aren't yours to
+              take yet, and hiding the piles entirely would make the step feel
+              like it was happening somewhere else. */}
+          {stocking && (
+            <>
+              <FleuronDivider className="my-4" />
+              <div className="relative flex justify-center">
+                <div className={contribYourTurn ? '' : 'opacity-40 pointer-events-none select-none'}>
+                  <ArchiveMarket
+                    piles={contributing.piles || []}
+                    canTake={contribYourTurn && !busy && !submitting}
+                    onTake={handleContribute}
+                    caption={`Floor stocked: ${contributing.contributed} of ${contributing.needed}`}
+                  />
+                </div>
+                {!contribYourTurn && (
+                  <div className="absolute inset-0 flex items-start justify-center pt-6 pointer-events-none">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-900 bg-cream-50/90 border border-gold-500 px-3 py-1.5">
+                      {contributing.current_player_name || 'Another scholar'} is choosing
+                    </span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* The floor. Shown throughout, not just during the draft: while the
+              pool is being stocked you need to see what's accumulating on it to
+              judge which archive card is worth adding. Cards are readable the
+              whole time; only the Select pills wait for your draft turn. */}
+          {stocking && <FleuronDivider className="my-4" />}
           <div className="mt-4 flex flex-wrap gap-3 justify-center min-h-[8rem]">
             {pool.length === 0 ? (
-              <p className="font-serif italic text-ink-600 self-center">The pool is empty.</p>
+              <p className="font-serif italic text-ink-600 self-center">
+                {stocking ? 'Nothing on the floor yet.' : 'The pool is empty.'}
+              </p>
             ) : (
               pool.map((card) => {
                 const isSel = selected.has(card.pool_id);

@@ -638,7 +638,6 @@ function mp_enter_conference_phase($mysqli, $gameId) {
   if (count($attendees) === 0) return false;
 
   $year   = (int) mp_current_year($mysqli, $gameId);
-  $isSolo = count($attendees) === 1;
   $order  = 0;
 
   // Every attendee's staged cards go into the pool, and each takes back as many
@@ -674,18 +673,21 @@ function mp_enter_conference_phase($mysqli, $gameId) {
     $ai->execute(); $ai->close();
     $order++;
 
-    // Contributed cards go into the pool. At a table they're marked with their
-    // contributor so nobody drafts their own back; alone at the conference
-    // there IS nobody else, so they go in unattributed and can be reclaimed —
-    // which is what the solo game does too.
+    // Contributed cards go into the pool, ALWAYS tagged with who brought them.
+    //
+    // A lone attendee's cards used to go in untagged, so they could draft their
+    // own back — there being nobody else to trade with. That can't stand now:
+    // the contribution step derives its progress from the count of untagged
+    // pool rows (they mark what the ARCHIVE supplied), so untagged staged cards
+    // read as archive contributions. A single attendee staging three cards
+    // would show 3 of 2 already contributed and skip the step entirely, never
+    // getting to pick.
+    //
+    // Reclaiming your own is now allowed by attendee count instead, in
+    // mp_conference_take — a rule about the table rather than about the data.
     foreach ($contrib as $cid) {
-      if ($isSolo) {
-        $pi = $mysqli->prepare("INSERT INTO mp_conference_pool (game_id, idCard, contributor_player_id) VALUES (?, ?, NULL)");
-        $pi->bind_param('ii', $gameId, $cid);
-      } else {
-        $pi = $mysqli->prepare("INSERT INTO mp_conference_pool (game_id, idCard, contributor_player_id) VALUES (?, ?, ?)");
-        $pi->bind_param('iii', $gameId, $cid, $pid);
-      }
+      $pi = $mysqli->prepare("INSERT INTO mp_conference_pool (game_id, idCard, contributor_player_id) VALUES (?, ?, ?)");
+      $pi->bind_param('iii', $gameId, $cid, $pid);
       $pi->execute(); $pi->close();
     }
   }
@@ -779,6 +781,16 @@ function mp_conference_contrib_state($mysqli, $gameId) {
   ];
 }
 
+/** How many players are at this conference. */
+function mp_conference_attendee_count($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM mp_conference_attendees WHERE game_id = ?");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $n = (int) $stmt->get_result()->fetch_assoc()['n'];
+  $stmt->close();
+  return $n;
+}
+
 /** Cards still reachable for the conference: undrawn archive, else discards. */
 function mp_conference_cards_available($mysqli, $gameId) {
   $stmt = $mysqli->prepare("
@@ -841,7 +853,12 @@ function mp_conference_take($mysqli, $gameId, $playerId, $poolIds) {
     $stmt->close();
     if (!$row) continue;
     if ($row['taken_by_player_id'] !== null) continue;  // already taken
-    if ($row['contributor_player_id'] !== null && (int) $row['contributor_player_id'] === (int) $playerId) {
+    // You can't draft back what you brought — that's what makes it a trade.
+    // Unless you're the only one who showed up, in which case there is nobody
+    // to trade with and the rule would just strand your own cards on the floor.
+    if ($row['contributor_player_id'] !== null
+        && (int) $row['contributor_player_id'] === (int) $playerId
+        && mp_conference_attendee_count($mysqli, $gameId) > 1) {
       throw new Exception('You cannot take a card you contributed');
     }
     $cid = (int) $row['idCard'];

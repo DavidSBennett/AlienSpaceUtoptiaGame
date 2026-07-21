@@ -935,15 +935,28 @@ function mp_build_conference($mysqli, $gameId, $youId) {
   }
   $stmt->close();
 
-  // Pool you may draft from: untaken and not contributed by you.
-  $stmt = $mysqli->prepare("
-    SELECT pool_id, idCard
-    FROM mp_conference_pool
-    WHERE game_id = ? AND taken_by_player_id IS NULL
-      AND (contributor_player_id IS NULL OR contributor_player_id <> ?)
-    ORDER BY pool_id ASC
-  ");
-  $stmt->bind_param('ii', $gameId, $youId);
+  // Pool you may draft from: untaken, and not one you contributed — unless you
+  // are the only attendee, in which case your own cards ARE draftable (there's
+  // nobody to trade with) and hiding them would leave a lone attendee staring
+  // at a floor missing everything they brought.
+  $soloAttendee = mp_conference_attendee_count($mysqli, $gameId) <= 1;
+  $sql = $soloAttendee
+    ? "SELECT pool_id, idCard FROM mp_conference_pool
+       WHERE game_id = ? AND taken_by_player_id IS NULL AND ? = ?
+       ORDER BY pool_id ASC"
+    : "SELECT pool_id, idCard FROM mp_conference_pool
+       WHERE game_id = ? AND taken_by_player_id IS NULL
+         AND (contributor_player_id IS NULL OR contributor_player_id <> ?)
+       ORDER BY pool_id ASC";
+  $stmt = $mysqli->prepare($sql);
+  if ($soloAttendee) {
+    // Bind the same value twice so the placeholder count matches without
+    // building a second, near-identical prepare/bind path.
+    $one = 1;
+    $stmt->bind_param('iii', $gameId, $one, $one);
+  } else {
+    $stmt->bind_param('ii', $gameId, $youId);
+  }
   $stmt->execute();
   $res = $stmt->get_result();
   $pool = [];
