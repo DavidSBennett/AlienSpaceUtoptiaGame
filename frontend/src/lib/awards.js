@@ -63,7 +63,7 @@ export const AWARDS = [
   },
   {
     id: 'pulitzer',
-    name: 'The Pulitzer Award',
+    name: 'Michael Foucault Award',
     description: 'The most citations — but you must have published at least once.',
     prestige: 10,
     // Citations can come from conferences without ever publishing, so the
