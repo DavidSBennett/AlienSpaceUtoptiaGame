@@ -65,6 +65,7 @@ import ConferencePhaseModal from '../components/ConferencePhaseModal.jsx';
 import AftermathPhaseModal from '../components/AftermathPhaseModal.jsx';
 import { isTutorialEnabled, setTutorialEnabled as persistTutorialEnabled } from '../lib/tutorialStorage.js';
 import useUserSetting from '../auth/useUserSetting.js';
+import useLocalToggle from '../lib/useLocalToggle.js';
 import GoalLine from '../components/GoalLine.jsx';
 import NarrativeModal from '../components/NarrativeModal.jsx';
 import NarrativeToggle from '../components/NarrativeToggle.jsx';
@@ -128,7 +129,9 @@ export default function MultiplayerGame() {
   });
   const [showTags, setShowTags] = useUserSetting('show_tags', false);
   // The library band grows all game; let players fold it away for board room.
-  const [libraryCollapsed, setLibraryCollapsed] = useUserSetting('library_collapsed', false);
+  // Local rather than server-backed: user_settings has no column for it, and a
+  // key with no column reverts on the next server response (see useLocalToggle).
+  const [libraryCollapsed, setLibraryCollapsed] = useLocalToggle('mp_library_collapsed', false);
   const [showSignificance, setShowSignificance] = useState(false);
 
   // Per-session significance reveal (re-locks on refresh). When turned ON,
