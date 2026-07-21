@@ -1881,19 +1881,27 @@ function mp_apply_approval($mysqli, $gameId, $sid, $writerPid, $kind, $evIds, $c
     $stmt->close();
   }
 
-  // Influence is a PER-CARD bonus added to every real evidence card
-  // (table 0/1/2/4 by level). Citations aren't cards, so they don't scale it.
+  // Influence is a PER-CARD bonus, and a cited work counts as a card for it.
+  //
+  // It used to apply to real evidence only, which made the citation payout the
+  // one quantity in the whole scorer that never grew: evidence scaled with
+  // influence, arguments doubled for coherence, citation TOKENS scaled with the
+  // owner's renown, but the citer's reward stayed a flat couple of points. By
+  // the late game citing was worth noise while handing an opponent up to five,
+  // so nobody did it. A citation is part of the argument's apparatus — the
+  // literary agent sells it like anything else.
   $realEvidenceCount = count($evIds);
-  $infBonus = $infTable[max(0, min(3, $infLevel - 1))] * $realEvidenceCount;
+  $infBonus = $infTable[max(0, min(3, $infLevel - 1))]
+            * ($realEvidenceCount + count($citedWorkIds));
 
   // Fetch the conclusion card up front so its bonus can feed the scorer.
   $conc = mp_fetch_card_row($mysqli, $concId);
   $concBonus = ($conc && isset($conc['bonus'])) ? (int) $conc['bonus'] : 0;
 
-  // Base prestige (real evidence + bonuses + per-card influence, doubled if
-  // context coheres), then add the flat citation bonus on top (not doubled).
-  $prestigeResult = mp_compute_prestige($evidenceCards, $infBonus, [], $concBonus);
-  $prestige = (int) $prestigeResult['total'] + $citationBonus;
+  // Base prestige — real evidence + bonuses + per-card influence + the
+  // citation bonus, the whole lot doubled if the argument's context coheres.
+  $prestigeResult = mp_compute_prestige($evidenceCards, $infBonus, [], $concBonus, $citationBonus);
+  $prestige = (int) $prestigeResult['total'];
 
   // Record THIS work's citation_value for anyone who later cites it: half the
   // conclusion's prestige contribution (its bonus, doubled if the publication
@@ -2514,7 +2522,7 @@ function mp_title_tokenize($text) {
  *                                    three citations citing 6-, 4-,
  *                                    and 3-evidence works)
  */
-function mp_compute_prestige($evidenceCards, $influenceBonus, $citedEvidenceCounts = [], $conclusionBonus = 0) {
+function mp_compute_prestige($evidenceCards, $influenceBonus, $citedEvidenceCounts = [], $conclusionBonus = 0, $citationBonus = 0) {
   $evCount = count($evidenceCards);
 
   // Citation evidence: each cited work contributes floor(N/2) where N
@@ -2534,7 +2542,12 @@ function mp_compute_prestige($evidenceCards, $influenceBonus, $citedEvidenceCoun
   $concBonus = (int) $conclusionBonus;
 
   $effectiveEvidence = $evCount + $citationEvidence;
-  $base = $effectiveEvidence + $bonusSum + $concBonus + (int) $influenceBonus;
+  // The citation bonus is part of the base, so a coherent argument doubles it
+  // along with everything else. It used to be bolted on after the doubling,
+  // which meant the one reward for engaging with other players' work was also
+  // the one reward that a well-built manuscript couldn't amplify.
+  $base = $effectiveEvidence + $bonusSum + $concBonus
+        + (int) $influenceBonus + (int) $citationBonus;
 
   // Doubling rule — checked AGAINST REAL EVIDENCE ONLY. Citations are
   // ignored when asking "is this argument focused on one location?"

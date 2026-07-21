@@ -239,19 +239,22 @@ export function computePrestigeMpPreview(evidence, citations, influenceLvl, conc
   const cb = Number(conclusionBonus);
   const concBonus = Number.isFinite(cb) ? cb : 0;
 
-  // Influence is a per-card bonus on real evidence (0/1/2/4 by level).
+  // Influence is a per-card bonus, and a cited work counts as a card for it —
+  // matching mp_apply_approval server-side.
   const INF_TABLE = [0, 1, 2, 4];
   const lvl = Math.max(1, Math.min(4, Number(influenceLvl) || 1));
-  const influenceBonus = INF_TABLE[lvl - 1] * realCount;
+  const influenceBonus = INF_TABLE[lvl - 1] * (realCount + citList.length);
 
-  // Doubling check — REAL evidence only (citations excluded).
+  // Doubling check — REAL evidence only (citations excluded). The cited works
+  // may span many contexts, so they can't speak to whether THIS argument is
+  // focused; they still ride the multiplier once it's earned.
   const contextField = findSharedContext(evList);
   const doubled = contextField !== null;
 
-  // Base (real evidence + bonuses + per-card influence) doubles if context
-  // coheres; the flat citation bonus is added on top (not doubled).
-  const base = realCount + bonusSum + concBonus + influenceBonus;
-  const total = (doubled ? base * 2 : base) + citationBonus;
+  // The citation bonus is inside the base, so a coherent argument doubles it
+  // with everything else — mirrors mp_compute_prestige.
+  const base = realCount + bonusSum + concBonus + influenceBonus + citationBonus;
+  const total = doubled ? base * 2 : base;
 
   return {
     realEvidenceCount: realCount,
