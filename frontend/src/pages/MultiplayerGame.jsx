@@ -1812,7 +1812,7 @@ function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificanc
                 <ConclusionSpine
                   fill
                   card={{ ...c, id: c.idCard }}
-                  widthClass="w-72"
+                  widthClass="w-[22.5rem]"
                   onClick={() => onConclusionClick(c)}
                   showTags={showTags} showSignificance={showSignificance}
                 />
@@ -1827,7 +1827,7 @@ function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificanc
         {Array.from({ length: Math.max(0, CONCLUSION_SLOTS - ordered.length) }).map((_, i) => (
           <div
             key={`empty-slot-${i}`}
-            className="w-72 flex-1 min-h-0 border border-dashed border-cream-50/20 flex items-center justify-center"
+            className="w-[22.5rem] flex-1 min-h-0 border border-dashed border-cream-50/20 flex items-center justify-center"
           >
             <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-200/40">
               not used

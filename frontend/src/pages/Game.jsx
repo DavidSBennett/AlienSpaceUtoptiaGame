@@ -912,7 +912,7 @@ function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showS
                 <div {...dragHandleProps} className={`${isDragging ? 'opacity-50' : ''} ${draggable ? '' : 'opacity-30'}`}>
                   <ConclusionSpine
                     card={card}
-                    widthClass="w-72"
+                    widthClass="w-[22.5rem]"
                     onClick={() => onConclusionClick?.(card)}
                     showTags={showTags} showSignificance={showSignificance}
                   />
@@ -927,7 +927,7 @@ function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showS
         {Array.from({ length: Math.max(0, CONCLUSION_SLOTS - conclusionShelf.length) }).map((_, i) => (
           <div
             key={`empty-slot-${i}`}
-            className="w-72 h-14 border border-dashed border-cream-50/20 flex items-center justify-center"
+            className="w-[22.5rem] h-14 border border-dashed border-cream-50/20 flex items-center justify-center"
           >
             <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-200/40">
               not used
