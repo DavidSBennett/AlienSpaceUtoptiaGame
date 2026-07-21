@@ -201,6 +201,21 @@ export async function mpAftermathReady(playerToken) {
 }
 
 /**
+ * Conference phase, opening step: on your turn, take the face-up top of one
+ * archive pile and add it to the conference floor. Two per attendee, in draft
+ * order; drafting is gated until everyone has done theirs.
+ * @param {{ player_token, pile }} args
+ */
+export async function mpConferenceContribute(args) {
+  try {
+    const res = await api.post('/mp_conferenceContribute.php', args);
+    return res.data;
+  } catch (err) {
+    throw normalizeError(err);
+  }
+}
+
+/**
  * Conference phase: draft the chosen pool cards on your turn (up to as many as
  * you contributed). Passing an empty list takes nothing and ends your turn.
  * @param {string} playerToken

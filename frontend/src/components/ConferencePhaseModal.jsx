@@ -1,24 +1,33 @@
 /**
  * ConferencePhaseModal — the "Attend a Conference" interstitial.
  *
- * After the review phase, attendees draft cards from a shared pool in priority
- * order (reputation, then renown, then least prestige). On your turn you may
- * take up to as many cards as you contributed; click a card to read it in full
- * (content, tags, significance), and use its pill to select it. Other players
- * wait for their turn. When everyone has drafted, the year advances.
+ * Two steps, in order:
+ *
+ *   1. STOCK THE FLOOR. Each attendee, in draft order, takes two cards off the
+ *      four face-up archive piles and adds them to the pool. The archive's
+ *      share used to be dealt blind; choosing it is a real decision, because
+ *      a card's worth here is relational — strong beside the rest of YOUR hand
+ *      may be unusable in anyone else's.
+ *   2. DRAFT. Same order, each taking up to as many cards as they contributed
+ *      from their own hand. Click a card to read it in full; use its pill to
+ *      select. When everyone has drafted, the year advances.
  *
  * Props:
- *   conference — state.conference { attendees, current_picker_id, is_your_turn, you, pool }
- *   you        — state.you
- *   busy       — bool
- *   onTake     — async (poolIds:number[]) => void
+ *   conference    — state.conference { attendees, current_picker_id, is_your_turn,
+ *                   you, pool, contributing }
+ *   you           — state.you
+ *   busy          — bool
+ *   onTake        — async (poolIds:number[]) => void
+ *   onContribute  — async (pileIndex:number) => void
  */
 import { useEffect, useState } from 'react';
 import { CardThumbnail, CardModal } from './Card.jsx';
 import { colorForSeat } from '../lib/playerColors.js';
 import MinimizedInterstitialBar from './MinimizedInterstitialBar.jsx';
+import ArchiveMarket from './ArchiveMarket.jsx';
+import FleuronDivider from './FleuronDivider.jsx';
 
-export default function ConferencePhaseModal({ conference, you, busy, onTake }) {
+export default function ConferencePhaseModal({ conference, you, busy, onTake, onContribute }) {
   const attendees = conference?.attendees || [];
   const pool = conference?.pool || [];
   const isYourTurn = !!conference?.is_your_turn;
@@ -61,14 +70,107 @@ export default function ConferencePhaseModal({ conference, you, busy, onTake }) 
     }
   }
 
+  // ── Step 1: stocking the floor ──────────────────────────────────────
+  const contributing = conference?.contributing || null;
+  const stocking = !!contributing && !contributing.done;
+
+  async function handleContribute(pileIndex) {
+    if (busy || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onContribute(pileIndex);
+    } catch (e) {
+      setError(e.message || 'Could not add that card.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   // Minimized: collapse to a bar so the player can see their hand below.
   if (minimized) {
     return (
       <MinimizedInterstitialBar
         label="Conference"
-        hint={isYourTurn ? 'your turn to draft' : 'waiting for the draft'}
+        hint={
+          stocking
+            ? (contributing.you_are_up ? 'your turn to add a card' : 'waiting on the floor')
+            : (isYourTurn ? 'your turn to draft' : 'waiting for the draft')
+        }
         onRestore={() => setMinimized(false)}
       />
+    );
+  }
+
+  if (stocking) {
+    const yourTurn = !!contributing.you_are_up;
+    const left = contributing.your_contributions_left || 0;
+    return (
+      <div className="fixed inset-0 z-[120] bg-teal-950/90 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto animate-fade-in">
+        <div
+          className="relative surface-paper max-w-4xl w-full my-6 animate-fade-up"
+          style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(184, 146, 58, 0.5)' }}
+        >
+          <div className="absolute inset-2 border border-gold-500/30 pointer-events-none" />
+
+          <button
+            type="button"
+            onClick={() => setMinimized(true)}
+            title="Minimize — check your hand"
+            className="absolute top-3 right-3 z-30 px-3 py-1 font-mono text-[10px] uppercase tracking-wider bg-cream-50 border border-gold-500 text-ink-900 hover:bg-gold-500 hover:text-teal-950 transition-colors"
+          >
+            — Minimize
+          </button>
+
+          <div className="px-10 py-8">
+            <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-gold-700 mb-1">Conference</p>
+            <h2 className="font-display text-3xl font-bold text-ink-900 leading-tight pr-28">
+              {yourTurn
+                ? `Add to the floor — ${left} card${left === 1 ? '' : 's'} to go`
+                : `${contributing.current_player_name || '…'} is adding to the floor`}
+            </h2>
+            <p className="font-serif italic text-ink-700 mt-1">
+              {yourTurn
+                ? 'Take a card from any pile. It joins the pool everyone drafts from — including you.'
+                : 'Each attendee adds two cards from the archive before the draft begins.'}
+            </p>
+
+            <FleuronDivider className="my-4" />
+
+            <div className="flex justify-center">
+              <ArchiveMarket
+                piles={contributing.piles || []}
+                canTake={yourTurn && !busy && !submitting}
+                onTake={handleContribute}
+                caption={`Floor: ${contributing.contributed} of ${contributing.needed}`}
+              />
+            </div>
+
+            {error && (
+              <p className="font-serif italic text-oxblood-600 text-sm mt-3 text-center">{error}</p>
+            )}
+
+            <FleuronDivider className="my-4" />
+
+            <div className="flex flex-wrap gap-2 justify-center">
+              {attendees.map((a) => {
+                const isCur = a.player_id === contributing.current_player_id;
+                const me = a.player_id === you?.player_id;
+                return (
+                  <span
+                    key={a.player_id}
+                    className={`font-mono text-[10px] uppercase tracking-[0.12em] px-2 py-1 border ${
+                      isCur ? 'border-gold-500 bg-gold-500/15 text-ink-900' : 'border-cream-300 text-ink-700'
+                    }`}
+                  >
+                    {a.player_name}{me ? ' (you)' : ''}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 

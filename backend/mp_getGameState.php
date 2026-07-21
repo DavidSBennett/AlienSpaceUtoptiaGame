@@ -956,12 +956,39 @@ function mp_build_conference($mysqli, $gameId, $youId) {
   }
   $stmt->close();
 
+  // Opening step: attendees stock the floor from the face-up piles, two each,
+  // in draft order. Drafting is gated until it finishes, so the client needs
+  // both the progress and the piles to choose from.
+  $contrib = mp_conference_contrib_state($mysqli, $gameId);
+  $contribCurrent = $contrib['current'];
+  $contributing = [
+    'done'                 => (bool) $contrib['done'],
+    'contributed'          => (int) $contrib['contributed'],
+    'needed'               => (int) $contrib['needed'],
+    'per_attendee'         => (int) $contrib['per'],
+    'current_player_id'    => $contribCurrent ? (int) $contribCurrent['player_id'] : null,
+    'current_player_name'  => $contribCurrent ? $contribCurrent['player_name'] : null,
+    'you_are_up'           => $contribCurrent && (int) $contribCurrent['player_id'] === (int) $youId,
+    // Face-up pile tops, same shape the draw phase uses. Only worth sending
+    // while the step is live.
+    'piles'                => $contrib['done'] ? [] : mp_build_archive_piles($mysqli, $gameId),
+  ];
+
+  // How many of your own two you have left to add. Derived the same way the
+  // server derives whose turn it is, so the two can't disagree.
+  $yourContribLeft = 0;
+  if ($contribCurrent && (int) $contribCurrent['player_id'] === (int) $youId) {
+    $yourContribLeft = $contrib['per'] - ($contrib['contributed'] % $contrib['per']);
+  }
+  $contributing['your_contributions_left'] = $yourContribLeft;
+
   return [
     'attendees'         => $attendees,
     'current_picker_id' => $currentPickerId,
     'is_your_turn'      => ($currentPickerId !== null && $currentPickerId === $youId),
     'you'               => $you,   // null if you didn't attend
     'pool'              => $pool,
+    'contributing'      => $contributing,
   ];
 }
 

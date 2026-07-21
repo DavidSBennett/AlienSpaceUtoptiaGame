@@ -690,22 +690,20 @@ function mp_enter_conference_phase($mysqli, $gameId) {
     }
   }
 
-  // The archive adds two cards per attendee. Flat, and deliberately unrelated
-  // to anybody's rank: Association Memberships buys CITATIONS, not a bigger
-  // floor to look at. One rule, countable at a table without consulting a
-  // single player's board.
+  // The archive's two-per-attendee contribution is NOT drawn here any more.
+  // Attendees choose it themselves, in turn, off the four face-up piles — see
+  // mp_conference_contrib_state and mp_conferenceContribute.php. Drafting is
+  // gated until that step finishes.
   //
-  // Two per attendee is what makes the rest hold together. Take limits equal
-  // contributions, so every contributed card can be drafted away and the
-  // leftovers ARE this draw — and leftovers are what become conference papers,
+  // Two per attendee is still what makes the rest hold together. Take limits
+  // equal contributions, so every contributed card can be drafted away and the
+  // leftovers ARE the archive's share — and leftovers become conference papers,
   // one per attendee. 2n leftovers for n attendees means nobody who attends
   // goes home without one, at any table size, with no floor or special case.
   //
   // (This is also why the rank bonus can't return to take limits: demand would
   // become sumContrib + sumBonus against a pool of sumContrib + 2n, and five
   // rank-4 players would be owed 20 bonus keeps from 10 fresh cards.)
-  $freshCount = 2 * count($attendees);
-  mp_conference_add_fresh($mysqli, $gameId, $firstPid, $freshCount);
 
   $u = $mysqli->prepare("UPDATE mp_games SET phase = 'conference', state_version = state_version + 1 WHERE game_id = ?");
   $u->bind_param('i', $gameId);
@@ -714,45 +712,93 @@ function mp_enter_conference_phase($mysqli, $gameId) {
   return true;
 }
 
-/** Pull N fresh cards from the archive into the conference pool (contributor NULL). */
-function mp_conference_add_fresh($mysqli, $gameId, $ownerPid, $n) {
-  $year = (int) mp_current_year($mysqli, $gameId);
-  $remaining = (int) $n;
-  while ($remaining > 0) {
-    $stmt = $mysqli->prepare("
-      SELECT idCard FROM mp_game_archive
-      WHERE game_id = ? AND drawn_by_player_id IS NULL
-      ORDER BY archive_position ASC LIMIT ?
-    ");
-    $stmt->bind_param('ii', $gameId, $remaining);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $ids = [];
-    while ($r = $res->fetch_assoc()) $ids[] = (int) $r['idCard'];
-    $stmt->close();
-    if (count($ids) === 0) {
-      $reshuffled = mp_reshuffle_discards_into_archive($mysqli, $gameId);
-      if ($reshuffled === 0) break;
-      continue;
-    }
-    foreach ($ids as $cid) {
-      // Mark drawn (placeholder owner) so it leaves the draw pile while pooled.
-      $u = $mysqli->prepare("UPDATE mp_game_archive SET drawn_by_player_id = ?, drawn_year = ? WHERE game_id = ? AND idCard = ? AND drawn_by_player_id IS NULL");
-      $u->bind_param('iiii', $ownerPid, $year, $gameId, $cid);
-      $u->execute();
-      $aff = $u->affected_rows; $u->close();
-      if ($aff !== 1) continue;
-      $pi = $mysqli->prepare("INSERT INTO mp_conference_pool (game_id, idCard, contributor_player_id) VALUES (?, ?, NULL)");
-      $pi->bind_param('ii', $gameId, $cid);
-      $pi->execute(); $pi->close();
-      $remaining--;
-      if ($remaining <= 0) break;
-    }
+/** The attendee whose turn it is to draft (lowest draft_order, not done), or null. */
+/**
+ * How many cards each attendee adds to the pool off the face-up piles.
+ * The archive's share of the floor, chosen rather than dealt.
+ */
+if (!defined('MP_CONF_CONTRIB_PER_ATTENDEE')) define('MP_CONF_CONTRIB_PER_ATTENDEE', 2);
+
+/**
+ * Where the contribution step has got to.
+ *
+ * Progress is DERIVED rather than stored: a pool row with a NULL contributor
+ * is one the archive supplied, and every attendee adds exactly the same number
+ * in draft order. So the count of those rows says both how far along we are and
+ * whose turn it is — no column, and nothing that can drift out of step with the
+ * pool it describes.
+ *
+ * Returns ['done', 'contributed', 'needed', 'per', 'current' => attendee|null].
+ */
+function mp_conference_contrib_state($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT a.player_id, a.draft_order, p.player_name
+    FROM mp_conference_attendees a
+    JOIN mp_game_players p ON p.player_id = a.player_id
+    WHERE a.game_id = ?
+    ORDER BY a.draft_order ASC
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $attendees = [];
+  while ($r = $res->fetch_assoc()) $attendees[] = $r;
+  $stmt->close();
+
+  $per    = MP_CONF_CONTRIB_PER_ATTENDEE;
+  $needed = $per * count($attendees);
+
+  $stmt = $mysqli->prepare("
+    SELECT COUNT(*) AS n FROM mp_conference_pool
+    WHERE game_id = ? AND contributor_player_id IS NULL
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $contributed = (int) $stmt->get_result()->fetch_assoc()['n'];
+  $stmt->close();
+
+  // If the archive and the discards are both empty there is nothing left to
+  // contribute, and holding the phase open would wedge the round. Treat the
+  // step as finished and let the draft run on whatever made it into the pool.
+  $exhausted = false;
+  if ($contributed < $needed) {
+    $exhausted = (mp_conference_cards_available($mysqli, $gameId) === 0);
   }
+
+  $done = ($contributed >= $needed) || $exhausted;
+  $idx  = intdiv($contributed, $per);
+  $current = (!$done && isset($attendees[$idx])) ? $attendees[$idx] : null;
+
+  return [
+    'done'        => $done,
+    'contributed' => $contributed,
+    'needed'      => $needed,
+    'per'         => $per,
+    'current'     => $current,
+    'attendees'   => $attendees,
+  ];
 }
 
-/** The attendee whose turn it is to draft (lowest draft_order, not done), or null. */
+/** Cards still reachable for the conference: undrawn archive, else discards. */
+function mp_conference_cards_available($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT COUNT(*) AS n FROM mp_game_archive
+    WHERE game_id = ? AND drawn_by_player_id IS NULL
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $n = (int) $stmt->get_result()->fetch_assoc()['n'];
+  $stmt->close();
+  if ($n > 0) return $n;
+  return mp_reshuffle_discards_into_archive($mysqli, $gameId);
+}
+
 function mp_conference_current_picker($mysqli, $gameId) {
+  // Nobody drafts until the floor is stocked — otherwise the first player would
+  // pick over a pool the later attendees haven't contributed to yet.
+  $contrib = mp_conference_contrib_state($mysqli, $gameId);
+  if (!$contrib['done']) return null;
+
   $stmt = $mysqli->prepare("
     SELECT player_id, take_limit, taken_count, draft_order
     FROM mp_conference_attendees
@@ -845,6 +891,18 @@ function mp_maybe_finish_conference($mysqli, $gameId) {
     }
 
     mp_conference_skip_dead($mysqli, $gameId);
+
+    // The floor has to be stocked before we can read anything into an empty
+    // picker slot. mp_conference_current_picker returns null during the
+    // contribution step BY DESIGN — nobody drafts until every attendee has
+    // added their cards — and this function treats a null picker as "everyone
+    // has drafted". Without this guard the conference would finish instantly,
+    // before a single card was contributed or taken.
+    if (!mp_conference_contrib_state($mysqli, $gameId)['done']) {
+      $mysqli->commit();
+      return false;
+    }
+
     if (mp_conference_current_picker($mysqli, $gameId)) {
       // Someone is still drafting.
       $mysqli->commit();

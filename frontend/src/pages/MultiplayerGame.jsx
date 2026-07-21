@@ -30,6 +30,7 @@ import {
   mpPublishFree,
   mpReviewContinue,
   mpConferenceTake,
+  mpConferenceContribute,
   mpAftermathReady,
 } from '../api/multiplayer.js';
 
@@ -764,6 +765,13 @@ export default function MultiplayerGame() {
   // Conference: draft the selected pool cards on your turn.
   async function handleConferenceTake(poolIds) {
     await mpConferenceTake(playerToken, poolIds);
+    await refresh();
+  }
+
+  // Conference opening step: add one face-up pile top to the floor. Throws so
+  // the modal can show the error inline — usually a lost race for a top card.
+  async function handleConferenceContribute(pile) {
+    await mpConferenceContribute({ player_token: playerToken, pile });
     await refresh();
   }
 
@@ -1527,13 +1535,14 @@ export default function MultiplayerGame() {
           />
         )}
 
-        {/* Conference interstitial — the card-swap draft. */}
+        {/* Conference interstitial — attendees stock the floor, then draft. */}
         {game.phase === 'conference' && state.conference && (
           <ConferencePhaseModal
             conference={state.conference}
             you={you}
             busy={busy}
             onTake={handleConferenceTake}
+            onContribute={handleConferenceContribute}
           />
         )}
 
