@@ -185,6 +185,12 @@ $reviewPhase = (($game['phase'] ?? 'action') === 'review')
   ? mp_build_review_phase($mysqli, $gameId, $playerId, (int) $game['review_index'])
   : null;
 
+// 6b-ii. Draw phase — the four archive piles (top card face-up), whose turn it
+//        is, and how many cards each player still owes themselves.
+$drawPhase = (($game['phase'] ?? 'action') === 'draw')
+  ? mp_build_draw_phase($mysqli, $gameId, $playerId)
+  : null;
+
 // 6c. Conference phase — the card-draft pool, pick order, and whose turn it is.
 $conference = (($game['phase'] ?? 'action') === 'conference')
   ? mp_build_conference($mysqli, $gameId, $playerId)
@@ -315,6 +321,7 @@ mp_json([
   'archive_remaining'            => $archiveRemaining,
   'pending_submissions'          => $pendingSubmissions,
   'review_phase'                 => $reviewPhase,
+  'draw_phase'                   => $drawPhase,
   'conference'                   => $conference,
   'aftermath'                    => $aftermath,
   'resolved_submissions_for_you' => $resolvedForYou,
@@ -639,6 +646,82 @@ function mp_build_pending_submissions($mysqli, $gameId, $youId) {
  * verdict and per-manuscript readiness (who has clicked Continue). Drives the
  * synchronous ReviewPhaseModal on the client.
  */
+/**
+ * Draw-phase payload: the four archive piles with their top card FACE-UP, whose
+ * turn it is, and every drawing player's remaining allowance.
+ *
+ * The top cards are public — that's the point of the market — but argument tags
+ * are stripped, exactly as on a card's printed face. Context tags stay (they're
+ * printed on the front).
+ */
+function mp_build_draw_phase($mysqli, $gameId, $youId) {
+  $counts = mp_draw_pile_counts($mysqli, $gameId);
+
+  $piles = [];
+  for ($p = 0; $p < MP_ARCHIVE_PILES; $p++) {
+    $top = mp_draw_pile_top($mysqli, $gameId, $p);
+    $face = null;
+    if ($top) {
+      $card = mp_fetch_card($mysqli, (int) $top['idCard']);
+      if ($card) {
+        $face = [
+          'idCard'       => (int) $card['idCard'],
+          'id'           => (int) $card['idCard'],
+          'title'        => $card['title'] ?? '',
+          'author'       => $card['author'] ?? '',
+          'date'         => $card['date'] ?? '',
+          'location'     => $card['location'] ?? '',
+          'source_type'  => $card['source_type'] ?? '',
+          'content'      => $card['content'] ?? '',
+          'significance' => $card['significance'] ?? '',
+          'citation'     => $card['citation'] ?? '',
+          'image_url'    => $card['image_url'] ?? '',
+          'context_tags' => $card['context_tags'] ?? '',
+          'sequence_number' => isset($card['sequence_number']) ? (int) $card['sequence_number'] : null,
+          // argument / sub_argument deliberately omitted.
+        ];
+      }
+    }
+    $piles[] = ['index' => $p, 'count' => (int) $counts[$p], 'top' => $face];
+  }
+
+  // Everyone still owed cards, in round-robin order.
+  $players = [];
+  $stmt = $mysqli->prepare("
+    SELECT player_id, player_name, seat_index, draws_remaining, draws_taken
+    FROM mp_game_players
+    WHERE game_id = ? AND game_over_reason IS NULL AND is_ghost = 0
+    ORDER BY seat_index ASC
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  while ($r = $res->fetch_assoc()) {
+    $players[] = [
+      'player_id'       => (int) $r['player_id'],
+      'player_name'     => $r['player_name'],
+      'seat_index'      => (int) $r['seat_index'],
+      'draws_remaining' => (int) $r['draws_remaining'],
+      'draws_taken'     => (int) $r['draws_taken'],
+    ];
+  }
+  $stmt->close();
+
+  $current = mp_draw_current_player($mysqli, $gameId);
+  $you = null;
+  foreach ($players as $p) if ($p['player_id'] === (int) $youId) $you = $p;
+
+  return [
+    'piles'               => $piles,
+    'current_player_id'   => $current ? (int) $current['player_id'] : null,
+    'current_player_name' => $current ? $current['player_name'] : null,
+    'you_are_up'          => $current && (int) $current['player_id'] === (int) $youId,
+    'your_draws_remaining'=> $you ? (int) $you['draws_remaining'] : 0,
+    'players'             => $players,
+  ];
+}
+
+
 function mp_build_review_phase($mysqli, $gameId, $youId, $reviewIndex) {
   // Live roster (the barrier set) — name + seat for the "waiting on …" strip.
   $stmt = $mysqli->prepare("

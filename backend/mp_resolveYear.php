@@ -193,7 +193,9 @@ function mp_maybe_resolve_year($mysqli, $gameId) {
 
       switch ($action) {
         case 'draw':
-          mp_resolve_draw($mysqli, $gameId, $p);
+          // Draws no longer happen here. The player is given an allowance and
+          // picks cards one at a time during the draw phase below.
+          mp_seed_draw_allowance($mysqli, $gameId, $p);
           break;
 
         case 'publish':
@@ -205,27 +207,16 @@ function mp_maybe_resolve_year($mysqli, $gameId) {
       }
     }
 
-    // ----- Decide: enter the review phase, or finish the round now -----
-    // Any manuscripts created this round (status='pending') — plus any
-    // stragglers from a prior round — are reviewed synchronously in an
-    // interstitial before the next year begins. If there are none, finish now.
-    $pendingCount = mp_count_pending_submissions($mysqli, $gameId);
-    if ($pendingCount > 0) {
-      $stmt = $mysqli->prepare("
-        UPDATE mp_games
-        SET phase = 'review', review_index = 0, state_version = state_version + 1
-        WHERE game_id = ?
-      ");
-      $stmt->bind_param('i', $gameId);
-      $stmt->execute();
-      $stmt->close();
-      mp_log_event($mysqli, $gameId, null, 'review_phase_started', ['manuscripts' => $pendingCount]);
+    // ----- Phase chain: draw → conference → review → finish -----
+    // Anyone who chose 'draw' now picks cards one at a time from the four
+    // archive piles, in round-robin seat order.
+    if (mp_enter_draw_phase($mysqli, $gameId)) {
       $mysqli->commit();
       return true;
     }
 
-    // No manuscripts → either run the conference interstitial or finish.
-    mp_after_review_step($mysqli, $gameId, $game);
+    // Nobody drew → straight on to the conference / review steps.
+    mp_after_draw_step($mysqli, $gameId, $game);
 
     $mysqli->commit();
     return true;
@@ -314,7 +305,8 @@ function mp_maybe_advance_review($mysqli, $gameId) {
     // If the index has run past the available manuscripts (e.g. all resolved),
     // proceed to the conference step (or finish) defensively.
     if ($index >= count($subIds)) {
-      mp_after_review_step($mysqli, $gameId, $game);
+      // Review now runs LAST in the round, so finishing it finishes the round.
+      mp_finish_round_tail($mysqli, $gameId, $game);
       $mysqli->commit();
       return true;
     }
@@ -360,7 +352,8 @@ function mp_maybe_advance_review($mysqli, $gameId) {
     // Advance to the next manuscript, or move on (conference / finish) if last.
     $nextIndex = $index + 1;
     if ($nextIndex >= count($subIds)) {
-      mp_after_review_step($mysqli, $gameId, $game);
+      // Review now runs LAST in the round, so finishing it finishes the round.
+      mp_finish_round_tail($mysqli, $gameId, $game);
     } else {
       $stmt = $mysqli->prepare("
         UPDATE mp_games SET review_index = ?, state_version = state_version + 1 WHERE game_id = ?
@@ -622,19 +615,6 @@ function mp_count_conference_attendees($mysqli, $gameId) {
   $n = (int) $stmt->get_result()->fetch_assoc()['n'];
   $stmt->close();
   return $n;
-}
-
-/**
- * After the review phase (or when there are no manuscripts), either run the
- * conference interstitial (if anyone attended) or finish the round. Assumes the
- * caller holds the game-row lock and a transaction.
- */
-function mp_after_review_step($mysqli, $gameId, $game) {
-  if (mp_count_conference_attendees($mysqli, $gameId) > 0) {
-    mp_enter_conference_phase($mysqli, $gameId);
-  } else {
-    mp_finish_round_tail($mysqli, $gameId, $game);
-  }
 }
 
 /**
@@ -948,8 +928,8 @@ function mp_finish_conference($mysqli, $gameId, $game) {
 
   mp_log_event($mysqli, $gameId, null, 'conference_ended', []);
 
-  // Resolve outcomes + advance the year.
-  mp_finish_round_tail($mysqli, $gameId, $game);
+  // Conference done → review any manuscripts, then finish the round.
+  mp_after_conference_step($mysqli, $gameId, $game);
 }
 
 
@@ -1055,12 +1035,22 @@ function mp_has_reviewable_submission($mysqli, $gameId) {
 }
 
 
+// ============================================================================
+// Draw phase (synchronous interstitial)
+//
+// The archive is dealt into ARCHIVE_PILES piles derived from archive_position
+// (position % 4), so no extra column is needed. Each pile's "top" is its lowest
+// undrawn position. Players who chose 'draw' take one card at a time in
+// round-robin seat order until their allowance is spent.
+// ============================================================================
+
+const MP_ARCHIVE_PILES = 4;
+
 /**
- * Draw N cards for the given player from the shared archive (N = research
- * stat; L4 draws a full notebook). Capped by notebook room. If the archive
- * empties mid-draw, reshuffle all players' discards back in.
+ * Give a player their draw allowance for this round (research stat, capped by
+ * notebook room). The cards themselves are taken during the draw phase.
  */
-function mp_resolve_draw($mysqli, $gameId, $player) {
+function mp_seed_draw_allowance($mysqli, $gameId, $player) {
   $pid = (int) $player['player_id'];
   $researchLevel = (int) $player['research_level'];
   $notebookLevel = (int) $player['notebook_level'];
@@ -1072,85 +1062,187 @@ function mp_resolve_draw($mysqli, $gameId, $player) {
   $drawRaw  = $researchTable[max(0, min(3, $researchLevel - 1))];
   $drawCount = $drawRaw === 'capacity' ? $capacity : $drawRaw;
 
-  // Current hand size
   $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM mp_player_hands WHERE player_id = ?");
   $stmt->bind_param('i', $pid);
   $stmt->execute();
-  $res = $stmt->get_result();
-  $row = $res->fetch_assoc();
+  $row = $stmt->get_result()->fetch_assoc();
   $stmt->close();
-  $room = $capacity - (int) $row['n'];
-  $target = min($drawCount, $room);
-  // Tracking — we want the event log to record how many cards actually
-  // got drawn so the action history modal can show e.g. "drew 3 cards"
-  // or "tried to draw but hand was full."
-  if ($target <= 0) {
-    mp_log_event($mysqli, $gameId, $pid, 'action_resolved_draw', [
-      'requested' => $drawCount,
-      'drawn'     => 0,
-      'reason'    => 'hand_full',
-    ]);
+
+  $allowance = max(0, min($drawCount, $capacity - (int) $row['n']));
+
+  $u = $mysqli->prepare("UPDATE mp_game_players SET draws_remaining = ?, draws_taken = 0 WHERE player_id = ?");
+  $u->bind_param('ii', $allowance, $pid);
+  $u->execute();
+  $u->close();
+
+  mp_log_event($mysqli, $gameId, $pid, 'draw_allowance', [
+    'requested' => $drawCount,
+    'allowance' => $allowance,
+  ]);
+}
+
+/** Anyone still owed draws? */
+function mp_draws_outstanding($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT COUNT(*) AS n FROM mp_game_players
+    WHERE game_id = ? AND draws_remaining > 0
+      AND game_over_reason IS NULL AND is_ghost = 0
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+  return (int) ($row['n'] ?? 0);
+}
+
+/**
+ * Whose turn is it? Round-robin: fewest cards taken so far, ties by seat. That
+ * keeps it fair when players have different allowances — a research-4 player
+ * simply keeps going after the others are done.
+ */
+function mp_draw_current_player($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT player_id, player_name, seat_index, draws_remaining, draws_taken
+    FROM mp_game_players
+    WHERE game_id = ? AND draws_remaining > 0
+      AND game_over_reason IS NULL AND is_ghost = 0
+    ORDER BY draws_taken ASC, seat_index ASC
+    LIMIT 1
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+  return $row ?: null;
+}
+
+/** Open the draw phase if anyone is owed cards. Returns true if we entered it. */
+function mp_enter_draw_phase($mysqli, $gameId) {
+  if (mp_draws_outstanding($mysqli, $gameId) === 0) return false;
+  $u = $mysqli->prepare("
+    UPDATE mp_games SET phase = 'draw', state_version = state_version + 1
+    WHERE game_id = ?
+  ");
+  $u->bind_param('i', $gameId);
+  $u->execute();
+  $u->close();
+  mp_log_event($mysqli, $gameId, null, 'draw_phase_started', []);
+  return true;
+}
+
+/**
+ * The top (lowest undrawn position) card of a pile, or null. Piles are
+ * position % MP_ARCHIVE_PILES.
+ */
+function mp_draw_pile_top($mysqli, $gameId, $pile) {
+  $stmt = $mysqli->prepare("
+    SELECT idCard, archive_position FROM mp_game_archive
+    WHERE game_id = ? AND drawn_by_player_id IS NULL
+      AND (archive_position % " . MP_ARCHIVE_PILES . ") = ?
+    ORDER BY archive_position ASC
+    LIMIT 1
+  ");
+  $stmt->bind_param('ii', $gameId, $pile);
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+  return $row ?: null;
+}
+
+/** How many undrawn cards remain in each pile. */
+function mp_draw_pile_counts($mysqli, $gameId) {
+  $counts = array_fill(0, MP_ARCHIVE_PILES, 0);
+  $stmt = $mysqli->prepare("
+    SELECT (archive_position % " . MP_ARCHIVE_PILES . ") AS pile, COUNT(*) AS n
+    FROM mp_game_archive
+    WHERE game_id = ? AND drawn_by_player_id IS NULL
+    GROUP BY pile
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  while ($r = $res->fetch_assoc()) {
+    $counts[(int) $r['pile']] = (int) $r['n'];
+  }
+  $stmt->close();
+  return $counts;
+}
+
+/**
+ * Opportunistic draw-phase advance: once nobody is owed cards, close the phase
+ * and move on. Mirrors mp_maybe_finish_conference — own lock + transaction.
+ *
+ * Safety valve: if the archive AND every discard pile are empty, nobody can
+ * take anything, so clear the outstanding allowances rather than hang the phase.
+ */
+function mp_maybe_finish_draw_phase($mysqli, $gameId) {
+  $mysqli->begin_transaction();
+  try {
+    $stmt = $mysqli->prepare("SELECT * FROM mp_games WHERE game_id = ? FOR UPDATE");
+    $stmt->bind_param('i', $gameId);
+    $stmt->execute();
+    $game = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$game || $game['status'] !== 'active' || ($game['phase'] ?? '') !== 'draw') {
+      $mysqli->rollback();
+      return;
+    }
+
+    if (array_sum(mp_draw_pile_counts($mysqli, $gameId)) === 0) {
+      if (mp_reshuffle_discards_into_archive($mysqli, $gameId) === 0) {
+        $z = $mysqli->prepare("UPDATE mp_game_players SET draws_remaining = 0 WHERE game_id = ?");
+        $z->bind_param('i', $gameId);
+        $z->execute();
+        $z->close();
+        mp_log_event($mysqli, $gameId, null, 'draw_phase_exhausted', []);
+      }
+    }
+
+    if (mp_draws_outstanding($mysqli, $gameId) > 0) {
+      $mysqli->commit();
+      return;   // still someone's turn
+    }
+
+    mp_log_event($mysqli, $gameId, null, 'draw_phase_ended', []);
+    mp_after_draw_step($mysqli, $gameId, $game);
+    $mysqli->commit();
+  } catch (Exception $e) {
+    $mysqli->rollback();
+    mp_log_event($mysqli, $gameId, null, 'finish_draw_failed', ['error' => $e->getMessage()]);
+  }
+}
+
+/**
+ * After the draw phase (or when nobody drew): run the conference interstitial
+ * if anyone attended, otherwise move on to review/finish.
+ */
+function mp_after_draw_step($mysqli, $gameId, $game) {
+  if (mp_count_conference_attendees($mysqli, $gameId) > 0) {
+    mp_enter_conference_phase($mysqli, $gameId);
     return;
   }
+  mp_after_conference_step($mysqli, $gameId, $game);
+}
 
-  $year = mp_current_year($mysqli, $gameId);
-  $drawn = 0;
-
-  $remaining = $target;
-  while ($remaining > 0) {
-    // Pull the next N undrawn cards by position.
+/**
+ * After the conference: review any manuscripts, otherwise finish the round.
+ * (Review now runs LAST — the round is action → draw → conference → review.)
+ */
+function mp_after_conference_step($mysqli, $gameId, $game) {
+  $pendingCount = mp_count_pending_submissions($mysqli, $gameId);
+  if ($pendingCount > 0) {
     $stmt = $mysqli->prepare("
-      SELECT idCard FROM mp_game_archive
-      WHERE game_id = ? AND drawn_by_player_id IS NULL
-      ORDER BY archive_position ASC
-      LIMIT ?
+      UPDATE mp_games
+      SET phase = 'review', review_index = 0, state_version = state_version + 1
+      WHERE game_id = ?
     ");
-    $stmt->bind_param('ii', $gameId, $remaining);
+    $stmt->bind_param('i', $gameId);
     $stmt->execute();
-    $res = $stmt->get_result();
-    $cardIds = [];
-    while ($r = $res->fetch_assoc()) $cardIds[] = (int) $r['idCard'];
     $stmt->close();
-
-    if (count($cardIds) === 0) {
-      // Archive empty — reshuffle discards.
-      $reshuffled = mp_reshuffle_discards_into_archive($mysqli, $gameId);
-      if ($reshuffled === 0) break;  // truly empty, can't draw any more
-      continue;
-    }
-
-    // Mark drawn + insert into hand. We do these together per card.
-    foreach ($cardIds as $cid) {
-      $stmt = $mysqli->prepare("
-        UPDATE mp_game_archive
-        SET drawn_by_player_id = ?, drawn_year = ?
-        WHERE game_id = ? AND idCard = ? AND drawn_by_player_id IS NULL
-      ");
-      $stmt->bind_param('iiii', $pid, $year, $gameId, $cid);
-      $stmt->execute();
-      $affected = $stmt->affected_rows;
-      $stmt->close();
-      if ($affected !== 1) continue;  // race lost this card; try the next
-
-      $stmt = $mysqli->prepare("
-        INSERT IGNORE INTO mp_player_hands (player_id, idCard, added_year)
-        VALUES (?, ?, ?)
-      ");
-      $stmt->bind_param('iii', $pid, $cid, $year);
-      $stmt->execute();
-      $stmt->close();
-
-      $remaining--;
-      $drawn++;
-      if ($remaining <= 0) break;
-    }
+    mp_log_event($mysqli, $gameId, null, 'review_phase_started', ['manuscripts' => $pendingCount]);
+    return;
   }
-
-  mp_log_event($mysqli, $gameId, $pid, 'action_resolved_draw', [
-    'requested' => $drawCount,
-    'drawn'     => $drawn,
-    'year'      => $year,
-  ]);
+  mp_finish_round_tail($mysqli, $gameId, $game);
 }
 
 

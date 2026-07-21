@@ -27,6 +27,7 @@ import {
   mpConcede,
   mpSpendObjection,
   mpResolveRevise,
+  mpDrawTake,
   mpReviewContinue,
   mpConferenceTake,
   mpAftermathReady,
@@ -56,6 +57,7 @@ import ActionCommitBar from '../components/ActionCommitBar.jsx';
 import ActionHistoryModal from '../components/ActionHistoryModal.jsx';
 import TutorialManager from '../components/TutorialManager.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
+import DrawPhaseModal from '../components/DrawPhaseModal.jsx';
 import ReviewPhaseModal from '../components/ReviewPhaseModal.jsx';
 import ConferencePhaseModal from '../components/ConferencePhaseModal.jsx';
 import AftermathPhaseModal from '../components/AftermathPhaseModal.jsx';
@@ -707,6 +709,14 @@ export default function MultiplayerGame() {
     await refresh();
   }
 
+  // ── Draw phase ────────────────────────────────────────────────
+  // Take the face-up top card of a pile on your turn. Throws so the modal can
+  // show the error inline (e.g. someone else claimed the card first).
+  async function handleDrawTake(pile) {
+    await mpDrawTake({ player_token: playerToken, pile });
+    await refresh();
+  }
+
   // Mark yourself ready for the current manuscript (the barrier).
   async function handleReviewContinue() {
     await mpReviewContinue(playerToken);
@@ -1355,6 +1365,17 @@ export default function MultiplayerGame() {
             onCancel={() => setPublishingProject(null)}
             onConfirm={confirmPublish}
             busy={busy}
+          />
+        )}
+
+        {/* Synchronous draw phase — the four-pile archive market. Players take
+            cards one at a time in round-robin seat order. */}
+        {game.phase === 'draw' && state.draw_phase && (
+          <DrawPhaseModal
+            drawPhase={state.draw_phase}
+            you={you}
+            busy={busy}
+            onTake={handleDrawTake}
           />
         )}
 

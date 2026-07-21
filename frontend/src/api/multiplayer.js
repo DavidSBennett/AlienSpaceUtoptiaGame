@@ -142,6 +142,20 @@ export async function mpSubmitReview(args) {
 }
 
 /**
+ * Draw phase: take the face-up top card of one of the four archive piles.
+ * Only valid on your turn (round-robin seat order).
+ * @param {{ player_token, pile }} args
+ */
+export async function mpDrawTake(args) {
+  try {
+    const res = await api.post('/mp_drawTake.php', args);
+    return res.data;
+  } catch (err) {
+    throw normalizeError(err);
+  }
+}
+
+/**
  * Review phase: mark yourself ready ("Continue" / "Start Next Year") for the
  * manuscript currently under review. When every live player is ready, the
  * phase advances to the next manuscript or finishes the round.
