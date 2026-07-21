@@ -377,10 +377,15 @@ function initialState({ playerName, deck, allCards, totalYears, tutorial, seed }
     conference: null,
 
     // Cards
-    // The archive is split into several piles the player can draw from (the
-    // walkthrough keeps one, so its scripted order is untouched). Each pile is
-    // drawn from the front.
+    // The archive is split into several piles whose top cards sit face-up —
+    // a market you pick specific cards from. The walkthrough keeps ONE pile and
+    // the old batch-draw, so its scripted order is untouched.
     archivePiles: dealIntoPiles(remainingArchive, tutorial ? 1 : ARCHIVE_PILE_COUNT),
+
+    // An in-progress draw: { remaining } picks left this turn. null when not
+    // drawing. The year advances when the draw ends (allowance spent, notebook
+    // full, archive empty, or the player stops early).
+    drawSession: null,
     conclusionShelf: conclusionCards,    // all conclusions, always available
     hand: startingHand,                  // archive cards in the notebook (seeded with a starting hand)
     discard: [],                         // played/discarded archive cards
@@ -507,6 +512,67 @@ function reducer(state, action) {
         hand: [...state.hand, ...drawn],
         rngState,
       });
+    }
+
+    // ---- Market draw (multi-pile archive) ----
+    //
+    // The four piles show their top card face-up. Taking one puts it straight
+    // in the notebook and flips the next card of that pile up in its place.
+    // The first pick opens a draw session worth `research` cards; the year
+    // advances when the session ends.
+    case 'TAKE_ARCHIVE_CARD': {
+      if (state.gameOver) return state;
+      const { pileIndex } = action;
+      const current = state.archivePiles || [];
+      if (!current[pileIndex] || current[pileIndex].length === 0) return state;
+
+      const capacity = STAT_TABLES.notebookCapacity[state.statLevels.notebookCapacity - 1];
+      if (state.hand.length >= capacity) return state;   // notebook full
+
+      const researchRaw = STAT_TABLES.research[state.statLevels.research - 1];
+      const drawCount = researchRaw === 'capacity' ? capacity : researchRaw;
+      const allowance = state.drawSession ? state.drawSession.remaining : drawCount;
+      if (allowance <= 0) return state;
+
+      let piles = current.map((p) => p.slice());
+      let discard = state.discard.slice();
+      let rngState = state.rngState;
+
+      const hand = [...state.hand, piles[pileIndex].shift()];
+      const remaining = allowance - 1;
+
+      // Once every pile is spent, reshuffle the discard back across them so the
+      // market refills mid-draw.
+      if (totalInPiles(piles) === 0 && discard.length > 0) {
+        let reshuffled;
+        if (rngState == null) {
+          reshuffled = shuffle(discard);
+        } else {
+          [reshuffled, rngState] = shuffleWith(discard, rngState);
+        }
+        piles = dealIntoPiles(reshuffled, piles.length);
+        discard = [];
+      }
+
+      const done = remaining <= 0
+        || hand.length >= capacity
+        || totalInPiles(piles) === 0;
+
+      const next = {
+        ...state,
+        archivePiles: piles,
+        discard,
+        hand,
+        rngState,
+        drawSession: done ? null : { remaining },
+      };
+      return done ? advanceYear(next) : next;
+    }
+
+    // Stop drawing early — spend the year with whatever you've taken.
+    case 'END_DRAW': {
+      if (!state.drawSession) return state;
+      return advanceYear({ ...state, drawSession: null });
     }
 
     // ---- UI ----
@@ -1201,10 +1267,17 @@ export function useGameState(setup) {
   // Bound action creators — stable references via useCallback so memoized
   // children don't re-render unnecessarily.
   // pileIndex selects which archive pile to draw from (defaults to the first).
+  // Used by the walkthrough's single-pile batch draw.
   const drawCards = useCallback(
     (pileIndex = 0) => dispatch({ type: 'DRAW_CARDS', pileIndex }),
     []
   );
+  // Market draw: take the face-up card off a given pile.
+  const takeArchiveCard = useCallback(
+    (pileIndex) => dispatch({ type: 'TAKE_ARCHIVE_CARD', pileIndex }),
+    []
+  );
+  const endDraw = useCallback(() => dispatch({ type: 'END_DRAW' }), []);
   const toggleTags = useCallback(() => dispatch({ type: 'TOGGLE_TAGS' }), []);
   const toggleSignificance = useCallback(() => dispatch({ type: 'TOGGLE_SIGNIFICANCE' }), []);
   const reset = useCallback(
@@ -1284,6 +1357,8 @@ export function useGameState(setup) {
   return {
     state,
     drawCards,
+    takeArchiveCard,
+    endDraw,
     toggleTags,
     toggleSignificance,
     moveCard,

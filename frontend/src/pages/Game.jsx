@@ -140,6 +140,8 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
   const {
     state,
     drawCards,
+    takeArchiveCard,
+    endDraw,
     toggleTags,
     toggleSignificance,
     moveCard,
@@ -619,6 +621,9 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
           showTags={state.showTags} showSignificance={state.showSignificance}
           onCardClick={(card) => setOpenCard({ card, source: 'hand' })}
           archivePiles={state.archivePiles}
+          drawSession={state.drawSession}
+          onTakeCard={takeArchiveCard}
+          onEndDraw={endDraw}
           deckRemaining={derived.deckRemaining}
           discardRemaining={state.discard.length}
           drawCount={derived.drawCount}
@@ -794,14 +799,15 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
 
 
 /**
- * MiniDeckFace — the compact stack visual for a quarter-size archive pile.
- * Unlike DeckStack (which hard-codes a full card's dimensions) this fills
- * whatever cell it's given, so four of them tile into one card's footprint.
+ * FaceUpPile — a quarter-size archive pile with its TOP CARD face-up. Unlike
+ * DeckStack (which hard-codes a full card's dimensions) this fills whatever
+ * cell it's given, so four tile into one card's footprint. The stacked edges
+ * behind it hint at how deep the pile still is.
  */
-function MiniDeckFace({ count }) {
-  const layers = count === 0 ? 0 : count < 5 ? 1 : count < 15 ? 2 : 3;
+function FaceUpPile({ card, count }) {
+  const layers = count <= 1 ? 0 : count < 5 ? 1 : count < 15 ? 2 : 3;
 
-  if (layers === 0) {
+  if (!card) {
     return (
       <div className="absolute inset-0 flex items-center justify-center text-cream-200 italic font-serif text-[10px]">
         empty
@@ -811,23 +817,29 @@ function MiniDeckFace({ count }) {
 
   return (
     <div className="absolute inset-0">
+      {/* Depth: the un-drawn cards sitting under the face-up one. */}
       {layers >= 3 && (
-        <div
-          className="absolute inset-0 border border-gold-500/30 surface-paper"
-          style={{ transform: 'translate(4px, 3px)' }}
-        />
+        <div className="absolute inset-0 border border-gold-500/30 surface-paper"
+             style={{ transform: 'translate(4px, 3px)' }} />
       )}
       {layers >= 2 && (
-        <div
-          className="absolute inset-0 border border-gold-500/40 surface-paper"
-          style={{ transform: 'translate(2px, 1.5px)' }}
-        />
+        <div className="absolute inset-0 border border-gold-500/40 surface-paper"
+             style={{ transform: 'translate(2px, 1.5px)' }} />
       )}
-      <div className="absolute inset-0 border border-gold-500/60 surface-paper flex flex-col items-center justify-center">
-        <p className="font-display text-xl text-ink-900 leading-none">{count}</p>
-        <p className="font-mono text-[8px] uppercase tracking-widest text-ink-700 mt-0.5">
-          {count === 1 ? 'card' : 'cards'}
+
+      {/* The face-up top card. */}
+      <div className="absolute inset-0 border border-gold-500/70 surface-paper p-1 flex flex-col overflow-hidden">
+        <p className="font-display font-bold text-[10px] text-ink-900 leading-tight line-clamp-4">
+          {card.title}
         </p>
+        {card.date && (
+          <p className="font-mono text-[7px] uppercase tracking-wider text-ink-700 mt-auto">
+            {card.date}
+          </p>
+        )}
+        <span className="absolute bottom-0.5 right-0.5 font-mono text-[7px] text-ink-700/70">
+          {count}
+        </span>
       </div>
     </div>
   );
@@ -842,25 +854,25 @@ function MiniDeckFace({ count }) {
  * provenance, passage, significance. Tags are deliberately excluded; they stay
  * hidden scaffolding, exactly as on the card face itself.
  */
-function ArchivePile({ index, cards = [], wouldDraw, canDraw, onDraw }) {
+function ArchivePile({ index, cards = [], canTake, onTake }) {
   const count = cards.length;
   const top = cards[0] || null;
-  const clickable = canDraw && count > 0;
+  const clickable = canTake && count > 0;
 
   return (
     <div className="relative group">
       <button
         type="button"
-        onClick={() => onDraw(index)}
+        onClick={() => onTake(index)}
         disabled={!clickable}
-        title={count === 0 ? 'This pile is empty' : `Draw ${wouldDraw} from this pile · + 1 year`}
+        title={count === 0 ? 'This pile is empty' : `Take "${top?.title}" into your notebook`}
         className={`
           relative w-full h-full
           transition-transform duration-200 ease-desk
           ${clickable ? 'hover:-translate-y-0.5 cursor-pointer' : 'cursor-not-allowed opacity-40'}
         `}
       >
-        <MiniDeckFace count={count} />
+        <FaceUpPile card={top} count={count} />
       </button>
 
       {/* Hover peek — the top card's face, no tags. Anchored to the pile's LEFT
@@ -998,6 +1010,9 @@ function NotebookArea({
   onCardClick,
   // Phase 10 props — passed through for the embedded deck + draw control
   archivePiles = [],
+  drawSession = null,
+  onTakeCard,
+  onEndDraw,
   deckRemaining = 0,
   discardRemaining = 0,
   drawCount = 0,
@@ -1016,6 +1031,11 @@ function NotebookArea({
   const totalAvailable = deckRemaining + discardRemaining;
   const canDraw = !disabled && totalAvailable > 0 && hand.length < capacity;
   const wouldDraw = Math.min(drawCount, capacity - hand.length, totalAvailable);
+  // Market draw: you can take a face-up card whenever there's room, and either
+  // no draw is underway (this starts one) or you still have picks left.
+  const canTake = !disabled
+    && hand.length < capacity
+    && (!drawSession || drawSession.remaining > 0);
 
   return (
     <footer
@@ -1038,22 +1058,37 @@ function NotebookArea({
             below, so its scripted flow is unchanged. */}
         {archivePiles.length > 1 ? (
           <div className="flex-shrink-0 w-36 flex flex-col items-center" data-tutorial="draw-zone">
-            {/* 2x2 — the four piles together occupy one card's footprint. */}
+            {/* 2x2 — the four face-up cards together occupy one card's footprint. */}
             <div className="grid grid-cols-2 grid-rows-2 gap-1.5 w-32 h-[12.5rem]">
               {archivePiles.map((pile, i) => (
                 <ArchivePile
                   key={i}
                   index={i}
                   cards={pile}
-                  wouldDraw={wouldDraw}
-                  canDraw={canDraw}
-                  onDraw={onDraw}
+                  canTake={canTake}
+                  onTake={onTakeCard}
                 />
               ))}
             </div>
-            <p className="font-mono text-[9px] uppercase tracking-wider text-cream-200 mt-2 text-center">
-              + 1 year
-            </p>
+
+            {drawSession ? (
+              <div className="mt-2 flex flex-col items-center gap-1">
+                <p className="font-mono text-[9px] uppercase tracking-wider text-gold-300 text-center">
+                  {drawSession.remaining} pick{drawSession.remaining === 1 ? '' : 's'} left
+                </p>
+                <button
+                  type="button"
+                  onClick={onEndDraw}
+                  className="font-mono text-[9px] uppercase tracking-wider px-2 py-1 border border-gold-500 text-cream-100 hover:bg-gold-500 hover:text-teal-950 transition-colors"
+                >
+                  Done · +1 year
+                </button>
+              </div>
+            ) : (
+              <p className="font-mono text-[9px] uppercase tracking-wider text-cream-200 mt-2 text-center leading-snug">
+                Take up to {wouldDraw} · + 1 year
+              </p>
+            )}
           </div>
         ) : (
         <div className="flex-shrink-0 w-36 flex flex-col items-center">
