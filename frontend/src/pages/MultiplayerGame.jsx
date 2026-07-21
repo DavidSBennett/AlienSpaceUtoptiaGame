@@ -1727,9 +1727,17 @@ function DrawFocusPanel({ drawPhase }) {
 
 
 /**
- * ConclusionSidebar — conclusions to the LEFT of the project rows, all stacked
- * in one thin vertical column under a single decorated "Conclusions" header.
- * Each tile shows its prestige value on the right.
+ * A full conclusion shelf holds seven. Decks with fewer show the remaining
+ * slots as unused, so the column keeps its height (and lines up with the
+ * archive market beside it). Matches solo.
+ */
+const CONCLUSION_SLOTS = 7;
+
+/**
+ * ConclusionSidebar — conclusions to the LEFT of the project rows, stacked in
+ * one column under a single decorated "Conclusions" header. Each tile shows its
+ * prestige value on the right. Same treatment as solo: full-size spines rather
+ * than thin ones, padded out to a full seven-slot shelf.
  */
 function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificance }) {
   // Main (a/b) conclusions first, then sub (s/p/e) — but no separate labels.
@@ -1749,28 +1757,38 @@ function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificanc
       </div>
 
       <div className="flex flex-col gap-1.5">
-        {ordered.length === 0 ? (
-          <span className="font-mono text-[9px] italic text-cream-200/40 px-0.5">none available</span>
-        ) : (
-          ordered.map((c) => (
-            <DraggableCard
-              key={`shelf-${c.idCard}`}
-              id={`shelf-${c.idCard}`}
-              data={{ cardId: c.idCard, from: { kind: 'conclusionShelf' } }}
-            >
-              {({ dragHandleProps, isDragging }) => (
-                <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
-                  <ConclusionSpine
-                    thin
-                    card={{ ...c, id: c.idCard }}
-                    onClick={() => onConclusionClick(c)}
-                    showTags={showTags} showSignificance={showSignificance}
-                  />
-                </div>
-              )}
-            </DraggableCard>
-          ))
-        )}
+        {ordered.map((c) => (
+          <DraggableCard
+            key={`shelf-${c.idCard}`}
+            id={`shelf-${c.idCard}`}
+            data={{ cardId: c.idCard, from: { kind: 'conclusionShelf' } }}
+          >
+            {({ dragHandleProps, isDragging }) => (
+              <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
+                <ConclusionSpine
+                  card={{ ...c, id: c.idCard }}
+                  widthClass="w-72"
+                  onClick={() => onConclusionClick(c)}
+                  showTags={showTags} showSignificance={showSignificance}
+                />
+              </div>
+            )}
+          </DraggableCard>
+        ))}
+
+        {/* Pad out to a full shelf. A deck with fewer conclusions — or one
+            whose conclusions are currently placed in projects — shows the
+            remaining slots as unused rather than leaving the column short. */}
+        {Array.from({ length: Math.max(0, CONCLUSION_SLOTS - ordered.length) }).map((_, i) => (
+          <div
+            key={`empty-slot-${i}`}
+            className="w-72 h-14 border border-dashed border-cream-50/20 flex items-center justify-center"
+          >
+            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-200/40">
+              not used
+            </span>
+          </div>
+        ))}
       </div>
     </aside>
   );

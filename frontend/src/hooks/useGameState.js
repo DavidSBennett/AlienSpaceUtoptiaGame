@@ -952,10 +952,11 @@ function reducer(state, action) {
       const returned = pool.filter((c) => !keptIds.has(c.id));
 
       // Conference publication: award one random leftover (un-kept) pool card
-      // as a single-evidence "conference paper" on the bookshelf. It carries no
-      // prestige of its own (solo has no opponents to cite it).
+      // as a single-evidence "conference paper" on the bookshelf. Presenting is
+      // publishing, so the paper pays out the card's own bonus prestige.
       let rngState = state.rngState;
       let publications = state.publications;
+      let conferencePrestige = 0;
       if (returned.length > 0) {
         let paper;
         if (rngState == null) {
@@ -965,6 +966,7 @@ function reducer(state, action) {
           [idx, rngState] = nextInt(rngState, returned.length);
           paper = returned[idx];
         }
+        conferencePrestige = Number(paper?.bonus) || 0;
         publications = [
           ...state.publications,
           {
@@ -982,7 +984,7 @@ function reducer(state, action) {
               citation: paper?.citation || '',
             }],
             year: state.year,
-            prestige: 0,
+            prestige: conferencePrestige,
           },
         ];
       }
@@ -992,6 +994,9 @@ function reducer(state, action) {
         hand: [...state.hand, ...kept],
         discard: [...state.discard, ...returned],
         citations: (state.citations || 0) + (citationGrant || 0),
+        // The paper's bonus is banked now, not at scoring time, so the running
+        // prestige total on the board reflects it immediately.
+        prestige: state.prestige + conferencePrestige,
         conference: null,
         publications,
         rngState,

@@ -979,8 +979,12 @@ function mp_award_conference_paper($mysqli, $gameId, $playerId, $idCard, $year) 
   $kind          = 'conference';
   $evCount       = 1;
   $snapJson      = json_encode($snapshot);
-  $prestige      = 0;                                      // owner earns nothing
-  $citationValue = isset($card['bonus']) ? (int) $card['bonus'] : 0;  // opponent's citation payout
+  // The attendee earns the card's bonus prestige for the paper, and the same
+  // figure is what an opponent citing it pays out. Presenting at a conference
+  // is a publication, so it scores like one.
+  $bonus         = isset($card['bonus']) ? (int) $card['bonus'] : 0;
+  $prestige      = $bonus;
+  $citationValue = $bonus;
 
   // Best-effort: if the schema hasn't been migrated yet (kind enum / nullable
   // submission_id — see database/30_conference_publications.sql), skip the award
@@ -999,9 +1003,22 @@ function mp_award_conference_paper($mysqli, $gameId, $playerId, $idCard, $year) 
     $stmt->execute();
     $stmt->close();
 
+    // prestige_granted on the work is only a record of what the paper was
+    // worth; the player's running score is a separate column and has to be
+    // moved explicitly, or the paper shows a value nobody ever banked.
+    if ($prestige > 0) {
+      $bump = $mysqli->prepare("
+        UPDATE mp_game_players SET prestige = prestige + ? WHERE player_id = ?
+      ");
+      $bump->bind_param('ii', $prestige, $playerId);
+      $bump->execute();
+      $bump->close();
+    }
+
     mp_log_event($mysqli, $gameId, $playerId, 'conference_paper_awarded', [
       'idCard'         => $concCardId,
       'title'          => $title,
+      'prestige'       => $prestige,
       'citation_value' => $citationValue,
     ]);
   } catch (Exception $e) {
