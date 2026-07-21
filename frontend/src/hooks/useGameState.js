@@ -63,6 +63,25 @@ export const PUBLISH_THRESHOLDS = { articleMin: 2, bookMin: 6 };
 // draft from is (cards you staged) + this many extra fresh cards.
 export const CONFERENCE_FRESH = [1, 2, 3, 4];
 
+/**
+ * How many archive piles a normal game splits the deck into. The guided
+ * walkthrough always uses a SINGLE pile so its scripted draw order is
+ * unchanged (and the board still shows one deck there).
+ */
+export const ARCHIVE_PILE_COUNT = 4;
+
+/** Total cards left across every archive pile. */
+export function totalInPiles(piles) {
+  return (piles || []).reduce((n, p) => n + p.length, 0);
+}
+
+/** Deal cards round-robin into `count` piles, so they stay even (±1). */
+function dealIntoPiles(cards, count) {
+  const piles = Array.from({ length: Math.max(1, count) }, () => []);
+  (cards || []).forEach((card, i) => piles[i % piles.length].push(card));
+  return piles;
+}
+
 /** Citation tokens a conference grants, by reputation level (1-4). */
 export function conferenceCitations(level) {
   return STAT_TABLES.reputation[Math.max(0, Math.min(3, (level || 1) - 1))];
@@ -358,7 +377,10 @@ function initialState({ playerName, deck, allCards, totalYears, tutorial, seed }
     conference: null,
 
     // Cards
-    archiveDeck: remainingArchive,       // shuffled, drawn from the front (minus the starting hand)
+    // The archive is split into several piles the player can draw from (the
+    // walkthrough keeps one, so its scripted order is untouched). Each pile is
+    // drawn from the front.
+    archivePiles: dealIntoPiles(remainingArchive, tutorial ? 1 : ARCHIVE_PILE_COUNT),
     conclusionShelf: conclusionCards,    // all conclusions, always available
     hand: startingHand,                  // archive cards in the notebook (seeded with a starting hand)
     discard: [],                         // played/discarded archive cards
@@ -441,35 +463,46 @@ function reducer(state, action) {
         return advanceYear(state);
       }
 
-      // Walk the draw with reshuffle support. We track deck and discard
-      // as mutable copies, peel cards off the deck, and if it empties
-      // before we've drawn enough, we shuffle the discard back into
-      // the deck and keep going. Loop terminates when we've drawn
-      // enough OR both piles are empty.
-      let deck = state.archiveDeck.slice();
+      // Walk the draw with reshuffle support. Cards come off the pile the
+      // player clicked; if that pile empties mid-draw we fall through to the
+      // other piles, and when every pile is empty the discard is shuffled and
+      // dealt back across them. Loop ends when we've drawn enough OR
+      // everything is exhausted.
+      const pileIndex = Number.isInteger(action.pileIndex) ? action.pileIndex : 0;
+      let piles = state.archivePiles.map((p) => p.slice());
       let discard = state.discard.slice();
       let rngState = state.rngState;
       const drawn = [];
 
+      // Prefer the clicked pile, then any pile with cards left.
+      const takeCard = () => {
+        if (piles[pileIndex] && piles[pileIndex].length > 0) return piles[pileIndex].shift();
+        const i = piles.findIndex((p) => p.length > 0);
+        return i >= 0 ? piles[i].shift() : null;
+      };
+
       while (drawn.length < targetDraw) {
-        if (deck.length === 0) {
+        let card = takeCard();
+        if (!card) {
           if (discard.length === 0) break;  // nothing more to draw, ever
-          // Reshuffle discard → new deck. The discard pile becomes the
-          // fresh draw stack; existing discard array is emptied.
+          let reshuffled;
           if (rngState == null) {
-            deck = shuffle(discard);
+            reshuffled = shuffle(discard);
           } else {
-            [deck, rngState] = shuffleWith(discard, rngState);
+            [reshuffled, rngState] = shuffleWith(discard, rngState);
           }
+          piles = dealIntoPiles(reshuffled, piles.length);
           discard = [];
+          card = takeCard();
+          if (!card) break;
         }
-        drawn.push(deck.shift());
+        drawn.push(card);
       }
 
       // Year always advances on a Draw action (attempted, that's the action).
       return advanceYear({
         ...state,
-        archiveDeck: deck,
+        archivePiles: piles,
         discard,
         hand: [...state.hand, ...drawn],
         rngState,
@@ -786,23 +819,35 @@ function reducer(state, action) {
         i === projectId ? { ...p, evidence: [] } : p
       );
 
-      // Draw the fresh pool from the archive, reshuffling the discard back in
-      // if the deck runs dry (same walk as DRAW_CARDS).
-      let deck = state.archiveDeck.slice();
+      // Draw the fresh pool from the archive, taking from whichever pile has
+      // cards and reshuffling the discard back across them if they all run dry
+      // (same walk as DRAW_CARDS).
+      let piles = state.archivePiles.map((p) => p.slice());
       let discard = state.discard.slice();
       let rngState = state.rngState;
       const pool = [];
+
+      const takeCard = () => {
+        const i = piles.findIndex((p) => p.length > 0);
+        return i >= 0 ? piles[i].shift() : null;
+      };
+
       while (pool.length < poolSize) {
-        if (deck.length === 0) {
+        let card = takeCard();
+        if (!card) {
           if (discard.length === 0) break;
+          let reshuffled;
           if (rngState == null) {
-            deck = shuffle(discard);
+            reshuffled = shuffle(discard);
           } else {
-            [deck, rngState] = shuffleWith(discard, rngState);
+            [reshuffled, rngState] = shuffleWith(discard, rngState);
           }
+          piles = dealIntoPiles(reshuffled, piles.length);
           discard = [];
+          card = takeCard();
+          if (!card) break;
         }
-        pool.push(deck.shift());
+        pool.push(card);
       }
 
       // Send the staged cards to the conference (discarded) AFTER drawing the
@@ -812,7 +857,7 @@ function reducer(state, action) {
       return {
         ...state,
         projects,
-        archiveDeck: deck,
+        archivePiles: piles,
         discard,
         rngState,
         conference: {
@@ -1155,7 +1200,11 @@ export function useGameState(setup) {
 
   // Bound action creators — stable references via useCallback so memoized
   // children don't re-render unnecessarily.
-  const drawCards = useCallback(() => dispatch({ type: 'DRAW_CARDS' }), []);
+  // pileIndex selects which archive pile to draw from (defaults to the first).
+  const drawCards = useCallback(
+    (pileIndex = 0) => dispatch({ type: 'DRAW_CARDS', pileIndex }),
+    []
+  );
   const toggleTags = useCallback(() => dispatch({ type: 'TOGGLE_TAGS' }), []);
   const toggleSignificance = useCallback(() => dispatch({ type: 'TOGGLE_SIGNIFICANCE' }), []);
   const reset = useCallback(
@@ -1220,7 +1269,7 @@ export function useGameState(setup) {
       // used to be called bookThreshold during Phase 10.2; keep both
       // names working so any code reading either still functions.
       bookThreshold: bookMin,
-      deckRemaining: state.archiveDeck.length,
+      deckRemaining: totalInPiles(state.archivePiles),
       handFull: state.hand.length >= capacity,
       // Conference / citation economy (reputation + renown).
       conferenceFresh: conferenceFresh(state.statLevels.reputation || 1),
@@ -1230,7 +1279,7 @@ export function useGameState(setup) {
       projectedPrestige:
         state.prestige + (state.citations || 0) * renownMultiplier(state.statLevels.renown || 1),
     };
-  }, [state.statLevels, state.archiveDeck.length, state.hand.length, state.prestige, state.citations]);
+  }, [state.statLevels, state.archivePiles, state.hand.length, state.prestige, state.citations]);
 
   return {
     state,

@@ -618,7 +618,8 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
           capacity={derived.capacity}
           showTags={state.showTags} showSignificance={state.showSignificance}
           onCardClick={(card) => setOpenCard({ card, source: 'hand' })}
-          deckRemaining={state.archiveDeck.length}
+          archivePiles={state.archivePiles}
+          deckRemaining={derived.deckRemaining}
           discardRemaining={state.discard.length}
           drawCount={derived.drawCount}
           onDraw={drawCards}
@@ -793,6 +794,67 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
 
 
 /**
+ * ArchivePile — one of the archive stacks the player can draw from.
+ *
+ * Clicking draws from THIS pile (and advances the year, same as before).
+ * Hovering peeks at the pile's top card: the face of the card only — title,
+ * provenance, passage, significance. Tags are deliberately excluded; they stay
+ * hidden scaffolding, exactly as on the card face itself.
+ */
+function ArchivePile({ index, cards = [], wouldDraw, canDraw, onDraw }) {
+  const count = cards.length;
+  const top = cards[0] || null;
+  const clickable = canDraw && count > 0;
+
+  return (
+    <div className="relative group">
+      <button
+        type="button"
+        onClick={() => onDraw(index)}
+        disabled={!clickable}
+        title={count === 0 ? 'This pile is empty' : `Draw ${wouldDraw} from this pile · + 1 year`}
+        className={`
+          relative h-[12.5rem] w-[4.6rem]
+          transition-transform duration-200 ease-desk
+          ${clickable ? 'hover:-translate-y-1 cursor-pointer' : 'cursor-not-allowed opacity-40'}
+        `}
+      >
+        <DeckStack count={count} />
+      </button>
+
+      {/* Hover peek — the top card's face, no tags. */}
+      {top && (
+        <div
+          className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50
+                     w-72 surface-paper border-2 border-gold-500 shadow-2xl p-3 text-left pointer-events-none"
+        >
+          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-gold-700 mb-1">
+            Top of pile {index + 1}
+          </p>
+          <h4 className="font-display font-bold text-ink-900 text-sm leading-tight">
+            {top.title || 'Untitled'}
+          </h4>
+          {(top.author || top.date || top.location || top.source_type) && (
+            <p className="font-mono text-[9px] uppercase tracking-wider text-ink-700 mt-1">
+              {[top.author, top.date, top.location, top.source_type].filter(Boolean).join(' · ')}
+            </p>
+          )}
+          {top.content && (
+            <p className="font-serif text-xs text-ink-900 leading-snug mt-2">{top.content}</p>
+          )}
+          {top.significance && (
+            <p className="font-serif italic text-xs text-ink-700 leading-snug mt-2">
+              {top.significance}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/**
  * NotebookArea — the player's hand at the bottom of the screen.
  *
  * Wraps each hand card in a DraggableCard so it can be moved to a project.
@@ -892,6 +954,7 @@ function NotebookArea({
   showSignificance,
   onCardClick,
   // Phase 10 props — passed through for the embedded deck + draw control
+  archivePiles = [],
   deckRemaining = 0,
   discardRemaining = 0,
   drawCount = 0,
@@ -926,10 +989,33 @@ function NotebookArea({
             overlay sits on top of the deck face, with a "+1 year" caption
             beneath. When draw isn't possible (empty deck or full notebook)
             the deck dims and the click is disabled. */}
+        {/* Multi-pile archive: the deck is split into several stacks and you
+            choose which to draw from, hovering to peek at the top card. The
+            walkthrough keeps a single pile and renders the original deck
+            below, so its scripted flow is unchanged. */}
+        {archivePiles.length > 1 ? (
+          <div className="flex-shrink-0 flex flex-col items-center" data-tutorial="draw-zone">
+            <div className="flex gap-2">
+              {archivePiles.map((pile, i) => (
+                <ArchivePile
+                  key={i}
+                  index={i}
+                  cards={pile}
+                  wouldDraw={wouldDraw}
+                  canDraw={canDraw}
+                  onDraw={onDraw}
+                />
+              ))}
+            </div>
+            <p className="font-mono text-[9px] uppercase tracking-wider text-cream-200 mt-2 text-center">
+              + 1 year
+            </p>
+          </div>
+        ) : (
         <div className="flex-shrink-0 w-36 flex flex-col items-center">
           <button
             type="button"
-            onClick={onDraw}
+            onClick={() => onDraw(0)}
             disabled={!canDraw}
             data-tutorial="draw-zone"
             className={`
@@ -965,6 +1051,7 @@ function NotebookArea({
             + 1 year
           </p>
         </div>
+        )}
 
         {/* Right: the hand */}
         <div className="flex-1 min-w-0">
