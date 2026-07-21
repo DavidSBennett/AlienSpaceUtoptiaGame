@@ -6,7 +6,6 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  useDroppable,
   pointerWithin,
   rectIntersection,
 } from '@dnd-kit/core';
@@ -33,6 +32,7 @@ import FleuronDivider from '../components/FleuronDivider.jsx';
 import ArchiveMarket from '../components/ArchiveMarket.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import StatsStrip from '../components/StatsStrip.jsx';
+import NotebookArea from '../components/NotebookArea.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { isConclusionCard } from '../lib/cardIdentifier.js';
 import { TUTORIAL_DECK, TUTORIAL_CARDS } from '../lib/tutorialDeck.js';
@@ -623,10 +623,10 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
         </div>
 
         {/* ═══════════════════════════════════════════════════
-            5. RESEARCH NOTEBOOK (drop target + draggable cards)
-                Also contains the deck stack + Draw button on its left.
+            5. RESEARCH NOTEBOOK — the same component multiplayer uses.
+               The walkthrough's deck rides along as its deckSlot.
             ═══════════════════════════════════════════════════ */}
-        <NotebookArea
+        <SoloNotebook
           hand={state.hand}
           capacity={derived.capacity}
           showTags={state.showTags} showSignificance={state.showSignificance}
@@ -939,47 +939,22 @@ function ConclusionSidebar({ conclusionShelf, onConclusionClick, showTags, showS
 }
 
 
-/**
- * HandSlot — a drop target wrapping one hand card, enabling drag-to-reorder
- * within the Research Notebook. Dropping a hand card onto another card's slot
- * places it just before that card (handled in handleDragEnd). Highlights while
- * a card hovers over it.
- */
-function HandSlot({ index, cardId, children }) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: `handslot-${cardId}`,
-    data: { to: { kind: 'handReorder', index, cardId } },
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      className={`flex-shrink-0 rounded-sm transition-shadow ${
-        isOver ? 'ring-2 ring-gold-400 ring-offset-2 ring-offset-wood-900' : ''
-      }`}
-    >
-      {children}
-    </div>
-  );
-}
-
 
 /**
- * NotebookArea — bottom bar containing the deck stack + Draw button on the
- * left, and the player's hand (evidence cards) on the right.
+ * SoloNotebook — the shared NotebookArea, plus the guided walkthrough's deck.
  *
- * In Phase 10 the deck stack moved from the old left archive sidebar into
- * this strip. The deck visually retains its labeled "Archive · N · cards"
- * face, which now serves as the only "archive" identifier on the page
- * (the old top-of-sidebar "ARCHIVE" header is gone since the deck card
- * itself carries that information).
+ * A normal game draws from the archive market beside the conclusions and shows
+ * no deck down here at all; the walkthrough keeps its single deck and its
+ * original batch draw, so it hands one to the shared component as a deckSlot.
+ * Everything else — the collapse bar, the header count, the centred wrapping
+ * hand — is the multiplayer notebook, literally the same component.
  */
-function NotebookArea({
+function SoloNotebook({
   hand,
   capacity,
   showTags,
   showSignificance,
   onCardClick,
-  // Phase 10 props — passed through for the embedded deck + draw control
   archivePiles = [],
   drawing = false,
   deckRemaining = 0,
@@ -989,38 +964,23 @@ function NotebookArea({
   disabled = false,
   dragGate,
 }) {
-  const { isOver, setNodeRef } = useDroppable({
-    id: 'drop-notebook',
-    data: { to: { kind: 'hand' } },
-  });
-
-  // The "draw pool" is the deck PLUS the discard (which will reshuffle
-  // into the deck when the deck runs out — Phase 10.6). So a player can
-  // keep drawing as long as ANYTHING is in either pile.
+  // The draw pool is the deck PLUS the discard, which reshuffles in when the
+  // deck runs dry — so drawing stays possible while either still holds cards.
   const totalAvailable = deckRemaining + discardRemaining;
   const canDraw = !disabled && totalAvailable > 0 && hand.length < capacity;
   const wouldDraw = Math.min(drawCount, capacity - hand.length, totalAvailable);
+  const isWalkthroughDeck = archivePiles.length <= 1;
 
   return (
-    <footer
-      ref={setNodeRef}
-      className={`
-        surface-binding border-t-2 px-8 py-5 transition-colors
-        ${isOver ? 'border-gold-400' : 'border-gold-500/40'}
-        ${drawing ? 'relative z-50' : ''}
-      `}
-    >
-      <div className="flex gap-6">
-
-        {/* Left: clickable deck stack. The deck itself is the draw control —
-            clicking it draws the next batch and advances the year. A "Draw N"
-            overlay sits on top of the deck face, with a "+1 year" caption
-            beneath. When draw isn't possible (empty deck or full notebook)
-            the deck dims and the click is disabled. */}
-        {/* A normal game draws from the ArchiveMarket beside the conclusions,
-            so no deck sits here. The walkthrough keeps its single deck and the
-            original batch draw, unchanged. */}
-        {archivePiles.length <= 1 && (
+    <NotebookArea
+      hand={hand}
+      capacity={capacity}
+      showTags={showTags}
+      showSignificance={showSignificance}
+      onCardClick={onCardClick}
+      dragGate={dragGate}
+      focused={drawing}
+      deckSlot={isWalkthroughDeck ? (
         <div className="flex-shrink-0 w-36 flex flex-col items-center">
           <button
             type="button"
@@ -1042,10 +1002,9 @@ function NotebookArea({
           >
             <DeckStack count={deckRemaining} />
 
-            {/* "Draw N" overlay — sits above the deck face, only visible
-                when draw is actually possible. Positioned in the upper
-                third of the deck so it doesn't cover the "Archive · N · cards"
-                label on the deck face beneath it. */}
+            {/* "Draw N" overlay — above the deck face, only while a draw is
+                actually possible, and high enough not to cover the deck's
+                own "Archive · N · cards" label. */}
             {canDraw && (
               <div className="absolute inset-x-0 top-3 flex items-center justify-center pointer-events-none">
                 <div className="bg-teal-900/85 border border-gold-500 px-3 py-1.5 shadow-lg group-hover:bg-teal-800/95 transition-colors">
@@ -1060,52 +1019,8 @@ function NotebookArea({
             + 1 year
           </p>
         </div>
-        )}
-
-        {/* Right: the hand */}
-        <div className="flex-1 min-w-0">
-          {/* justify-center centres each ROW independently, so a wrapped
-              second line stays centred too; content-start keeps the rows
-              stacked from the top rather than spread down the notebook. */}
-          <div className="flex flex-wrap justify-center content-start gap-3 min-h-[12.5rem]">
-            {hand.length === 0 ? (
-              <p className="text-cream-200 italic font-serif self-center w-full text-center">
-                Empty. Draw cards from the archive to begin researching.
-              </p>
-            ) : (
-              hand.map((card, i) => (
-                <HandSlot key={`hand-${card.id}`} index={i} cardId={card.id}>
-                  <DraggableCard
-                    id={`hand-${card.id}`}
-                    data={{ cardId: card.id, from: { kind: 'hand' } }}
-                    disabled={dragGate ? !dragGate(card) : false}
-                  >
-                    {({ dragHandleProps, isDragging, disabled: dragDisabled }) => (
-                      <div {...dragHandleProps} className={`flex-shrink-0 ${dragDisabled ? 'opacity-30' : ''}`}>
-                        <CardThumbnail
-                          card={card}
-                          onClick={() => onCardClick?.(card)}
-                          showTags={showTags} showSignificance={showSignificance}
-                          isDragging={isDragging}
-                        />
-                      </div>
-                    )}
-                  </DraggableCard>
-                </HandSlot>
-              ))
-            )}
-          </div>
-
-          {/* Label below the hand: "Research Notebook: 5 / 11" on one line */}
-          <p className="text-center mt-3 font-display text-xl text-cream-50">
-            Research Notebook:{' '}
-            <span className="font-mono text-xs text-cream-200 align-middle">
-              {hand.length} / {capacity}
-            </span>
-          </p>
-        </div>
-      </div>
-    </footer>
+      ) : null}
+    />
   );
 }
 

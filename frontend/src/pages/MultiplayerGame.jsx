@@ -6,7 +6,6 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  useDroppable,
   pointerWithin,
   rectIntersection,
 } from '@dnd-kit/core';
@@ -60,6 +59,7 @@ import ActionHistoryModal from '../components/ActionHistoryModal.jsx';
 import TutorialManager from '../components/TutorialManager.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import ArchiveMarket from '../components/ArchiveMarket.jsx';
+import NotebookArea from '../components/NotebookArea.jsx';
 import ReviewPhaseModal from '../components/ReviewPhaseModal.jsx';
 import ConferencePhaseModal from '../components/ConferencePhaseModal.jsx';
 import AftermathPhaseModal from '../components/AftermathPhaseModal.jsx';
@@ -1234,20 +1234,18 @@ export default function MultiplayerGame() {
         {/* (5. The action commit bar moved up into the project column, so it
             sits under the projects rather than spanning the whole board.) */}
 
-        {/* ── 6. Notebook (deck stack on left, hand on right) ──
-            Lifted above the draw mask so your hand stays fully visible and
-            readable while you're choosing cards to add to it. */}
-        <div className={isDrawPhase ? 'relative z-50' : undefined}>
+        {/* ── 6. Notebook — lifted above the draw mask so your hand stays
+            fully visible and readable while you're choosing cards for it. */}
         <NotebookArea
           hand={orderedHand}
           capacity={capacity}
           showTags={effTags} showSignificance={effSignificance}
           onCardClick={(card) => setOpenCard({ card, source: 'hand' })}
+          focused={isDrawPhase}
           drawCount={drawCount}
           pendingAction={you.pending_action}
           pendingCommitted={you.pending_action_committed}
         />
-        </div>
 
         {/* The draw mask. Everything not explicitly lifted above it (the archive
             market and the notebook) dims, so the eye goes to the cards you're
@@ -1824,155 +1822,6 @@ function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificanc
   );
 }
 
-
-/**
- * HandSlot — a drop target wrapping one hand card, enabling drag-to-reorder
- * within the notebook (client-side only). Dropping a hand card onto another
- * card's slot places it just before that card (handled in handleDragEnd).
- */
-function HandSlot({ index, cardId, children }) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: `handslot-${cardId}`,
-    data: { to: { kind: 'handReorder', index, cardId } },
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      className={`rounded-sm transition-shadow ${
-        isOver ? 'ring-2 ring-gold-400 ring-offset-2 ring-offset-teal-950' : ''
-      }`}
-    >
-      {children}
-    </div>
-  );
-}
-
-
-/**
- * NotebookArea — bottom bar holding the player's hand, centered and wrapping
- * to further centered lines. Pattern shared with single-player so the two
- * interfaces feel consistent.
- *
- * The deck stack that used to sit on the left is gone: choosing to draw now
- * happens on the archive market beside the conclusions, where the cards you'd
- * actually be choosing between are visible.
- */
-function NotebookArea({
-  hand,
-  capacity,
-  showTags,
-  showSignificance,
-  onCardClick,
-  drawCount,
-  pendingAction,
-  pendingCommitted,
-}) {
-
-  // Collapse state — persisted per-device in localStorage so the
-  // notebook stays however the player left it across reloads and
-  // future games. When account-based logins arrive this should
-  // migrate to a user-level setting (same as VOIP).
-  //
-  // Even when collapsed, the hand remains a valid drop target — a thin
-  // drop strip stays visible — so the player can return evidence to
-  // their notebook without expanding first. The card count in the
-  // header updates live.
-  // Notebook collapse persisted to user_settings (was localStorage).
-  // Sync across devices; survives sign-out/sign-in.
-  const [collapsed, setCollapsed] = useUserSetting('notebook_collapsed', false);
-  function toggleCollapsed() {
-    setCollapsed(!collapsed);
-  }
-
-  return (
-    <section className={`surface-wood border-y border-wood-900 px-6 ${collapsed ? 'py-1.5' : 'py-3 min-h-[14rem]'}`}>
-      {collapsed ? (
-        /* Collapsed state: a single thin bar, giving back the vertical real
-           estate the player asked for. The hand drop target moves to the bar
-           itself so dragging cards back to the notebook still works without
-           expanding. Drawing is unaffected — that lives on the archive market
-           now, not down here. */
-        <DroppableSlot id="hand-drop" data={{ to: { kind: 'hand' } }}>
-          <button
-            onClick={toggleCollapsed}
-            className="
-              w-full flex items-center gap-3
-              font-mono text-[10px] uppercase tracking-[0.3em] text-cream-50/90
-              hover:text-cream-50 transition-colors
-            "
-            title="Expand notebook"
-            aria-expanded="false"
-          >
-            <span aria-hidden="true" className="inline-block w-3 text-center">▸</span>
-            <span>Research Notebook · {hand.length} / {capacity}</span>
-            {pendingAction === 'draw' && (
-              <span className="text-verdigris-400 font-serif italic normal-case tracking-normal">
-                · draw {drawCount} pending{pendingCommitted ? ' (committed)' : ''}
-              </span>
-            )}
-            <span className="ml-auto text-cream-200/40 font-serif italic normal-case tracking-normal text-[10px]">
-              click to expand
-            </span>
-          </button>
-        </DroppableSlot>
-      ) : (
-        <div className="flex gap-6">
-
-          {/* The deck stack that used to live here is gone. It was a second,
-              face-down archive sitting next to the real face-up one, which read
-              as two different decks. Choosing to draw now happens on the market
-              itself — you see the card you want and click "Spend the year here",
-              which is the decision the market exists to provoke. */}
-
-          {/* The hand. Header shows count + a chevron toggle. */}
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="flex items-center justify-between mb-2">
-              <button
-                onClick={toggleCollapsed}
-                className="
-                  flex items-center gap-2
-                  font-mono text-[10px] uppercase tracking-[0.3em] text-cream-50/90
-                  hover:text-cream-50 transition-colors
-                "
-                title="Collapse notebook"
-                aria-expanded="true"
-              >
-                <span aria-hidden="true" className="inline-block w-3 text-center">▾</span>
-                Research Notebook · {hand.length} / {capacity}
-              </button>
-            </div>
-            <DroppableSlot id="hand-drop" data={{ to: { kind: 'hand' } }}>
-              {/* Centered, and wrapping to a second centered line — matches solo. */}
-              <div className="flex flex-wrap justify-center content-start gap-2 min-h-[100px]">
-                {hand.length === 0 ? (
-                  <p className="font-serif italic text-cream-200/60 self-center mx-auto">
-                    Notebook empty. Take cards from the archive beside the conclusions.
-                  </p>
-                ) : (
-                  hand.map((card, i) => (
-                    <HandSlot key={`hand-${card.id}`} index={i} cardId={card.id}>
-                      <DraggableCard
-                        id={`hand-${card.id}`}
-                        data={{ cardId: card.id, from: { kind: 'hand' } }}
-                      >
-                        {({ dragHandleProps, isDragging }) => (
-                          <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
-                            <CardThumbnail card={card} onClick={() => onCardClick(card)} showTags={showTags} showSignificance={showSignificance} />
-                          </div>
-                        )}
-                      </DraggableCard>
-                    </HandSlot>
-                  ))
-                )}
-              </div>
-            </DroppableSlot>
-          </div>
-
-        </div>
-      )}
-    </section>
-  );
-}
 
 
 /**
