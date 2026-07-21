@@ -251,23 +251,23 @@ export default function ProjectRow({
                     citation={citation}
                     isInvalid={isInvalid}
                     showTags={showTags}
+                    compact={useSpines}
                   />
                 </div>
               );
             })}
 
-            {/* Always-present empty slot — invites the next drop.
-                Sized to match either the spine treatment (thin vertical)
-                or the card treatment (wider rectangle). */}
+            {/* Always-present empty slot — invites the next drop. It is always
+                on screen, so whatever height it takes is the row's floor: at
+                8rem it alone kept every project more than twice the height of
+                the spines it holds. Matched to the spine treatment. */}
             <DroppableSlot
               id={`drop-evidence-${project.id}`}
               data={{ to: { kind: 'projectEvidence', projectId: project.id } }}
-              className="w-40 flex items-center justify-center flex-shrink-0"
-              style={{ height: '8rem' }}
+              className={`${useSpines ? 'w-20' : 'w-40'} flex items-center justify-center flex-shrink-0`}
+              style={{ height: useSpines ? '3.5rem' : '8rem' }}
             >
-              {/* The accepting slot keeps the boxy look even in spine mode —
-                  only the PLACED card turns into a spine. */}
-              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-100 text-center">
+              <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-cream-100 text-center leading-tight">
                 Evidence
                 <br />
                 card

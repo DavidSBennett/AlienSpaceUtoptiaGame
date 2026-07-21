@@ -24,7 +24,7 @@
  */
 import { colorForSeat } from '../lib/playerColors.js';
 
-export default function CitationThumbnail({ citation, isInvalid = false, showTags = false, onClick, dragHandleProps }) {
+export default function CitationThumbnail({ citation, isInvalid = false, showTags = false, onClick, dragHandleProps, compact = false }) {
   const col = colorForSeat(citation.writer_seat);
   const isBook = citation.work_kind === 'book';
   const showMismatch = isInvalid && showTags;
@@ -34,13 +34,45 @@ export default function CitationThumbnail({ citation, isInvalid = false, showTag
   // clickable variants.
   const interactive = typeof onClick === 'function';
 
+  const label = showMismatch
+    ? `Citation: "${citation.title}" — TAG MISMATCH. Submitting will auto-reject. Right-click to remove.`
+    : `Citation: "${citation.title}" by ${citation.writer_name}, year ${citation.year_published}`;
+
+  // Compact: sits in a project row alongside evidence spines, so it matches
+  // their height. A full 11rem card here would set the row's height single
+  // handedly and undo the shelf-sized layout around it.
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title={label}
+        className={`
+          relative w-24 h-14 flex-shrink-0 overflow-hidden
+          border-2 ${showMismatch ? 'border-oxblood-500' : col.spineEdge} ${col.accentBg}
+          ${interactive ? 'hover:shadow-card-hover transition-all duration-200 ease-desk cursor-pointer' : 'cursor-default'}
+          text-left
+        `}
+        {...dragHandleProps}
+      >
+        <span className={`absolute top-0.5 bottom-0.5 left-0.5 w-1 ${col.spineBg}`} aria-hidden="true" />
+        <div className="absolute inset-0 pl-2.5 pr-1 py-1 flex flex-col justify-between">
+          <span className={`font-mono text-[7px] uppercase tracking-[0.12em] ${showMismatch ? 'text-oxblood-300' : col.accent}`}>
+            {showMismatch ? '⚠ cite' : '🔗 cite'}
+          </span>
+          <span className="font-display text-[9px] leading-tight text-cream-50 line-clamp-2">
+            {citation.title}
+          </span>
+        </div>
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
       onClick={onClick}
-      title={showMismatch
-        ? `Citation: "${citation.title}" — TAG MISMATCH. Submitting will auto-reject. Right-click to remove.`
-        : `Citation: "${citation.title}" by ${citation.writer_name}, year ${citation.year_published}`}
+      title={label}
       className={`
         relative w-32 h-44 flex-shrink-0
         border-2 ${showMismatch ? 'border-oxblood-500' : col.spineEdge} ${col.accentBg}
