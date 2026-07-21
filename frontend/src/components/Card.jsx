@@ -304,19 +304,31 @@ export function ConclusionSpine({
           )}
         </div>
       ) : (
-        <>
-          <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-verdigris-600 leading-none">
-            Conclusion
-          </p>
-          <h3 className="font-display text-xs leading-tight font-bold text-ink-900 line-clamp-2 mt-0.5">
-            {card.title}
-          </h3>
-          {showTags && (
-            <div className="mt-1">
-              <TagChips card={card} surface="paper" size="sm" />
-            </div>
+        // Full-height tile: label + title on the left, prestige pinned right.
+        // (The prestige used to be missing from this branch entirely.)
+        <div className="flex items-start gap-2 w-full">
+          <div className="flex-1 min-w-0">
+            <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-verdigris-600 leading-none">
+              Conclusion
+            </p>
+            <h3 className="font-display text-sm leading-tight font-bold text-ink-900 line-clamp-2 mt-0.5">
+              {card.title}
+            </h3>
+            {showTags && (
+              <div className="mt-1">
+                <TagChips card={card} surface="paper" size="sm" />
+              </div>
+            )}
+          </div>
+          {!hidePrestige && (
+            <span
+              className="shrink-0 font-mono text-xs font-bold text-verdigris-700 tabular-nums"
+              title="Conclusion prestige value"
+            >
+              +{prestige}
+            </span>
           )}
-        </>
+        </div>
       )}
     </button>
   );
