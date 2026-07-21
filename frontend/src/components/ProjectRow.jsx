@@ -81,7 +81,7 @@ export default function ProjectRow({
     <button
       type="button"
       onClick={onToggleCollapse}
-      className="w-full border-b border-wood-900 bg-wood-800 hover:bg-wood-700 transition-colors px-3 py-2 flex items-center justify-between gap-3 flex-shrink-0 text-left"
+      className="w-full border-b border-wood-900 bg-wood-800 hover:bg-wood-700 transition-colors px-3 py-1 flex items-center justify-between gap-3 flex-shrink-0 text-left"
       aria-expanded={!collapsed}
       aria-label={`${collapsed ? 'Expand' : 'Collapse'} Project ${projectNumber}`}
     >
@@ -124,7 +124,7 @@ export default function ProjectRow({
         {/* === Conclusion column — fixed left, always visible.
               In MP context (useSpines=true), renders as a vertical
               spine to save horizontal space. In SP, full tile. === */}
-        <div className={`flex-shrink-0 ${useSpines ? 'px-3' : 'px-4'} py-3 border-r border-gold-500/30 flex items-center`}>
+        <div className={`flex-shrink-0 ${useSpines ? 'px-3' : 'px-4'} py-2 border-r border-gold-500/30 flex items-center`}>
           {project.conclusion ? (
             <DraggableCard
               id={`conclusion-project-${project.id}`}
@@ -166,8 +166,11 @@ export default function ProjectRow({
             <DroppableSlot
               id={`drop-conclusion-${project.id}`}
               data={{ to: { kind: 'projectConclusion', projectId: project.id } }}
-              className="w-32 flex items-center justify-center"
-              style={{ height: '7rem' }}
+              className={`${useSpines ? 'w-24' : 'w-32'} flex items-center justify-center`}
+              /* In spine mode this empty slot was 7rem — twice the height of a
+                 placed spine — so an empty project was the tallest row on the
+                 board. Match the spine it will be replaced by. */
+              style={{ height: useSpines ? '3.5rem' : '7rem' }}
             >
               {/* The accepting slot keeps the boxy look even in spine mode —
                   only the PLACED card turns into a spine. */}
@@ -354,30 +357,34 @@ function PublishColumn({ project, onPublish, onAttendConference, articleMin = 2,
   ) : reason;
 
   return (
-    <div className="flex-shrink-0 px-4 py-3 border-l border-gold-500/30 flex flex-col items-center justify-center gap-1.5">
-      <Tooltip content={richTooltip} side="left" width="w-72">
-        <button
-          type="button"
-          onClick={() => canPublish && onPublish?.(project.id)}
-          disabled={!canPublish}
-          data-tutorial={canPublish ? 'publish-button' : undefined}
-          className={`
-            font-display font-bold uppercase tracking-[0.15em] text-sm
-            px-4 py-3 border-2 transition-all duration-200 ease-desk
-            ${canPublish
-              ? 'bg-oxblood-500 hover:bg-oxblood-600 text-cream-50 border-oxblood-600 hover:shadow-card-hover hover:-translate-y-0.5 cursor-pointer'
-              : 'bg-wood-900 text-cream-100/70 border-wood-800 cursor-not-allowed'
-            }
-          `}
-        >
-          Submit
-          <br />
-          for Review
-        </button>
-      </Tooltip>
-      <p className={`font-mono text-[9px] uppercase tracking-wider text-center ${canPublish ? 'text-cream-100' : 'text-cream-100/70'}`}>
-        {freePublishing ? 'free' : '+ 1 year'}
-      </p>
+    /* Side by side rather than stacked: two buttons in a column were the
+       tallest thing in the row and set its height on their own. */
+    <div className="flex-shrink-0 px-3 py-2 border-l border-gold-500/30 flex items-center justify-center gap-2">
+      <div className="flex flex-col items-center gap-0.5">
+        <Tooltip content={richTooltip} side="left" width="w-72">
+          <button
+            type="button"
+            onClick={() => canPublish && onPublish?.(project.id)}
+            disabled={!canPublish}
+            data-tutorial={canPublish ? 'publish-button' : undefined}
+            className={`
+              font-display font-bold uppercase tracking-[0.12em] text-xs leading-tight
+              px-3 py-2 border-2 transition-all duration-200 ease-desk
+              ${canPublish
+                ? 'bg-oxblood-500 hover:bg-oxblood-600 text-cream-50 border-oxblood-600 hover:shadow-card-hover hover:-translate-y-0.5 cursor-pointer'
+                : 'bg-wood-900 text-cream-100/70 border-wood-800 cursor-not-allowed'
+              }
+            `}
+          >
+            Submit
+            <br />
+            for Review
+          </button>
+        </Tooltip>
+        <p className={`font-mono text-[8px] uppercase tracking-wider text-center ${canPublish ? 'text-cream-100' : 'text-cream-100/70'}`}>
+          {freePublishing ? 'free' : '+ 1 year'}
+        </p>
+      </div>
 
       {/* Attend a Conference — stage cards here and swap them at a conference.
           Needs at least one staged card; no conclusion required. */}
@@ -392,8 +399,8 @@ function PublishColumn({ project, onPublish, onAttendConference, articleMin = 2,
           disabled={!canConference}
           data-tutorial={canConference ? 'conference-button' : undefined}
           className={`
-            mt-1 font-mono text-[10px] uppercase tracking-[0.12em]
-            px-3 py-2 border transition-all duration-200 ease-desk
+            font-mono text-[9px] uppercase tracking-[0.1em] leading-tight
+            px-2 py-2 border transition-all duration-200 ease-desk
             ${canConference
               ? 'bg-teal-800 hover:bg-teal-700 text-cream-50 border-gold-500/60 hover:border-gold-400 cursor-pointer'
               : 'bg-wood-900 text-cream-100/60 border-wood-800 cursor-not-allowed'
