@@ -408,7 +408,10 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
       <DragOverlay dropAnimation={null} zIndex={9999}>
         {activeCard ? (
           isConclusionCard(activeCard)
-            ? <ConclusionTile card={activeCard} showTags={state.showTags} showSignificance={state.showSignificance} />
+            // The spine, at the rail's own width — NOT ConclusionTile. The tile
+            // is a tall box, so picking a conclusion up used to morph it into a
+            // different shape under the cursor, leaving the grab point adrift.
+            ? <ConclusionSpine card={activeCard} widthClass="w-[22.5rem]" showTags={state.showTags} showSignificance={state.showSignificance} />
             : <CardThumbnail card={activeCard} showTags={state.showTags} showSignificance={state.showSignificance} size="sm" />
         ) : null}
       </DragOverlay>

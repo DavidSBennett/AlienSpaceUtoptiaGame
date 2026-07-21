@@ -35,7 +35,7 @@ import {
 
 // Reuse single-player primitives where possible — these are the proven,
 // styled components we want to render with.
-import { CardThumbnail, CardModal, ConclusionTile, ConclusionSpine } from '../components/Card.jsx';
+import { CardThumbnail, CardModal, ConclusionSpine } from '../components/Card.jsx';
 import DraggableCard from '../components/DraggableCard.jsx';
 import DroppableSlot from '../components/DroppableSlot.jsx';
 import ProjectRow from '../components/ProjectRow.jsx';
@@ -961,7 +961,12 @@ export default function MultiplayerGame() {
       <DragOverlay dropAnimation={null} zIndex={9999}>
         {activeCard ? (
           isConclusionCard(activeCard)
-            ? <ConclusionTile card={activeCard} showTags={effTags} showSignificance={effSignificance} />
+            // The spine, at the rail's own width — NOT ConclusionTile. The tile
+            // is a tall box, so picking a conclusion up used to morph it into a
+            // different shape under the cursor, which then sat somewhere the
+            // grab point no longer matched. Dragging should carry what you
+            // grabbed.
+            ? <ConclusionSpine card={activeCard} widthClass="w-[22.5rem]" showTags={effTags} showSignificance={effSignificance} />
             : <CardThumbnail card={activeCard} showTags={effTags} showSignificance={effSignificance} size="sm" />
         ) : null}
       </DragOverlay>
