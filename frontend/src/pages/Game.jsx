@@ -152,6 +152,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
     dismissStageAdvancement,
     upgradeStat,
     attendConference,
+    conferenceContribute,
     conferenceKeep,
     derived,
   } = useGameState({
@@ -759,14 +760,16 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
           />
         )}
 
-        {/* Attend-a-Conference draft — pick which fresh cards to bring home. */}
+        {/* Attend a Conference — stock the floor, then draft from it. */}
         {state.conference && !state.gameOver && (
           <SoloConferenceModal
             conference={state.conference}
+            archivePiles={state.archivePiles}
             capacity={derived.capacity}
             handCount={state.hand.length}
             showTags={state.showTags}
             showSignificance={state.showSignificance}
+            onContribute={conferenceContribute}
             onConfirm={conferenceKeep}
           />
         )}

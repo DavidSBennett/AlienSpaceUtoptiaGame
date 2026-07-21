@@ -1,35 +1,46 @@
 /**
- * SoloConferenceModal — the single-player "Attend a Conference" draft.
+ * SoloConferenceModal — the single-player "Attend a Conference" flow.
  *
- * Mirrors the multiplayer solo-attendee branch: the evidence you staged has
- * been sent to the conference, and in exchange you draft from a fresh pool of
- * (staged + reputation bonus) cards, keeping up to as many as you staged. You
- * also bank citation tokens (worth renown × each at game end). Resolving costs
- * the year.
+ * Two steps, matching the table version (ConferencePhaseModal):
+ *
+ *   1. STOCK THE FLOOR. The evidence you staged is already on it; you add two
+ *      more, chosen off the face-up archive piles. They were dealt blind until
+ *      now, which made the archive's half of the pool a lottery. Choosing is a
+ *      real decision because a card's worth here is relational — what suits the
+ *      rest of your hand is not what suits anyone else's.
+ *   2. DRAFT. Keep up to as many as you staged, capped by notebook room, and
+ *      bank citation tokens (worth renown × each at game end). Resolving costs
+ *      the year.
  *
  * Props:
- *   conference     — { pool: [cards], keepLimit, citationGrant }
+ *   conference     — { pool, keepLimit, stagedCount, contributeLeft, citationGrant }
+ *   archivePiles   — the live archive piles, for the stocking step
  *   capacity       — notebook capacity (hand limit)
  *   handCount      — current hand size (limits how many you can take home)
  *   showTags, showSignificance — passthrough display toggles
+ *   onContribute   — (pileIndex: number) => void   add one card to the floor
  *   onConfirm      — (keepIds: string[]) => void   resolve the draft
  */
 import { useState } from 'react';
 import { CardThumbnail, CardModal } from './Card.jsx';
+import ArchiveMarket from './ArchiveMarket.jsx';
+import FleuronDivider from './FleuronDivider.jsx';
 
 export default function SoloConferenceModal({
   conference,
+  archivePiles = [],
   capacity,
   handCount,
   showTags,
   showSignificance,
+  onContribute,
   onConfirm,
 }) {
   const pool = conference?.pool || [];
   const keepLimit = conference?.keepLimit ?? 0;
   const stagedCount = conference?.stagedCount ?? keepLimit;
-  const keepBonus = conference?.keepBonus ?? 0;
   const citationGrant = conference?.citationGrant ?? 0;
+  const contributeLeft = conference?.contributeLeft ?? 0;
 
   // You can never take more than your notebook has room for.
   const room = Math.max(0, (capacity ?? 0) - (handCount ?? 0));
@@ -47,6 +58,43 @@ export default function SoloConferenceModal({
     });
   }
 
+  // ── Step 1: stock the floor from the face-up piles ──────────────────
+  if (contributeLeft > 0) {
+    return (
+      <div className="fixed inset-0 z-[70] bg-teal-950/90 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto animate-fade-in">
+        <div
+          className="relative surface-paper max-w-3xl w-full my-6 animate-fade-up"
+          style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(184, 146, 58, 0.5)' }}
+        >
+          <div className="absolute inset-2 border border-gold-500/30 pointer-events-none" />
+
+          <div className="px-10 py-8">
+            <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-gold-700 mb-1">Conference</p>
+            <h2 className="font-display text-3xl font-bold text-ink-900 leading-tight">
+              Add to the floor — {contributeLeft} card{contributeLeft === 1 ? '' : 's'} to go
+            </h2>
+            <p className="font-serif italic text-ink-700 mt-1">
+              Your {stagedCount} card{stagedCount === 1 ? ' is' : 's are'} already on the floor.
+              Take {contributeLeft === 1 ? 'one more' : 'two'} from the archive — you'll draft from
+              the whole pool, so anything you add is yours to take back.
+            </p>
+
+            <FleuronDivider className="my-4" />
+
+            <div className="flex justify-center">
+              <ArchiveMarket
+                piles={(archivePiles || []).map((p) => ({ top: p[0] || null, count: p.length }))}
+                canTake
+                onTake={(pileIndex) => onContribute?.(pileIndex)}
+                caption={`On the floor: ${pool.length}`}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[70] bg-teal-950/90 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto animate-fade-in">
       <div
@@ -61,8 +109,8 @@ export default function SoloConferenceModal({
           <h2 className="font-display text-3xl font-bold text-ink-900 leading-tight">The Conference Floor</h2>
 
           <p className="font-serif italic text-ink-700 mt-3">
-            You brought <strong className="not-italic">{stagedCount}</strong> card{stagedCount === 1 ? '' : 's'};
-            the conference added two more. Draft up to{' '}
+            You brought <strong className="not-italic">{stagedCount}</strong> card{stagedCount === 1 ? '' : 's'}
+            {' '}and chose the rest of the floor yourself. Draft up to{' '}
             <strong className="not-italic">{maxKeep}</strong> from the pool below to bring home,
             and bank{' '}
             <strong className="not-italic">{citationGrant}</strong> citation token{citationGrant === 1 ? '' : 's'}.

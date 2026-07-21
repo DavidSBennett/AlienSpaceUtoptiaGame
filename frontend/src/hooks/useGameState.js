@@ -74,6 +74,12 @@ export const PUBLISH_THRESHOLDS = { articleMin: 2, bookMin: 6 };
  */
 export const ARCHIVE_PILE_COUNT = 4;
 
+/**
+ * Cards each attendee adds to a conference floor from the face-up piles.
+ * Matches MP_CONF_CONTRIB_PER_ATTENDEE server-side.
+ */
+export const CONFERENCE_CONTRIBUTIONS = 2;
+
 /** Total cards left across every archive pile. */
 export function totalInPiles(piles) {
   return (piles || []).reduce((n, p) => n + p.length, 0);
@@ -874,12 +880,13 @@ function reducer(state, action) {
       const staged = project.evidence;
       if (!staged || staged.length === 0) return state;  // need ≥1 staged card
 
-      // The staged cards go INTO the pool, and the archive adds two per
-      // attendee — one attendee here, so two. Flat, and unrelated to rank:
-      // Association Memberships buys CITATIONS, not a bigger floor to look at.
-      // Same rule the table plays by (mp_enter_conference).
+      // The staged cards go INTO the pool. The archive's two are NOT dealt
+      // here — you choose them off the face-up piles, same as an attendee does
+      // at a table (mp_conferenceContribute.php). Two per attendee, and here
+      // there is one attendee.
+      //
+      // Rank buys CITATIONS and nothing else: it does not size the floor.
       const rep = state.statLevels.reputation || 1;
-      const poolSize = 2;                       // fresh cards drawn: 2 × attendees
       const keepLimit = staged.length;          // take back what you brought
 
       // Empty the project's evidence (its conclusion, if any, stays put).
@@ -887,55 +894,76 @@ function reducer(state, action) {
         i === projectId ? { ...p, evidence: [] } : p
       );
 
-      // Draw the fresh pool from the archive, taking from whichever pile has
-      // cards and reshuffling the discard back across them if they all run dry
-      // (same walk as DRAW_CARDS).
-      let piles = state.archivePiles.map((p) => p.slice());
-      let discard = state.discard.slice();
-      let rngState = state.rngState;
-      const pool = [];
-
-      const takeCard = () => {
-        const i = piles.findIndex((p) => p.length > 0);
-        return i >= 0 ? piles[i].shift() : null;
-      };
-
-      while (pool.length < poolSize) {
-        let card = takeCard();
-        if (!card) {
-          if (discard.length === 0) break;
-          let reshuffled;
-          if (rngState == null) {
-            reshuffled = shuffle(discard);
-          } else {
-            [reshuffled, rngState] = shuffleWith(discard, rngState);
-          }
-          piles = dealIntoPiles(reshuffled, piles.length);
-          discard = [];
-          card = takeCard();
-          if (!card) break;
-        }
-        pool.push(card);
-      }
-
-      // The staged cards join the pool instead of being discarded — they're
-      // what you're offering the table, and you can take one back if nothing
-      // better turns up. Drawn AFTER the fresh cards so they can't be
-      // reshuffled into their own draw.
-      const fullPool = [...staged, ...pool];
+      // Nothing to choose from if the archive and discard are both spent —
+      // don't open a picking step the player can't act on.
+      const anyCards = totalInPiles(state.archivePiles) + state.discard.length;
 
       return {
         ...state,
         projects,
+        conference: {
+          projectId,
+          pool: [...staged],
+          keepLimit,
+          stagedCount: staged.length,
+          contributeLeft: Math.min(CONFERENCE_CONTRIBUTIONS, anyCards),
+          citationGrant: conferenceCitations(rep),
+        },
+      };
+    }
+
+    case 'CONFERENCE_CONTRIBUTE': {
+      // Take the face-up top of one archive pile onto the conference floor.
+      // The chosen card joins the pool you then draft from, so a card you add
+      // is one you may take back — worth choosing for what it does beside the
+      // rest of your hand, not for what it is on its own.
+      if (!state.conference) return state;
+      if ((state.conference.contributeLeft || 0) <= 0) return state;
+
+      const { pileIndex } = action;
+      let piles = state.archivePiles.map((p) => p.slice());
+      let discard = state.discard.slice();
+      let rngState = state.rngState;
+
+      // Reshuffle the discard across the piles if everything is empty, so a
+      // late-game conference can still be stocked.
+      if (totalInPiles(piles) === 0) {
+        if (discard.length === 0) {
+          return { ...state, conference: { ...state.conference, contributeLeft: 0 } };
+        }
+        let reshuffled;
+        if (rngState == null) {
+          reshuffled = shuffle(discard);
+        } else {
+          [reshuffled, rngState] = shuffleWith(discard, rngState);
+        }
+        piles = dealIntoPiles(reshuffled, piles.length);
+        discard = [];
+      }
+
+      // Fall back to any non-empty pile if they clicked one that just emptied.
+      let idx = pileIndex;
+      if (!piles[idx] || piles[idx].length === 0) {
+        idx = piles.findIndex((p) => p.length > 0);
+        if (idx < 0) {
+          return { ...state, conference: { ...state.conference, contributeLeft: 0 } };
+        }
+      }
+
+      const card = piles[idx].shift();
+      const left = state.conference.contributeLeft - 1;
+      const remaining = totalInPiles(piles) + discard.length;
+
+      return {
+        ...state,
         archivePiles: piles,
         discard,
         rngState,
         conference: {
-          projectId,
-          pool: fullPool,
-          keepLimit,
-          stagedCount: staged.length,
-          citationGrant: conferenceCitations(rep),
+          ...state.conference,
+          pool: [...state.conference.pool, card],
+          // Stop early if the archive is spent rather than stranding the step.
+          contributeLeft: Math.min(left, remaining),
         },
       };
     }
@@ -1326,6 +1354,11 @@ export function useGameState(setup) {
     (projectId) => dispatch({ type: 'ATTEND_CONFERENCE', projectId }),
     []
   );
+  const conferenceContribute = useCallback(
+    (pileIndex) => dispatch({ type: 'CONFERENCE_CONTRIBUTE', pileIndex }),
+    []
+  );
+
   const conferenceKeep = useCallback(
     (keepIds) => dispatch({ type: 'CONFERENCE_KEEP', keepIds }),
     []
@@ -1378,6 +1411,7 @@ export function useGameState(setup) {
     dismissStageAdvancement,
     upgradeStat,
     attendConference,
+    conferenceContribute,
     conferenceKeep,
     reset,
     derived,

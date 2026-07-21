@@ -133,9 +133,15 @@ export const TUTORIAL_SCRIPT = [
     done: (s) => !!s.conference,
   },
   {
+    id: 'conf-stock', allow: {}, mask: 'none',
+    title: 'Stock the conference floor',
+    body: 'Every attendee adds two cards from the archive to the floor — you included. Click the archive twice to add them. You will draft from the whole floor afterwards, so anything you add is still yours to take.',
+    done: (s) => !!s.conference && !(s.conference.contributeLeft > 0),
+  },
+  {
     id: 'conf-draft', allow: {}, mask: 'none',
     title: 'Draft from the conference',
-    body: 'In this window you draft cards to bring home — you may keep up to as many as you sent, and you can choose more than one. Pick the cards you want, then confirm. You also earn citation tokens.',
+    body: 'Now draft cards to bring home — you may keep up to as many as you sent, and you can choose more than one. Pick the cards you want, then confirm. You also earn citation tokens.',
     done: (s) => !s.conference,
   },
   {
