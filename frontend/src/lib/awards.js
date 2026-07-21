@@ -44,7 +44,9 @@ export const AWARDS = [
   },
   {
     id: 'lifetime-achievement',
-    name: 'Lifetime Achievement Award',
+    // The id stays 'lifetime-achievement' — it's an internal map key, and
+    // renaming it would buy nothing but a chance to miss a reference.
+    name: 'Arnold J. Toynbee Award',
     description: 'The most publications — articles, books and conference papers.',
     prestige: 15,
     // Conference papers count toward a body of work. They live only in
@@ -75,7 +77,7 @@ export const AWARDS = [
   },
   {
     id: 'prodigy',
-    name: 'Prodigy',
+    name: 'Advait Kolarkar Award',
     description: 'First to publish a book.',
     prestige: 10,
     score: (p, ctx) => {
