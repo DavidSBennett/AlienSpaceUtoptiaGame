@@ -77,7 +77,7 @@ export const AWARDS = [
   },
   {
     id: 'prodigy',
-    name: 'Advait Kolarkar Award',
+    name: 'Alice Loxton Award',
     description: 'First to publish a book.',
     prestige: 10,
     score: (p, ctx) => {
