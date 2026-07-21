@@ -21,63 +21,72 @@ const STAT_LABELS = {
 
 const STAT_ORDER = ['research', 'notebookCapacity', 'influence', 'workspaces', 'reputation', 'renown'];
 
-// Tooltip body builders.
+/**
+ * Render a stat's level ladder from the table actually in force, e.g.
+ * "7 → 9 → 11 → 15". Solo and multiplayer share this strip but NOT every
+ * table — solo's notebook runs 7/11/15/25 and its influence tops out at +3 —
+ * so a hardcoded ladder would quietly misinform half the players.
+ */
+function ladder(values, format = (v) => v) {
+  return (values || []).map(format).join(' → ');
+}
+
+// Tooltip body builders. Each receives the stat tables in force.
 const STAT_TOOLTIPS = {
-  research: (level) => (
+  research: (level, tables) => (
     <>
       <strong className="block font-display text-sm text-gold-300 mb-1">Research Funding</strong>
       <span>How many cards you draw per Draw action.</span>
       <span className="block mt-1 text-cream-200/70">
-        Levels: 3 → 5 → 7 → full notebook. Currently L{level}.
+        Levels: {ladder(tables.research, (v) => (v === 'capacity' ? 'full notebook' : v))}. Currently L{level}.
       </span>
     </>
   ),
-  notebookCapacity: (level) => (
+  notebookCapacity: (level, tables) => (
     <>
       <strong className="block font-display text-sm text-gold-300 mb-1">Personal Archive</strong>
       <span>Your hand limit — how many cards you can hold at once.</span>
       <span className="block mt-1 text-cream-200/70">
-        Levels: 7 → 9 → 11 → 15. Currently L{level}.
+        Levels: {ladder(tables.notebookCapacity)}. Currently L{level}.
       </span>
     </>
   ),
-  influence: (level) => (
+  influence: (level, tables) => (
     <>
       <strong className="block font-display text-sm text-gold-300 mb-1">Literary Agent</strong>
       <span>A prestige bonus added to <em>every</em> evidence card in a publication, so it grows with article size.</span>
       <span className="block mt-1 text-cream-200/70">
-        Levels: +0 → +1 → +2 → +4 per card. Currently L{level}.
+        Levels: {ladder(tables.influence, (v) => `+${v}`)} per card. Currently L{level}.
       </span>
     </>
   ),
-  workspaces: (level) => (
+  workspaces: (level, tables) => (
     <>
       <strong className="block font-display text-sm text-gold-300 mb-1">Workspaces</strong>
       <span>How many project slots you can have open at once. L4 also removes the year cost from publishing.</span>
       <span className="block mt-1 text-cream-200/70">
-        Levels: 1 → 2 → 3 → free publishing. Currently L{level}.
+        Levels: {ladder((tables.workspaces || []).slice(0, 3))} → free publishing. Currently L{level}.
       </span>
     </>
   ),
-  reputation: (level) => (
+  reputation: (level, tables) => (
     <>
       <strong className="block font-display text-sm text-gold-300 mb-1">Association Memberships</strong>
       <span>Your payoff at a conference: citation tokens earned and fresh cards added to the pool.</span>
       <span className="block mt-1 text-cream-200/70">
-        Citations: 1 → 2 → 3 → 6 · Fresh cards: 1 → 2 → 3 → 4. Currently L{level}.
+        Citations: {ladder(tables.reputation)}. Currently L{level}.
       </span>
     </>
   ),
-  renown: (level, citationsReceived = 0) => {
-    const table = MP_STAT_TABLES.renown;
-    const mult = table[level - 1] ?? 1;
+  renown: (level, tables, citationsReceived = 0) => {
+    const mult = (tables.renown || [])[level - 1] ?? 1;
     const pending = citationsReceived * mult;
     return (
       <>
         <strong className="block font-display text-sm text-gold-300 mb-1">Publicist</strong>
         <span>At end of game, your total citation tokens pay out × this multiplier.</span>
         <span className="block mt-1 text-cream-200/70">
-          Levels: ×1 → ×2 → ×3 → ×5. Currently L{level} (×{mult}).
+          Levels: {ladder(tables.renown, (v) => `×${v}`)}. Currently L{level} (×{mult}).
         </span>
         <span className="block mt-2 text-verdigris-400 font-mono text-[10px]">
           You hold {citationsReceived} citation {citationsReceived === 1 ? 'token' : 'tokens'}.
@@ -88,7 +97,14 @@ const STAT_TOOLTIPS = {
   },
 };
 
-export default function StatsStrip({ statLevels, citationsReceived = 0, pendingUpgrade = 0 }) {
+export default function StatsStrip({
+  statLevels,
+  citationsReceived = 0,
+  pendingUpgrade = 0,
+  // The stat tables in force. Solo passes its own; they differ from
+  // multiplayer's on notebook capacity and influence.
+  tables = MP_STAT_TABLES,
+}) {
   const hasPending = Number(pendingUpgrade) > 0;
   return (
     <div className="flex items-stretch justify-center gap-2 px-6 py-2 border-y border-gold-500/20 bg-teal-950/40">
@@ -112,12 +128,12 @@ export default function StatsStrip({ statLevels, citationsReceived = 0, pendingU
       )}
       {STAT_ORDER.map((key) => {
         const level = statLevels?.[key] ?? 1;
-        const table = MP_STAT_TABLES[key];
+        const table = tables[key];
         const isMax = Array.isArray(table) && level >= table.length;
         const showRenownFooter = key === 'renown';
         const tooltip = key === 'renown'
-          ? STAT_TOOLTIPS.renown(level, citationsReceived)
-          : STAT_TOOLTIPS[key](level);
+          ? STAT_TOOLTIPS.renown(level, tables, citationsReceived)
+          : STAT_TOOLTIPS[key](level, tables);
         return (
           <Tooltip key={key} content={tooltip} side="bottom" width="w-72">
             <StatTile

@@ -32,7 +32,7 @@ import Tooltip from '../components/Tooltip.jsx';
 import FleuronDivider from '../components/FleuronDivider.jsx';
 import ArchiveMarket from '../components/ArchiveMarket.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
-import UpgradeCountdown from '../components/UpgradeCountdown.jsx';
+import StatsStrip from '../components/StatsStrip.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { isConclusionCard } from '../lib/cardIdentifier.js';
 import { TUTORIAL_DECK, TUTORIAL_CARDS } from '../lib/tutorialDeck.js';
@@ -47,8 +47,6 @@ import {
   useGameState,
   TOTAL_YEARS,
   STAT_TABLES,
-  CONFERENCE_FRESH,
-  conferenceCitations,
   renownMultiplier,
 } from '../hooks/useGameState.js';
 import { buildTagToConclusionMap } from '../lib/tags.js';
@@ -546,9 +544,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
             </span>
           )}
 
-          {/* Compact stat strip — current levels visible at a glance.
-              Players watch these grow as they publish. */}
-          <StatStrip statLevels={state.statLevels} />
+          {/* (The stat strip moved below the notebook, matching multiplayer.) */}
 
           {/* Center: current career goal — what the player needs to do
               before the next gate. Drives the player's near-term decisions. */}
@@ -567,11 +563,8 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
             <span className="text-cream-200">/{state.totalYears || TOTAL_YEARS}</span>
           </span>
 
-          <UpgradeCountdown
-            year={state.year}
-            totalYears={state.totalYears || TOTAL_YEARS}
-            pending={state.pendingUpgrades}
-          />
+          {/* (The upgrade nudge moved down into the stats strip, beside the
+              stats it's actually spent on — same as multiplayer.) */}
         </section>
 
         <div className="h-px bg-teal-900 relative overflow-hidden">
@@ -678,6 +671,15 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
           onDraw={drawCards}
           disabled={!!state.gameOver || tutLockDraw}
           dragGate={tutorialDragAllowed}
+        />
+
+        {/* ── Stats strip — directly below the notebook, matching multiplayer.
+            The upgrade nudge rides here too, beside the stats it's spent on. */}
+        <StatsStrip
+          statLevels={state.statLevels}
+          citationsReceived={state.citations || 0}
+          pendingUpgrade={state.pendingUpgrades}
+          tables={STAT_TABLES}
         />
 
         {openCard && (() => {
@@ -1592,122 +1594,6 @@ function standingSummary(articles, books) {
 
 function labelForStage(stage) {
   return stageLabel(stage);
-}
-
-
-/**
- * StatStrip — compact display of current stat levels in the timeline bar.
- *
- * Each stat shows as a single-letter abbreviation followed by a 4-pip gauge.
- * Tooltip on hover gives the full stat name and current value.
- *
- *   R ◆◆◇◇   N ◆◇◇◇   I ◆◇◇◇   W ◆◇◇◇
- *
- * Compact enough to live in the timeline bar without crowding stage/goal/year.
- */
-function StatStrip({ statLevels }) {
-  // Stats with single-letter abbreviation, full label, value lookup, and a
-  // level-aware describe(level) that explains what THIS level means.
-  // The tooltip combines describe(currentLevel) + " → " + describe(nextLevel)
-  // so the player sees both their current ability and what's coming next.
-  const stats = [
-    {
-      key: 'research',         abbr: 'R', label: 'Research Funding',
-      describe: (lvl) => {
-        const v = STAT_TABLES.research[lvl - 1];
-        if (v === 'capacity') return 'Draw a full notebook (cards = your notebook capacity)';
-        return v ? `Draw ${v} cards per action` : '';
-      },
-    },
-    {
-      key: 'notebookCapacity', abbr: 'A', label: 'Personal Archive',
-      describe: (lvl) => {
-        const v = STAT_TABLES.notebookCapacity[lvl - 1];
-        return v ? `Hold up to ${v} cards in hand` : '';
-      },
-    },
-    {
-      key: 'influence',        abbr: 'L', label: 'Literary Agent',
-      describe: (lvl) => {
-        const v = STAT_TABLES.influence[lvl - 1];
-        if (v === undefined) return '';
-        if (v === 0) return 'No prestige bonus per publish';
-        if (lvl === 4) return `+${v} prestige per card in argument`;
-        return `+${v} prestige per publish`;
-      },
-    },
-    {
-      key: 'workspaces',       abbr: 'W', label: 'Workspaces',
-      describe: (lvl) => {
-        const v = STAT_TABLES.workspaces[lvl - 1];
-        if (lvl === 4) return '3 concurrent projects · publishing is free (no year cost)';
-        return v ? `${v} concurrent project${v === 1 ? '' : 's'}` : '';
-      },
-    },
-    {
-      key: 'reputation',       abbr: 'M', label: 'Association Memberships',
-      describe: (lvl) => {
-        const fresh = CONFERENCE_FRESH[lvl - 1];
-        const cites = conferenceCitations(lvl);
-        return `Conference: +${fresh} fresh cards to draft · earn ${cites} citation${cites === 1 ? '' : 's'}`;
-      },
-    },
-    {
-      key: 'renown',           abbr: 'P', label: 'Publicist',
-      describe: (lvl) => {
-        const m = renownMultiplier(lvl);
-        return `Each banked citation is worth +${m} prestige at game end`;
-      },
-    },
-  ];
-
-  return (
-    <div className="flex items-center gap-3">
-      {stats.map((stat) => {
-        const level = statLevels[stat.key] || 1;
-        const current = stat.describe(level);
-        const next = level < 4 ? stat.describe(level + 1) : null;
-
-        const content = (
-          <div className="text-left">
-            <p className="font-mono text-[10px] uppercase tracking-wider text-gold-300">
-              {stat.label} · L{level}{level >= 4 ? ' · maxed' : ''}
-            </p>
-            <p className="text-cream-50 mt-1">{current}</p>
-            {next && (
-              <p className="text-cream-200/70 mt-1">→ L{level + 1}: {next}</p>
-            )}
-          </div>
-        );
-
-        return (
-          <Tooltip key={stat.key} content={content} side="bottom" width="w-60">
-            <span className="flex items-center gap-1.5 font-mono text-cream-200 cursor-help">
-              <span className="text-gold-400 text-[11px]">{stat.abbr}</span>
-              <SmallPips level={level} />
-            </span>
-          </Tooltip>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Smaller version of LevelPips used in the timeline strip. */
-function SmallPips({ level }) {
-  return (
-    <span className="flex gap-0.5">
-      {[1, 2, 3, 4].map((i) => (
-        <span
-          key={i}
-          className={`
-            w-1.5 h-1.5 border border-gold-500/60
-            ${i <= level ? 'bg-gold-500' : 'bg-transparent'}
-          `}
-        />
-      ))}
-    </span>
-  );
 }
 
 
