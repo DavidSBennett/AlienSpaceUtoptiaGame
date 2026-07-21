@@ -19,6 +19,9 @@
  *   caption   — line under the grid (allowance, whose turn, etc.)
  *   draggable — wrap tops in DraggableCard (solo only; MP draws server-side)
  *   focused   — lift above the draw focus mask
+ *   footer    — extra control under the caption. Multiplayer puts the "spend
+ *               the year drawing" action here, so the choice is made at the
+ *               cards rather than at a separate deck elsewhere on the board.
  */
 import { CardThumbnail } from './Card.jsx';
 import DraggableCard from './DraggableCard.jsx';
@@ -31,6 +34,7 @@ export default function ArchiveMarket({
   caption = null,
   draggable = false,
   focused = false,
+  footer = null,
 }) {
   return (
     <aside
@@ -111,6 +115,8 @@ export default function ArchiveMarket({
           {caption}
         </p>
       )}
+
+      {footer && <div className="mt-2">{footer}</div>}
     </aside>
   );
 }

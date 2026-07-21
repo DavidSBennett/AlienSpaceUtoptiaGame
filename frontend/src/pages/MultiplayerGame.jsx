@@ -72,7 +72,6 @@ import YearProgressBar from '../components/YearProgressBar.jsx';
 import StatsStrip from '../components/StatsStrip.jsx';
 import UpgradeCountdown from '../components/UpgradeCountdown.jsx';
 import { isConclusionCard } from '../lib/cardIdentifier.js';
-import DrawZone from '../components/DrawZone.jsx';
 import Tooltip from '../components/Tooltip.jsx';
 import FleuronDivider from '../components/FleuronDivider.jsx';
 
@@ -126,6 +125,8 @@ export default function MultiplayerGame() {
     return init;
   });
   const [showTags, setShowTags] = useUserSetting('show_tags', false);
+  // The library band grows all game; let players fold it away for board room.
+  const [libraryCollapsed, setLibraryCollapsed] = useUserSetting('library_collapsed', false);
   const [showSignificance, setShowSignificance] = useState(false);
 
   // Per-session significance reveal (re-locks on refresh). When turned ON,
@@ -403,6 +404,8 @@ export default function MultiplayerGame() {
   const canTakeArchive =
     isDrawPhase && !!drawPhase?.you_are_up && yourDrawsLeft > 0 && !busy
     && !you.game_over_reason && !you.is_ghost;
+  const drawSelected = you.pending_action === 'draw';
+  const handFull = (you.hand || []).length >= capacity;
   const archiveCaption = isDrawPhase
     ? (drawPhase?.you_are_up
         ? `Your pick · ${yourDrawsLeft} left`
@@ -1078,8 +1081,25 @@ export default function MultiplayerGame() {
         {/* Year progress bar — thin, visible, with gate markers at y5 and y12 */}
         <YearProgressBar currentYear={game.current_year} totalYears={totalYears} />
 
-        {/* ── 3. Library band — full width (compact published-works shelf). */}
+        {/* ── 3. Library band — full width (compact published-works shelf).
+            Collapsible: it grows all game as the table publishes, and by the
+            late game it eats the vertical space the board needs. Persisted per
+            user like the notebook, so it stays how you left it. */}
         <div className="surface-binding border-b border-edge-on-dark px-6 py-2">
+          <button
+            type="button"
+            onClick={() => setLibraryCollapsed(!libraryCollapsed)}
+            className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.3em]
+                       text-cream-50/70 hover:text-cream-50 transition-colors"
+            title={libraryCollapsed ? 'Expand the library' : 'Collapse the library'}
+            aria-expanded={!libraryCollapsed}
+          >
+            <span aria-hidden="true" className="inline-block w-3 text-center">
+              {libraryCollapsed ? '▸' : '▾'}
+            </span>
+            <span>Library · {(state.published_works || []).length}</span>
+          </button>
+          {!libraryCollapsed && (
           <MultiplayerBookshelf
             compact
             you={you}
@@ -1087,6 +1107,7 @@ export default function MultiplayerGame() {
             publishedWorks={state.published_works}
             onSpineClick={(work) => setOpenWork(work)}
           />
+          )}
         </div>
 
         {/* ── 4. Play row: conclusions (left) + project rows (right) ──
@@ -1110,6 +1131,34 @@ export default function MultiplayerGame() {
                 canTake={canTakeArchive}
                 caption={archiveCaption}
                 onTake={handleDrawTake}
+                footer={
+                  /* Only while choosing this year's action — during the draw
+                     phase the choice is already made and the caption shows
+                     whose turn it is instead. */
+                  !isDrawPhase && !you.game_over_reason && !you.is_ghost ? (
+                    <button
+                      type="button"
+                      onClick={selectDraw}
+                      disabled={busy || you.pending_action_committed || handFull}
+                      title={
+                        handFull
+                          ? 'Your notebook is full — publish or discard first.'
+                          : 'Spend this year drawing from the archive'
+                      }
+                      className={`w-full font-display font-bold uppercase tracking-[0.12em] text-[11px]
+                                  px-2 py-2 border-2 transition-colors
+                                  ${drawSelected
+                                    ? 'bg-gold-500 border-gold-500 text-teal-950'
+                                    : 'border-gold-500 text-gold-300 hover:bg-gold-500 hover:text-teal-950'}
+                                  disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent
+                                  disabled:hover:text-gold-300`}
+                    >
+                      {drawSelected
+                        ? (you.pending_action_committed ? 'Drawing — committed' : 'Drawing this year ✓')
+                        : 'Spend the year here'}
+                    </button>
+                  ) : null
+                }
               />
               <ConclusionSidebar
                 shelf={visibleShelf}
@@ -1170,12 +1219,9 @@ export default function MultiplayerGame() {
           capacity={capacity}
           showTags={effTags} showSignificance={effSignificance}
           onCardClick={(card) => setOpenCard({ card, source: 'hand' })}
-          archiveRemaining={state.archive_remaining}
           drawCount={drawCount}
           pendingAction={you.pending_action}
           pendingCommitted={you.pending_action_committed}
-          onSelectDraw={selectDraw}
-          actionsDisabled={busy || !!you.game_over_reason || !!you.is_ghost}
         />
         </div>
 
@@ -1755,12 +1801,13 @@ function HandSlot({ index, cardId, children }) {
 
 
 /**
- * NotebookArea — bottom bar containing the deck stack (DrawZone) on
- * the left, and the player's hand on the right. Pattern ported from
- * single-player NotebookArea so the two interfaces feel consistent.
+ * NotebookArea — bottom bar holding the player's hand, centered and wrapping
+ * to further centered lines. Pattern shared with single-player so the two
+ * interfaces feel consistent.
  *
- * Clicking the DrawZone selects 'draw' as the pending action — the
- * actual draw happens at year-end resolution, not on click.
+ * The deck stack that used to sit on the left is gone: choosing to draw now
+ * happens on the archive market beside the conclusions, where the cards you'd
+ * actually be choosing between are visible.
  */
 function NotebookArea({
   hand,
@@ -1768,14 +1815,10 @@ function NotebookArea({
   showTags,
   showSignificance,
   onCardClick,
-  archiveRemaining,
   drawCount,
   pendingAction,
   pendingCommitted,
-  onSelectDraw,
-  actionsDisabled,
 }) {
-  const isDrawSelected = pendingAction === 'draw';
 
   // Collapse state — persisted per-device in localStorage so the
   // notebook stays however the player left it across reloads and
@@ -1796,13 +1839,11 @@ function NotebookArea({
   return (
     <section className={`surface-wood border-y border-wood-900 px-6 ${collapsed ? 'py-1.5' : 'py-3 min-h-[14rem]'}`}>
       {collapsed ? (
-        /* Collapsed state: a single thin bar. The chevron + label are the
-           only controls; clicking expands the whole thing including the
-           DrawZone. To draw, the player expands first — keeps the
-           interaction model simple and gives back the vertical real
-           estate the player asked for. The hand drop target moves to
-           the bar itself so dragging cards back to the notebook still
-           works without expanding. */
+        /* Collapsed state: a single thin bar, giving back the vertical real
+           estate the player asked for. The hand drop target moves to the bar
+           itself so dragging cards back to the notebook still works without
+           expanding. Drawing is unaffected — that lives on the archive market
+           now, not down here. */
         <DroppableSlot id="hand-drop" data={{ to: { kind: 'hand' } }}>
           <button
             onClick={toggleCollapsed}
@@ -1829,19 +1870,13 @@ function NotebookArea({
       ) : (
         <div className="flex gap-6">
 
-          {/* Left: DrawZone — clickable deck stack that selects the draw action. */}
-          <DrawZone
-            archiveRemaining={archiveRemaining}
-            drawCount={drawCount}
-            handSize={hand.length}
-            handCapacity={capacity}
-            selected={isDrawSelected}
-            committed={pendingCommitted}
-            disabled={actionsDisabled}
-            onSelect={onSelectDraw}
-          />
+          {/* The deck stack that used to live here is gone. It was a second,
+              face-down archive sitting next to the real face-up one, which read
+              as two different decks. Choosing to draw now happens on the market
+              itself — you see the card you want and click "Spend the year here",
+              which is the decision the market exists to provoke. */}
 
-          {/* Right: the hand. Header shows count + a chevron toggle. */}
+          {/* The hand. Header shows count + a chevron toggle. */}
           <div className="flex-1 min-w-0 flex flex-col">
             <div className="flex items-center justify-between mb-2">
               <button
@@ -1859,10 +1894,11 @@ function NotebookArea({
               </button>
             </div>
             <DroppableSlot id="hand-drop" data={{ to: { kind: 'hand' } }}>
-              <div className="flex flex-wrap gap-2 min-h-[100px]">
+              {/* Centered, and wrapping to a second centered line — matches solo. */}
+              <div className="flex flex-wrap justify-center content-start gap-2 min-h-[100px]">
                 {hand.length === 0 ? (
                   <p className="font-serif italic text-cream-200/60 self-center mx-auto">
-                    Notebook empty. Click the archive on the left to draw cards.
+                    Notebook empty. Take cards from the archive beside the conclusions.
                   </p>
                 ) : (
                   hand.map((card, i) => (
