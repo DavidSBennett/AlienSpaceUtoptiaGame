@@ -371,6 +371,17 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
     const to = toData.to;
     if (!cardId || !from || !to) return;
 
+    // Dragged out of the archive market — equivalent to clicking the card.
+    // Taking it puts it in the notebook; if it was dropped straight onto a
+    // project slot we then place it there, so one gesture does both.
+    if (from.kind === 'archive') {
+      takeArchiveCard(from.pileIndex);
+      if (to.kind !== 'hand' && to.kind !== 'handReorder') {
+        moveCard(cardId, { kind: 'hand' }, to);
+      }
+      return;
+    }
+
     // Dropped onto another hand card's reorder zone.
     if (to.kind === 'handReorder') {
       if (from.kind === 'hand') {
@@ -399,6 +410,8 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
       ...state.hand,
       ...state.projects.flatMap((p) => [...p.evidence, p.conclusion].filter(Boolean)),
       ...state.conclusionShelf,
+      // Face-up archive cards, so dragging one shows a preview too.
+      ...(state.archivePiles || []).map((p) => p[0]).filter(Boolean),
     ];
     // activeDragId looks like 'hand-123', 'project-0-evidence-456', 'shelf-789', etc.
     // Each draggable also passes its data, so easier: find by matching ID suffix.
@@ -843,15 +856,26 @@ function ArchiveMarket({
           return (
             <div key={i} className="relative">
               {top ? (
-                <div
-                  onClick={() => clickable && onTake(i)}
-                  className={clickable ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}
+                <DraggableCard
+                  id={`archive-${i}-${top.id}`}
+                  data={{ cardId: top.id, from: { kind: 'archive', pileIndex: i } }}
+                  disabled={!clickable}
                 >
-                  {/* The thumbnail gets no onClick, so the click bubbles up to
-                      this wrapper and takes the card. Do NOT disable pointer
-                      events here — that would also kill the hover tooltip. */}
-                  <CardThumbnail card={top} />
-                </div>
+                  {({ dragHandleProps, isDragging }) => (
+                    /* Click takes the card; dragging it out does the same (and
+                       drops straight into a project if you aim there). The drag
+                       sensor needs 6px of travel, so a plain click still fires.
+                       The thumbnail gets no onClick — the click bubbles to here
+                       — and pointer events stay on so hover tooltips work. */
+                    <div
+                      {...dragHandleProps}
+                      onClick={() => clickable && onTake(i)}
+                      className={clickable ? 'cursor-grab active:cursor-grabbing' : 'opacity-50 cursor-not-allowed'}
+                    >
+                      <CardThumbnail card={top} isDragging={isDragging} />
+                    </div>
+                  )}
+                </DraggableCard>
               ) : (
                 <div className="w-32 h-[12.5rem] border border-dashed border-gold-500/30 flex items-center justify-center">
                   <span className="font-serif italic text-cream-200/50 text-xs">empty</span>
