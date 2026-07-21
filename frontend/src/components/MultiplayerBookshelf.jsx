@@ -104,15 +104,19 @@ export default function MultiplayerBookshelf({ you, opponents, publishedWorks, o
 }
 
 
-function PlayerSection({ label, seat, works, onSpineClick, compact = false }) {
+// Exported so the multiplayer board can drop one player's shelf into its own
+// per-player cell on the library bar, rather than rendering the whole shelf.
+export function PlayerSection({ label, seat, works, onSpineClick, compact = false, fill = false }) {
   const col = colorForSeat(seat);
   return (
-    <div className="flex-shrink-0">
-      <div className={`font-mono text-[10px] uppercase tracking-[0.15em] mb-1 truncate max-w-[10rem] ${col.accent}`}>
-        {label}
-        {works.length > 0 && <span className="text-cream-200/60"> · {works.length}</span>}
-      </div>
-      <div className={`flex items-end gap-0.5 ${compact ? 'min-h-[5.5rem]' : 'min-h-[150px]'} p-1 border-b-2 ${col.spineEdge}`}>
+    <div className={fill ? 'min-w-0' : 'flex-shrink-0'}>
+      {label !== null && (
+        <div className={`font-mono text-[10px] uppercase tracking-[0.15em] mb-1 truncate ${fill ? '' : 'max-w-[10rem]'} ${col.accent}`}>
+          {label}
+          {works.length > 0 && <span className="text-cream-200/60"> · {works.length}</span>}
+        </div>
+      )}
+      <div className={`flex items-end gap-0.5 ${fill ? 'overflow-x-auto' : ''} ${compact ? 'min-h-[5.5rem]' : 'min-h-[150px]'} p-1 border-b-2 ${col.spineEdge}`}>
         {works.length === 0 ? (
           <p className="font-serif italic text-cream-200/50 text-xs self-center px-2">
             none

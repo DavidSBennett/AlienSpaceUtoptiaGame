@@ -51,7 +51,9 @@ import ManuscriptViewDialog from '../components/ManuscriptViewDialog.jsx';
 import ReviseDecisionDialog from '../components/ReviseDecisionDialog.jsx';
 import MultiplayerUpgradeChooser from '../components/MultiplayerUpgradeChooser.jsx';
 import MultiplayerResultDialog from '../components/MultiplayerResultDialog.jsx';
-import MultiplayerBookshelf from '../components/MultiplayerBookshelf.jsx';
+// Only the per-player shelf is needed: the library bar renders one section per
+// player cell rather than the whole bookshelf in a row.
+import { PlayerSection } from '../components/MultiplayerBookshelf.jsx';
 import PublicationModal from '../components/PublicationModal.jsx';
 import ActionCommitBar from '../components/ActionCommitBar.jsx';
 import ActionHistoryModal from '../components/ActionHistoryModal.jsx';
@@ -400,17 +402,21 @@ export default function MultiplayerGame() {
   const isDrawPhase = game.phase === 'draw';
   const drawPhase = state.draw_phase;
   const archivePiles = state.archive_piles || drawPhase?.piles || [];
+  const totalInArchive = archivePiles.reduce((n, p) => n + (p?.count || 0), 0);
   const yourDrawsLeft = drawPhase?.your_draws_remaining || 0;
   const canTakeArchive =
     isDrawPhase && !!drawPhase?.you_are_up && yourDrawsLeft > 0 && !busy
     && !you.game_over_reason && !you.is_ghost;
   const drawSelected = you.pending_action === 'draw';
   const handFull = (you.hand || []).length >= capacity;
+  // What you'd actually get: your research rating, capped by notebook room —
+  // promising 4 cards to a player with 2 free slots would be a lie.
+  const drawAllowance = Math.max(0, Math.min(drawCount, capacity - (you.hand || []).length));
   const archiveCaption = isDrawPhase
     ? (drawPhase?.you_are_up
         ? `Your pick · ${yourDrawsLeft} left`
         : `${drawPhase?.current_player_name || '…'} is drawing`)
-    : `Draw takes ${drawCount} · + 1 year`;
+    : `${totalInArchive} left in the archive`;
   // Game length depends on the mode (short=10, medium=18, long=25).
   const totalYears = game.total_years || TOTAL_YEARS;
   const yearProgress = (game.current_year - 1) / totalYears;
@@ -1015,8 +1021,40 @@ export default function MultiplayerGame() {
               the right the main player's goal (large) with the year beneath it.
             ─────────────────────────────────────────────────────────── */}
         <section className="surface-binding border-b border-edge-on-dark px-6 py-2">
-          {/* Controls row — right aligned; live indicator next to chat */}
-          <div className="flex items-center justify-end gap-3 mb-2">
+          {/* One row: goal (left), year (centred), controls (right). The player
+              score cards used to sit under this and the goal was pinned right,
+              which left a wide empty band across the middle. Scores now live on
+              the library bar with each player's publications. Equal flex on the
+              outer two keeps the year optically centred. */}
+          <div className="flex items-center gap-6">
+            <div className="flex-1 min-w-0">
+              <GoalLine
+                state={state}
+                year={game.current_year}
+                stage={you.stage}
+                articlesPublished={you.articles_published}
+                booksPublished={you.books_published}
+                totalYears={totalYears}
+                className="font-serif italic text-cream-50 text-lg leading-snug"
+              />
+              <UpgradeCountdown
+                year={game.current_year}
+                totalYears={totalYears}
+                pending={you.pending_upgrade}
+                variant="panel"
+              />
+            </div>
+
+            <div className="shrink-0 text-center">
+              <div className="font-display text-2xl text-cream-50 leading-none tabular-nums">
+                Year {game.current_year}
+              </div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cream-200/70 mt-1">
+                of {totalYears}
+              </div>
+            </div>
+
+            <div className="flex-1 flex items-center justify-end gap-3">
             <ConnectionPill lastPollAt={lastPollAt} onRefresh={refresh} />
             <ChatToggleButton
               open={chatOpen}
@@ -1042,38 +1080,6 @@ export default function MultiplayerGame() {
             >
               📜 History
             </button>
-          </div>
-
-          {/* Players (left) + Goal/Year (right) */}
-          <div className="flex items-start justify-between gap-6">
-            <div className="flex items-start gap-6 min-w-0 flex-wrap">
-              <PlayerStatCard player={you} isYou publishedWorks={state.published_works} />
-              {[...state.opponents]
-                .sort((a, b) => a.seat_index - b.seat_index)
-                .map((op) => (
-                  <PlayerStatCard key={op.player_id} player={op} publishedWorks={state.published_works} />
-                ))}
-            </div>
-
-            <div className="shrink-0 max-w-md text-right">
-              <GoalLine
-                state={state}
-                year={game.current_year}
-                stage={you.stage}
-                articlesPublished={you.articles_published}
-                booksPublished={you.books_published}
-                totalYears={totalYears}
-                className="font-serif italic text-cream-50 text-lg text-right leading-snug"
-              />
-              <div className="font-serif italic text-cream-200/80 text-lg text-right mt-1">
-                Year {game.current_year} / {totalYears}
-              </div>
-              <UpgradeCountdown
-                year={game.current_year}
-                totalYears={totalYears}
-                pending={you.pending_upgrade}
-                variant="panel"
-              />
             </div>
           </div>
         </section>
@@ -1085,29 +1091,40 @@ export default function MultiplayerGame() {
             Collapsible: it grows all game as the table publishes, and by the
             late game it eats the vertical space the board needs. Persisted per
             user like the notebook, so it stays how you left it. */}
-        <div className="surface-binding border-b border-edge-on-dark px-6 py-2">
+        <div className="surface-binding border-b border-edge-on-dark px-6 pt-2 pb-0.5">
+          {/* Five fixed slots so a player's position on the bar never shifts as
+              others join, drop, or publish. Empty seats simply stay blank. */}
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+            {[you, ...[...state.opponents].sort((a, b) => a.seat_index - b.seat_index)]
+              .slice(0, 5)
+              .map((p) => (
+                <PlayerLibraryCell
+                  key={p.player_id}
+                  player={p}
+                  isYou={p.player_id === you.player_id}
+                  publishedWorks={state.published_works}
+                  showWorks={!libraryCollapsed}
+                  onSpineClick={(work) => setOpenWork(work)}
+                />
+              ))}
+          </div>
+
+          {/* Centred under the bar it controls, and big enough to hit. */}
           <button
             type="button"
             onClick={() => setLibraryCollapsed(!libraryCollapsed)}
-            className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.3em]
-                       text-cream-50/70 hover:text-cream-50 transition-colors"
-            title={libraryCollapsed ? 'Expand the library' : 'Collapse the library'}
+            className="w-full flex items-center justify-center gap-2 pt-1 pb-0.5
+                       text-gold-400/70 hover:text-gold-300 transition-colors"
+            title={libraryCollapsed ? 'Show the published works' : 'Hide the published works'}
             aria-expanded={!libraryCollapsed}
           >
-            <span aria-hidden="true" className="inline-block w-3 text-center">
-              {libraryCollapsed ? '▸' : '▾'}
+            <span aria-hidden="true" className="text-lg leading-none">
+              {libraryCollapsed ? '▾' : '▴'}
             </span>
-            <span>Library · {(state.published_works || []).length}</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em]">
+              Library · {(state.published_works || []).length}
+            </span>
           </button>
-          {!libraryCollapsed && (
-          <MultiplayerBookshelf
-            compact
-            you={you}
-            opponents={state.opponents}
-            publishedWorks={state.published_works}
-            onSpineClick={(work) => setOpenWork(work)}
-          />
-          )}
         </div>
 
         {/* ── 4. Play row: conclusions (left) + project rows (right) ──
@@ -1154,8 +1171,8 @@ export default function MultiplayerGame() {
                                   disabled:hover:text-gold-300`}
                     >
                       {drawSelected
-                        ? (you.pending_action_committed ? 'Drawing — committed' : 'Drawing this year ✓')
-                        : 'Spend the year here'}
+                        ? (you.pending_action_committed ? 'Drawing — committed' : `Drawing up to ${drawAllowance} ✓`)
+                        : `Draw up to ${drawAllowance} card${drawAllowance === 1 ? '' : 's'}`}
                     </button>
                   ) : null
                 }
@@ -2252,25 +2269,74 @@ function labelForStage(stage) {
 
 
 /**
- * PlayerStatCard — one column in the status strip: name, rank, and a single
- * total score (current prestige + citations × renown, as if the game ended
- * now). The score's tooltip itemizes where the points came from: each
- * publication's prestige and the citation payout. Used for you and opponents.
+ * PlayerLibraryCell — one of five slots on the library bar: a player's name,
+ * rank, running score, and their published works side by side.
+ *
+ * Score and publications belong together — a player's score IS mostly their
+ * publications — so they share a cell instead of sitting in two separate bands
+ * with empty space between. The score stays visible when the library is
+ * collapsed; only the spines fold away, since reclaiming board room shouldn't
+ * cost you the scoreboard.
  */
-function PlayerStatCard({ player, isYou = false, publishedWorks = [] }) {
+function PlayerLibraryCell({ player, isYou = false, publishedWorks = [], showWorks = true, onSpineClick }) {
   const col = colorForSeat(player.seat_index);
+  const citations = player.citations_received_count ?? 0;
+  const mult = renownMultiplier(player.stat_levels?.renown);
+  const prestige = player.prestige ?? 0;
+  const total = prestige + citations * mult;
+  const dim = player.is_ghost || player.game_over_reason;
+  const works = publishedWorks.filter((w) => w.writer_player_id === player.player_id);
+
+  return (
+    <div className={`min-w-0 ${dim ? 'opacity-50' : ''}`}>
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className={`w-1.5 h-3.5 shrink-0 ${col.spineBg}`} aria-hidden="true" />
+        <span className="font-display text-sm text-cream-50 leading-none truncate">
+          {player.player_name}
+        </span>
+        {isYou && <span className="text-gold-400 text-[10px] shrink-0">(you)</span>}
+        <Tooltip content={scoreBreakdown(player, publishedWorks)} side="bottom" width="w-72">
+          <span className="ml-auto shrink-0 font-display font-bold tabular-nums text-gold-200 text-xl leading-none cursor-help">
+            {total}
+          </span>
+        </Tooltip>
+      </div>
+      <div className="font-mono text-[9px] uppercase tracking-[0.15em] text-gold-400/80 truncate mt-0.5">
+        {labelForStage(player.stage)}
+      </div>
+
+      {showWorks && (
+        <div className="mt-1">
+          <PlayerSection
+            fill
+            compact
+            label={null}
+            seat={player.seat_index}
+            works={works}
+            onSpineClick={onSpineClick}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/**
+ * Itemizes a player's score: each publication's prestige, then the citation
+ * payout. Shown on hover over the running total.
+ */
+function scoreBreakdown(player, publishedWorks) {
   const citations = player.citations_received_count ?? 0;
   const mult = renownMultiplier(player.stat_levels?.renown);
   const prestige = player.prestige ?? 0;
   const citationPayout = citations * mult;
   const total = prestige + citationPayout;
-  const dim = player.is_ghost || player.game_over_reason;
-
   const works = publishedWorks.filter((w) => w.writer_player_id === player.player_id);
   const pubSum = works.reduce((s, w) => s + (w.prestige_granted || 0), 0);
   const otherPrestige = prestige - pubSum;
 
-  const tooltip = (
+  return (
     <div className="space-y-0.5">
       <strong className="block font-display text-sm text-gold-300 mb-1">Score breakdown</strong>
       <div className="font-mono text-[9px] uppercase tracking-[0.15em] text-cream-200/70">Publications</div>
@@ -2304,30 +2370,8 @@ function PlayerStatCard({ player, isYou = false, publishedWorks = [] }) {
       </div>
     </div>
   );
-
-  return (
-    <div className={`flex flex-col items-start gap-1 ${dim ? 'opacity-50' : ''}`}>
-      <span className="flex items-center gap-1.5 font-display text-base text-cream-50 leading-none">
-        <span className={`w-2 h-4 ${col.spineBg}`} aria-hidden="true" />
-        {player.player_name}
-        {isYou && <span className="text-gold-400 text-xs">(you)</span>}
-      </span>
-      <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-gold-400">
-        {labelForStage(player.stage)}
-      </span>
-      <Tooltip content={tooltip} side="bottom" width="w-72">
-        <div className="inline-flex flex-col items-center justify-center border border-gold-500/40 px-5 py-1.5 leading-none cursor-help">
-          <span className={`font-display font-bold tabular-nums text-gold-200 ${isYou ? 'text-3xl' : 'text-2xl'}`}>
-            {total}
-          </span>
-          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-gold-400/80 mt-1">
-            Score
-          </span>
-        </div>
-      </Tooltip>
-    </div>
-  );
 }
+
 
 
 /**
