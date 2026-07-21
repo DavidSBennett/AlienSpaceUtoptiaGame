@@ -45,30 +45,19 @@ export const AWARDS = [
   {
     id: 'lifetime-achievement',
     name: 'Lifetime Achievement Award',
-    description: 'The most publications — articles and books combined.',
+    description: 'The most publications — articles, books and conference papers.',
     prestige: 15,
-    score: (p) => Number(p.articles_published ?? 0) + Number(p.books_published ?? 0),
-    format: (n) => `${n} publication${n === 1 ? '' : 's'}`,
-  },
-  {
-    id: 'renaissance-scholar',
-    name: 'Renaissance Scholar',
-    description: 'The most varied scholar — publications across the most distinct conclusions.',
-    prestige: 10,
+    // Conference papers count toward a body of work. They live only in
+    // published_works (mp_award_conference_paper never touches the
+    // articles/books counters), so they have to be counted separately —
+    // reading the counters alone silently omitted them.
     score: (p, ctx) => {
-      const works = (ctx.publishedWorks || []).filter(
-        (w) => w.writer_player_id === p.player_id && w.kind !== 'conference'
-      );
-      const conclusions = new Set();
-      for (const work of works) {
-        const key = (work.conclusion_title || work.conclusion_tag || '')
-          .trim()
-          .toLowerCase();
-        if (key) conclusions.add(key);
-      }
-      return conclusions.size;
+      const papers = (ctx.publishedWorks || []).filter(
+        (w) => w.writer_player_id === p.player_id && w.kind === 'conference'
+      ).length;
+      return Number(p.articles_published ?? 0) + Number(p.books_published ?? 0) + papers;
     },
-    format: (n) => `${n} conclusion${n === 1 ? '' : 's'}`,
+    format: (n) => `${n} publication${n === 1 ? '' : 's'}`,
   },
   {
     id: 'pulitzer',
