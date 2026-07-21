@@ -117,17 +117,9 @@
        uppercase, light weight, wide tracking, square corners, flat fills, and
        colour-only transitions — no borders, shadows, or transform jumps. */
     .video-tabs {
-      display: flex; justify-content: center; align-items: flex-start;
+      display: flex; justify-content: center; gap: 0.4rem;
       margin-bottom: 0.9rem; flex-wrap: wrap;
     }
-    .tab-group { text-align: center; padding: 0 1.5rem; }
-    .tab-group + .tab-group { border-left: 1px solid rgba(184,146,58,0.25); }
-    .tab-group-label {
-      display: block; font-family: 'Cormorant Garamond', Georgia, serif;
-      font-size: 0.72rem; font-weight: 500; letter-spacing: 0.26em;
-      text-transform: uppercase; color: var(--gold-500); margin-bottom: 0.5rem;
-    }
-    .tab-btns { display: flex; gap: 0.35rem; }
     .tab-btn {
       font-family: 'Cormorant Garamond', Georgia, serif;
       font-size: 0.75rem; font-weight: 500; letter-spacing: 0.14em;
@@ -142,12 +134,6 @@
     .tab-btn:hover:not(.active) { color: var(--cream-50); background: var(--oxblood); }
     /* Active reads as the inverted flat fill their .btn-solid uses. */
     .tab-btn.active { background: var(--cream-100); color: var(--teal-950); }
-
-    .tab-note {
-      display: block; font-family: 'Cormorant Garamond', Georgia, serif;
-      font-size: 0.66rem; font-style: italic; letter-spacing: 0.08em;
-      color: var(--cream-200); opacity: 0.55; margin-top: 0.4rem;
-    }
 
     .video-frame {
       position: relative; width: 100%; aspect-ratio: 16 / 9;
@@ -244,28 +230,9 @@
 
       <div>
         <div class="video-tabs">
-          <div class="tab-group">
-            <span class="tab-group-label">Digital</span>
-            <div class="tab-btns">
-              <button type="button" class="tab-btn" data-video="p8_6CFx8aPA">Solo</button>
-              <button type="button" class="tab-btn" data-video="aNDIKc5arNo">Multiplayer</button>
-            </div>
-          </div>
-          <div class="tab-group">
-            <!-- Spacer keeps this group's button on the same line as the others. -->
-            <span class="tab-group-label" aria-hidden="true">&nbsp;</span>
-            <div class="tab-btns">
-              <button type="button" class="tab-btn active" data-status="in-process">Sizzle Reel</button>
-            </div>
-          </div>
-          <div class="tab-group">
-            <span class="tab-group-label">In-Person</span>
-            <div class="tab-btns">
-              <button type="button" class="tab-btn" data-status="in-process">Solo</button>
-              <button type="button" class="tab-btn" data-status="in-process">Multiplayer</button>
-            </div>
-            <span class="tab-note">In process</span>
-          </div>
+          <button type="button" class="tab-btn active" data-status="in-process">Sizzle Reel</button>
+          <button type="button" class="tab-btn" data-video="p8_6CFx8aPA">Solo</button>
+          <button type="button" class="tab-btn" data-video="aNDIKc5arNo">Multiplayer</button>
         </div>
         <div class="video-frame">
           <iframe
