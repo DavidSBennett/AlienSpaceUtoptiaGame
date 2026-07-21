@@ -651,6 +651,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
           showTags={state.showTags} showSignificance={state.showSignificance}
           onCardClick={(card) => setOpenCard({ card, source: 'hand' })}
           archivePiles={state.archivePiles}
+          drawing={!!state.drawSession}
           deckRemaining={derived.deckRemaining}
           discardRemaining={state.discard.length}
           drawCount={derived.drawCount}
@@ -756,6 +757,14 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
           />
         )}
 
+        {/* Draw in progress — dim everything but the archive and the notebook. */}
+        {state.drawSession && (
+          <DrawFocusOverlay
+            remaining={state.drawSession.remaining}
+            onEndDraw={endDraw}
+          />
+        )}
+
         {/* Attend-a-Conference draft — pick which fresh cards to bring home. */}
         {state.conference && !state.gameOver && (
           <SoloConferenceModal
@@ -840,7 +849,12 @@ function ArchiveMarket({
   onEndDraw,
 }) {
   return (
-    <aside data-tutorial="draw-zone" className="shrink-0 flex flex-col overflow-y-auto">
+    <aside
+      data-tutorial="draw-zone"
+      className={`shrink-0 flex flex-col overflow-y-auto ${
+        drawSession ? 'relative z-50' : ''
+      }`}
+    >
       <div className="text-center">
         <span className="font-display text-sm uppercase tracking-[0.3em] text-gold-300">
           ❧ Archive ❧
@@ -891,25 +905,48 @@ function ArchiveMarket({
         })}
       </div>
 
-      {drawSession ? (
-        <div className="mt-2 flex flex-col items-center gap-1">
-          <p className="font-mono text-[9px] uppercase tracking-wider text-gold-300 text-center">
-            {drawSession.remaining} pick{drawSession.remaining === 1 ? '' : 's'} left
-          </p>
-          <button
-            type="button"
-            onClick={onEndDraw}
-            className="font-mono text-[9px] uppercase tracking-wider px-2 py-1 border border-gold-500 text-cream-100 hover:bg-gold-500 hover:text-teal-950 transition-colors"
-          >
-            Done · +1 year
-          </button>
-        </div>
-      ) : (
-        <p className="font-mono text-[9px] uppercase tracking-wider text-cream-200 mt-2 text-center leading-snug">
-          Take up to {maxPicks} · + 1 year
-        </p>
-      )}
+      {/* Fixed caption — the live pick counter lives in the draw overlay, so
+          this column's height never changes mid-draw (which used to push the
+          notebook down). */}
+      <p className="font-mono text-[9px] uppercase tracking-wider text-cream-200 mt-2 text-center leading-snug">
+        Take up to {maxPicks} · + 1 year
+      </p>
     </aside>
+  );
+}
+
+
+/**
+ * DrawFocusOverlay — while a draw is underway, everything except the archive
+ * and the notebook is dimmed, so the eye goes to the cards you're choosing
+ * between. The archive/notebook are lifted above this mask by z-index rather
+ * than the mask being cut around them.
+ */
+function DrawFocusOverlay({ remaining, onEndDraw }) {
+  return (
+    <>
+      <div className="fixed inset-0 bg-ink-900/75 z-40" aria-hidden="true" />
+      <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[60] surface-paper border-2 border-gold-500 shadow-2xl px-6 py-4 text-center animate-fade-in">
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-gold-700">
+          Researching
+        </p>
+        <p className="font-display text-2xl font-bold text-ink-900 leading-none mt-1">
+          {remaining} card{remaining === 1 ? '' : 's'} left to draw
+        </p>
+        <p className="font-serif italic text-ink-700 text-sm mt-1">
+          Take them from the archive, or end your turn early.
+        </p>
+        <button
+          type="button"
+          onClick={onEndDraw}
+          className="mt-3 font-display font-bold uppercase tracking-[0.15em] text-sm
+                     px-5 py-2 border-2 border-ink-900 text-ink-900
+                     hover:bg-ink-900 hover:text-cream-50 transition-colors"
+        >
+          End turn · +1 year
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -1036,6 +1073,7 @@ function NotebookArea({
   onCardClick,
   // Phase 10 props — passed through for the embedded deck + draw control
   archivePiles = [],
+  drawing = false,
   deckRemaining = 0,
   discardRemaining = 0,
   drawCount = 0,
@@ -1061,6 +1099,7 @@ function NotebookArea({
       className={`
         surface-binding border-t-2 px-8 py-5 transition-colors
         ${isOver ? 'border-gold-400' : 'border-gold-500/40'}
+        ${drawing ? 'relative z-50' : ''}
       `}
     >
       <div className="flex gap-6">
