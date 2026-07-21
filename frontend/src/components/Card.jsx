@@ -256,6 +256,11 @@ export function ConclusionSpine({
   thin = false,
   widthClass = 'w-64',
   hidePrestige = false,
+  // Fill the height the parent gives it instead of a fixed h-14. The
+  // conclusion shelf divides its column between its slots so the rail ends
+  // level with the archive beside it, which means the tiles can't be a fixed
+  // size — they take whatever share they're handed.
+  fill = false,
 }) {
   const bonus = Number(card?.bonus);
   const prestige = Number.isFinite(bonus) ? bonus : 0;
@@ -265,7 +270,7 @@ export function ConclusionSpine({
       onClick={onClick}
       className={`
         group relative
-        ${widthClass} ${thin ? 'h-9 py-0.5' : 'h-14 py-1'} flex flex-col justify-center
+        ${widthClass} ${thin ? 'h-9 py-0.5' : (fill ? 'h-full py-1' : 'h-14 py-1')} flex flex-col justify-center
         surface-paper
         border border-verdigris-500
         shadow-card hover:shadow-card-hover

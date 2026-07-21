@@ -629,25 +629,34 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
               the row past the conclusion shelf; they fill it and scroll. */}
           <div className="flex-1 relative min-w-0 self-stretch">
           <main id="main-content" tabIndex={-1} data-tutorial="project-area" className="absolute inset-0 flex flex-col gap-4 overflow-y-auto">
-            {state.projects.map((project, i) => (
-              <ProjectRow
-                key={project.id}
-                project={project}
-                locked={i >= derived.workspaces}
-                collapsed={collapsedProjects.has(project.id)}
-                onToggleCollapse={() => toggleProjectCollapse(project.id)}
-                showTags={state.showTags} showSignificance={state.showSignificance}
-                onCardClick={(card) => setOpenCard({ card, source: 'project' })}
-                onPublish={publishArgument}
-                onAttendConference={attendConference}
-                onReturnToHand={removeFromProject}
-                useSpines
-                articleMin={derived.articleMin}
-                freePublishing={state.statLevels.workspaces >= 4}
-                lockPublish={tutLockPublish}
-                lockConference={tutLockConference}
-              />
-            ))}
+            {state.projects.map((project, i) => {
+              const isLocked = i >= derived.workspaces;
+              const isCollapsed = collapsedProjects.has(project.id);
+              // Open projects share the leftover height so they fill the
+              // column rather than leaving dead space beneath the last one.
+              // Collapsed and locked rows keep their natural small height.
+              const grows = !isLocked && !isCollapsed;
+              return (
+                <div key={project.id} className={grows ? 'flex-1 min-h-0 flex' : 'shrink-0'}>
+                  <ProjectRow
+                    project={project}
+                    locked={isLocked}
+                    collapsed={isCollapsed}
+                    onToggleCollapse={() => toggleProjectCollapse(project.id)}
+                    showTags={state.showTags} showSignificance={state.showSignificance}
+                    onCardClick={(card) => setOpenCard({ card, source: 'project' })}
+                    onPublish={publishArgument}
+                    onAttendConference={attendConference}
+                    onReturnToHand={removeFromProject}
+                    useSpines
+                    articleMin={derived.articleMin}
+                    freePublishing={state.statLevels.workspaces >= 4}
+                    lockPublish={tutLockPublish}
+                    lockConference={tutLockConference}
+                  />
+                </div>
+              );
+            })}
           </main>
           </div>
         </div>

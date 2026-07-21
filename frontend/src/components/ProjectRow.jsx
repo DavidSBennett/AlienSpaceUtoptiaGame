@@ -118,8 +118,11 @@ export default function ProjectRow({
       {headerBar}
 
       {/* The horizontal work area: conclusion on the left, evidence flowing right,
-          publish button anchored at the right end. */}
-      <div className="flex">
+          publish button anchored at the right end.
+          flex-1 so that when the parent stretches this row to fill a column,
+          the work area takes the extra height instead of leaving a dead band
+          under the row. Its contents are vertically centred already. */}
+      <div className="flex flex-1 min-h-0">
 
         {/* === Conclusion column — fixed left, always visible.
               In MP context (useSpines=true), renders as a vertical

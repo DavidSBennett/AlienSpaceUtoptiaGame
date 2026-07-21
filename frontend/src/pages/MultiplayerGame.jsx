@@ -1194,25 +1194,39 @@ export default function MultiplayerGame() {
               <div className="flex-1 flex flex-col min-w-0 self-stretch">
               <div className="flex-1 relative min-w-0">
               <main id="main-content" tabIndex={-1} className="absolute inset-0 flex flex-col gap-4 overflow-y-auto">
-                {projects.map((project, i) => (
-                  <ProjectRow
-                    key={project.id}
-                    project={project}
-                    locked={i >= workspaces}
-                    collapsed={collapsedProjects.has(project.id)}
-                    onToggleCollapse={() => toggleProjectCollapse(project.id)}
-                    showTags={effTags} showSignificance={effSignificance}
-                    onCardClick={(card) => setOpenCard({ card, source: 'project' })}
-                    onPublish={(projectId) => startPublishFlow(projectId)}
-                    onAttendConference={(projectId) => selectConference(projectId)}
-                    onReturnToHand={returnFromProject}
-                    onRemoveCitation={removeCitation}
-                    useSpines
-                    articleMin={articleMin}
-                    freePublishing={freePublishing}
-                    statLevels={you.stat_levels || {}}
-                  />
-                ))}
+                {projects.map((project, i) => {
+                  const isLocked = i >= workspaces;
+                  const isCollapsed = collapsedProjects.has(project.id);
+                  // Open projects share the leftover height so three of them
+                  // fill the column instead of leaving a fourth project's worth
+                  // of dead space beneath. Collapsed and locked rows keep their
+                  // natural (small) height — stretching a title bar would just
+                  // move the dead space around.
+                  const grows = !isLocked && !isCollapsed;
+                  return (
+                    <div
+                      key={project.id}
+                      className={grows ? 'flex-1 min-h-0 flex' : 'shrink-0'}
+                    >
+                      <ProjectRow
+                        project={project}
+                        locked={isLocked}
+                        collapsed={isCollapsed}
+                        onToggleCollapse={() => toggleProjectCollapse(project.id)}
+                        showTags={effTags} showSignificance={effSignificance}
+                        onCardClick={(card) => setOpenCard({ card, source: 'project' })}
+                        onPublish={(projectId) => startPublishFlow(projectId)}
+                        onAttendConference={(projectId) => selectConference(projectId)}
+                        onReturnToHand={returnFromProject}
+                        onRemoveCitation={removeCitation}
+                        useSpines
+                        articleMin={articleMin}
+                        freePublishing={freePublishing}
+                        statLevels={you.stat_levels || {}}
+                      />
+                    </div>
+                  );
+                })}
               </main>
               </div>
 
@@ -1782,16 +1796,20 @@ function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificanc
   ];
 
   return (
-    <aside data-tutorial="conclusion-rail" className="shrink-0 flex flex-col overflow-y-auto">
+    /* self-stretch + a flexing slot list: the shelf takes the full height of
+       the play row and its seven slots divide it, so the rail ends level with
+       the archive's draw button beside it instead of stopping short. The tiles
+       grow to fill their share rather than sitting at a fixed height. */
+    <aside data-tutorial="conclusion-rail" className="shrink-0 self-stretch flex flex-col min-h-0">
       {/* Fancy header */}
-      <div className="text-center">
+      <div className="text-center shrink-0">
         <span className="font-display text-sm uppercase tracking-[0.3em] text-gold-300">
           ❧ Conclusions ❧
         </span>
         <FleuronDivider className="my-1" />
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex-1 min-h-0 flex flex-col gap-1.5">
         {ordered.map((c) => (
           <DraggableCard
             key={`shelf-${c.idCard}`}
@@ -1799,8 +1817,9 @@ function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificanc
             data={{ cardId: c.idCard, from: { kind: 'conclusionShelf' } }}
           >
             {({ dragHandleProps, isDragging }) => (
-              <div {...dragHandleProps} className={isDragging ? 'opacity-50' : ''}>
+              <div {...dragHandleProps} className={`flex-1 min-h-0 ${isDragging ? 'opacity-50' : ''}`}>
                 <ConclusionSpine
+                  fill
                   card={{ ...c, id: c.idCard }}
                   widthClass="w-72"
                   onClick={() => onConclusionClick(c)}
@@ -1817,7 +1836,7 @@ function ConclusionSidebar({ shelf, onConclusionClick, showTags, showSignificanc
         {Array.from({ length: Math.max(0, CONCLUSION_SLOTS - ordered.length) }).map((_, i) => (
           <div
             key={`empty-slot-${i}`}
-            className="w-72 h-14 border border-dashed border-cream-50/20 flex items-center justify-center"
+            className="w-72 flex-1 min-h-0 border border-dashed border-cream-50/20 flex items-center justify-center"
           >
             <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-cream-200/40">
               not used
