@@ -722,6 +722,13 @@ function mp_enter_conference_phase($mysqli, $gameId) {
 if (!defined('MP_CONF_CONTRIB_PER_ATTENDEE')) define('MP_CONF_CONTRIB_PER_ATTENDEE', 2);
 
 /**
+ * Prestige paid to the reviewer whose Revise & Resubmit carried the vote.
+ * Revising is the most demanding verdict — it requires saying which specific
+ * cards don't belong — and it paid nothing, so approving was strictly cheaper.
+ */
+if (!defined('MP_REVISE_REVIEWER_PRESTIGE')) define('MP_REVISE_REVIEWER_PRESTIGE', 5);
+
+/**
  * Where the contribution step has got to.
  *
  * Progress is DERIVED rather than stored: a pool row with a NULL contributor
@@ -1705,6 +1712,22 @@ function mp_resolve_submission_outcomes($mysqli, $gameId, $currentYear) {
         $u->bind_param('ii', $currentYear, $sid);
         $u->execute();
         $u->close();
+
+        // The reviewer whose revision carried is paid for the work. Reading a
+        // manuscript closely enough to say WHICH cards don't belong is the
+        // most demanding thing a reviewer does here, and until now it earned
+        // nothing at all — approving and revising paid the same, so there was
+        // no reason to do the harder one.
+        $rp = $mysqli->prepare("UPDATE mp_game_players SET prestige = prestige + ? WHERE player_id = ?");
+        $reviseAward = MP_REVISE_REVIEWER_PRESTIGE;
+        $rp->bind_param('ii', $reviseAward, $canonical);
+        $rp->execute();
+        $rp->close();
+
+        mp_log_event($mysqli, $gameId, $canonical, 'revise_reviewer_paid', [
+          'submission_id' => $sid,
+          'prestige'      => $reviseAward,
+        ]);
       }
     }
   }
