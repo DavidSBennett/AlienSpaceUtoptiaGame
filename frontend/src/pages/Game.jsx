@@ -32,6 +32,7 @@ import FleuronDivider from '../components/FleuronDivider.jsx';
 import ArchiveMarket from '../components/ArchiveMarket.jsx';
 import ActionsGuideModal from '../components/ActionsGuideModal.jsx';
 import StatsStrip from '../components/StatsStrip.jsx';
+import { formatBonus } from '../lib/cardBonus.js';
 import NotebookArea from '../components/NotebookArea.jsx';
 import SkipLink from '../components/SkipLink.jsx';
 import { isConclusionCard } from '../lib/cardIdentifier.js';
@@ -1061,7 +1062,7 @@ function PlaceInProjectButtons({ card, source, projects, workspaces, onPlace }) 
   // visually unified strip — and we drop CardModal's separate footer row
   // when actions are present (this row already covers it).
   const seq = card.sequence_number ?? '—';
-  const bonus = card.bonus ? `+${card.bonus}` : null;
+  const bonus = formatBonus(card?.bonus) || null;
 
   if (eligible.length === 0) {
     // Even with no eligible projects we still want the meta strip visible,

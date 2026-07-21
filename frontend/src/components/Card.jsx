@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import CornerOrnament from './CornerOrnament.jsx';
 import FleuronDivider from './FleuronDivider.jsx';
 import Tooltip from './Tooltip.jsx';
+import { formatBonus } from '../lib/cardBonus.js';
 import { getCardTagsByField } from '../lib/tags.js';
 
 /** Context tags are pipe-separated (unlike argument tags, which use commas). */
@@ -262,8 +263,10 @@ export function ConclusionSpine({
   // size — they take whatever share they're handed.
   fill = false,
 }) {
-  const bonus = Number(card?.bonus);
-  const prestige = Number.isFinite(bonus) ? bonus : 0;
+  // A conclusion may carry a citation ladder rather than a single number, so
+  // the spine prints the whole ladder ("3 · 6 · 10 · 15"). The player needs to
+  // see what citing buys BEFORE committing cards to the project.
+  const prestigeLabel = formatBonus(card?.bonus);
   return (
     <button
       type="button"
@@ -302,9 +305,9 @@ export function ConclusionSpine({
           {!hidePrestige && (
             <span
               className="shrink-0 font-mono text-[11px] font-bold text-verdigris-700 tabular-nums"
-              title="Conclusion prestige value"
+              title="Conclusion prestige value — a ladder shows what it pays at 0 / 1 / 2 / 3+ citations"
             >
-              +{prestige}
+              {prestigeLabel}
             </span>
           )}
         </div>
@@ -328,9 +331,9 @@ export function ConclusionSpine({
           {!hidePrestige && (
             <span
               className="shrink-0 font-mono text-xs font-bold text-verdigris-700 tabular-nums"
-              title="Conclusion prestige value"
+              title="Conclusion prestige value — a ladder shows what it pays at 0 / 1 / 2 / 3+ citations"
             >
-              +{prestige}
+              {prestigeLabel}
             </span>
           )}
         </div>
@@ -697,7 +700,7 @@ export function CardModal({
                 {card.contributor ? `Contributed by ${card.contributor}` : ''}
               </span>
               <span className="text-right" title="Bonus points">
-                {card.bonus ? `+${card.bonus}` : ''}
+                {formatBonus(card?.bonus)}
               </span>
             </div>
           )}

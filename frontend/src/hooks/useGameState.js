@@ -3,6 +3,7 @@ import { useReducer, useCallback, useMemo } from 'react';
 import { shuffle, shuffleWith } from '../lib/shuffle.js';
 import { hashSeed, nextInt } from '../lib/seededRng.js';
 import { validateArgument, computePrestige, critiqueArgument } from '../lib/validation.js';
+import { bonusAt } from '../lib/cardBonus.js';
 import { computeStage, isPromotion } from '../lib/career.js';
 import { cardIdentifier } from '../lib/cardIdentifier.js';
 
@@ -971,7 +972,7 @@ function reducer(state, action) {
           [idx, rngState] = nextInt(rngState, returned.length);
           paper = returned[idx];
         }
-        conferencePrestige = Number(paper?.bonus) || 0;
+        conferencePrestige = bonusAt(paper?.bonus, 0);
         publications = [
           ...state.publications,
           {

@@ -1393,7 +1393,11 @@ function mp_card_for_you($card) {
     'argument'        => $card['argument'] ?? '',
     'sub_argument'    => $card['sub_argument'] ?? '',
     'citation'        => $card['citation'] ?? '',
-    'bonus'           => isset($card['bonus']) ? (int) $card['bonus'] : 0,
+    // Sent RAW, not cast to int: a conclusion's bonus may be a citation ladder
+    // ("3|6|10|15"), and an (int) cast here would have silently flattened it to
+    // the no-citation rung before the client ever saw the other tiers. Client
+    // reads go through lib/cardBonus.js, which handles both shapes.
+    'bonus'           => $card['bonus'] ?? 0,
     // Archive/conclusion flag — renamed `type` → `card_identifier` (migration
     // 26). Read whichever column exists and surface it under both names.
     'card_identifier' => $card['card_identifier'] ?? $card['type'] ?? '',

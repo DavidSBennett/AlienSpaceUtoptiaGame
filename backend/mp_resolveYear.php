@@ -982,7 +982,9 @@ function mp_award_conference_paper($mysqli, $gameId, $playerId, $idCard, $year) 
   // The attendee earns the card's bonus prestige for the paper, and the same
   // figure is what an opponent citing it pays out. Presenting at a conference
   // is a publication, so it scores like one.
-  $bonus         = isset($card['bonus']) ? (int) $card['bonus'] : 0;
+  // A conference paper cites nothing, so it takes the ladder's first rung
+  // (and a plain numeric bonus is unaffected either way).
+  $bonus         = isset($card['bonus']) ? mp_bonus_at($card['bonus'], 0) : 0;
   $prestige      = $bonus;
   $citationValue = $bonus;
 
@@ -1865,21 +1867,14 @@ function mp_apply_approval($mysqli, $gameId, $sid, $writerPid, $kind, $evIds, $c
     $stmt->close();
   }
 
-  // Citation bonus — each cited work contributes its recorded citation_value
-  // (half the conclusion's prestige contribution from when that work was
-  // published) as a FLAT prestige bonus. Citations no longer count as evidence.
+  // Citations pay through the CONCLUSION'S LADDER now (see $concBonus below),
+  // not by summing a per-work value. One number, read off the conclusion card
+  // by counting the citations attached — which is what makes this playable on
+  // cardboard. The cost is that citing a landmark work scores the same as
+  // citing a minor one; if that distinction is wanted back, it belongs as a
+  // gate ("a book counts as two citations"), not as a sum.
   $citationBonus = 0;
-  if (count($citedWorkIds) > 0) {
-    $placeholders = implode(',', array_fill(0, count($citedWorkIds), '?'));
-    $types = str_repeat('i', count($citedWorkIds));
-    $sql = "SELECT citation_value FROM mp_published_works WHERE work_id IN ($placeholders)";
-    $stmt = $mysqli->prepare($sql);
-    $stmt->bind_param($types, ...$citedWorkIds);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($r = $res->fetch_assoc()) $citationBonus += (int) $r['citation_value'];
-    $stmt->close();
-  }
+  $citationCount = count($citedWorkIds);
 
   // Influence is a PER-CARD bonus, and a cited work counts as a card for it.
   //
@@ -1895,17 +1890,20 @@ function mp_apply_approval($mysqli, $gameId, $sid, $writerPid, $kind, $evIds, $c
             * ($realEvidenceCount + count($citedWorkIds));
 
   // Fetch the conclusion card up front so its bonus can feed the scorer.
+  // The conclusion's worth is picked off its printed ladder by how many works
+  // this manuscript cites — the whole reward for engaging with the field.
   $conc = mp_fetch_card_row($mysqli, $concId);
-  $concBonus = ($conc && isset($conc['bonus'])) ? (int) $conc['bonus'] : 0;
+  $concBonus = ($conc && isset($conc['bonus'])) ? mp_bonus_at($conc['bonus'], $citationCount) : 0;
 
-  // Base prestige — real evidence + bonuses + per-card influence + the
-  // citation bonus, the whole lot doubled if the argument's context coheres.
+  // Base prestige — real evidence + bonuses + per-card influence, the lot
+  // doubled if the argument's context coheres. The conclusion's ladder rung
+  // is already inside $concBonus.
   $prestigeResult = mp_compute_prestige($evidenceCards, $infBonus, [], $concBonus, $citationBonus);
   $prestige = (int) $prestigeResult['total'];
 
-  // Record THIS work's citation_value for anyone who later cites it: half the
-  // conclusion's prestige contribution (its bonus, doubled if the publication
-  // doubled).
+  // citation_value is no longer read when scoring a citer — the conclusion's
+  // ladder is. Still recorded, because it's a fair measure of how weighty this
+  // work is and a "counts as two citations" gate would want it.
   $conclusionContribution = $concBonus * ($prestigeResult['doubled'] ? 2 : 1);
   $citationValue = (int) floor($conclusionContribution / 2);
 
@@ -2522,6 +2520,37 @@ function mp_title_tokenize($text) {
  *                                    three citations citing 6-, 4-,
  *                                    and 3-evidence works)
  */
+/**
+ * mp_bonus_at — read a card's printed bonus, which may be a citation ladder.
+ *
+ * A conclusion's `bonus` column is a VARCHAR, so it holds either a single
+ * number or a pipe-separated ladder keyed to the manuscript's citation count:
+ *
+ *   "3"          → 3, whatever the citation count
+ *   "3|6|10|15"  → 3 with none, 6 with one, 10 with two, 15 with three or more
+ *
+ * Hard gates printed on the card, so a table playing this on cardboard counts
+ * its citations and reads the number off — no multiplying, and nothing to look
+ * up on the cited cards. Counts past the end of the ladder take the last rung,
+ * which is what makes the top tier "3+" rather than a cliff.
+ *
+ * Existing decks all store a plain number and are unaffected. Note that a bare
+ * (int) cast of "3|6|10|15" yields 3 in PHP, so any path that misses this
+ * helper degrades to the no-citation tier rather than breaking.
+ */
+function mp_bonus_at($raw, $citationCount = 0) {
+  if ($raw === null || $raw === '') return 0;
+  $parts = array_values(array_filter(
+    array_map(function ($p) { return trim($p); }, explode('|', (string) $raw)),
+    function ($p) { return $p !== '' && is_numeric($p); }
+  ));
+  if (count($parts) === 0) return 0;
+  $n = max(0, (int) $citationCount);
+  $i = min($n, count($parts) - 1);
+  return (int) $parts[$i];
+}
+
+
 function mp_compute_prestige($evidenceCards, $influenceBonus, $citedEvidenceCounts = [], $conclusionBonus = 0, $citationBonus = 0) {
   $evCount = count($evidenceCards);
 

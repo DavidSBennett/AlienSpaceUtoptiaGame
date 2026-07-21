@@ -1,4 +1,5 @@
 import { getCardTags } from './tags.js';
+import { bonusAt } from './cardBonus.js';
 
 /**
  * Argument validation — the core game-logic gate.
@@ -166,12 +167,11 @@ export function computePrestige(evidence, conclusion, influenceBonus = 0) {
   const evidenceList = Array.isArray(evidence) ? evidence : [];
 
   const totalBonus = evidenceList.reduce((sum, c) => {
-    const n = Number(c?.bonus);
-    return sum + (Number.isFinite(n) ? n : 0);
+    return sum + bonusAt(c?.bonus, 0);
   }, 0);
 
-  const cb = Number(conclusion?.bonus);
-  const conclusionBonus = Number.isFinite(cb) ? cb : 0;
+  // Solo cites nothing, so the conclusion takes its ladder's first rung.
+  const conclusionBonus = bonusAt(conclusion?.bonus, 0);
 
   const base = evidenceList.length + totalBonus + conclusionBonus + (influenceBonus || 0);
 
@@ -194,7 +194,10 @@ export function computePrestige(evidence, conclusion, influenceBonus = 0) {
  *   - Doubling check runs only against REAL evidence (citations
  *     ignored).
  *   - bonus_sum only from real evidence (citations don't bring it).
- *   - Influence L4 scaling uses EFFECTIVE evidence count.
+ *   - Influence counts cited works as cards.
+ *   - The conclusion's worth is read off its citation ladder — the number of
+ *     works cited picks the rung. `conclusionBonus` is therefore the card's
+ *     RAW bonus field ("3" or "3|6|10|15"), not a pre-resolved number.
  *
  * Assumes the publication WILL be approved — this is the optimistic
  * "if all tags line up" estimate. If your citations are tag-mismatched
@@ -223,21 +226,16 @@ export function computePrestigeMpPreview(evidence, citations, influenceLvl, conc
 
   const realCount = evList.length;
 
-  // Each citation adds a flat prestige bonus = its recorded prestige_contrib
-  // (half the cited work's conclusion prestige contribution). Citations are
-  // no longer counted as evidence.
-  const citationBonus = citList.reduce((sum, c) => {
-    const n = Number(c?.prestige_contrib ?? 0);
-    return sum + (Number.isFinite(n) ? n : 0);
-  }, 0);
+  // Citations no longer pay per cited work. They pick the rung on the
+  // CONCLUSION'S ladder instead — one number off one card, which is what makes
+  // this countable at a physical table. Mirrors mp_apply_approval.
+  const citationBonus = 0;
 
   const bonusSum = evList.reduce((sum, c) => {
-    const n = Number(c?.bonus);
-    return sum + (Number.isFinite(n) ? n : 0);
+    return sum + bonusAt(c?.bonus, 0);
   }, 0);
 
-  const cb = Number(conclusionBonus);
-  const concBonus = Number.isFinite(cb) ? cb : 0;
+  const concBonus = bonusAt(conclusionBonus, citList.length);
 
   // Influence is a per-card bonus, and a cited work counts as a card for it —
   // matching mp_apply_approval server-side.
