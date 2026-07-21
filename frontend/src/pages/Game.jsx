@@ -1097,7 +1097,10 @@ function NotebookArea({
 
         {/* Right: the hand */}
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap gap-3 min-h-[12.5rem]">
+          {/* justify-center centres each ROW independently, so a wrapped
+              second line stays centred too; content-start keeps the rows
+              stacked from the top rather than spread down the notebook. */}
+          <div className="flex flex-wrap justify-center content-start gap-3 min-h-[12.5rem]">
             {hand.length === 0 ? (
               <p className="text-cream-200 italic font-serif self-center w-full text-center">
                 Empty. Draw cards from the archive to begin researching.
