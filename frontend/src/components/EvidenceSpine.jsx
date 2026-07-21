@@ -17,14 +17,21 @@
  * Both: left click = open modal, right click = caller-provided
  * handler (return to hand / shelf). Wrapped externally in a
  * DraggableCard for drag-out.
+ *
+ * Both carry the same rich hover tooltip the cards use. A spine shows only a
+ * few characters of its title, so the tooltip is the only way to identify one
+ * on sight — and the native `title` attribute doesn't survive here, because
+ * dnd-kit's pointer handling on the drag handle suppresses it.
  */
+import Tooltip from './Tooltip.jsx';
+import { cardFaceTooltip } from './Card.jsx';
 
 export function EvidenceSpine({ card, onClick, dragHandleProps }) {
   return (
+    <Tooltip content={cardFaceTooltip(card)} side="top" width="w-72" delay={200} className="shrink-0">
     <button
       type="button"
       onClick={onClick}
-      title={card.title}
       {...dragHandleProps}
       className="
         relative w-7 h-14 flex-shrink-0
@@ -55,16 +62,17 @@ export function EvidenceSpine({ card, onClick, dragHandleProps }) {
         {card.title}
       </span>
     </button>
+    </Tooltip>
   );
 }
 
 
 export function ConclusionProjectSpine({ card, onClick, dragHandleProps }) {
   return (
+    <Tooltip content={cardFaceTooltip(card)} side="top" width="w-72" delay={200} className="shrink-0">
     <button
       type="button"
       onClick={onClick}
-      title={card.title}
       {...dragHandleProps}
       className="
         relative w-9 h-14 flex-shrink-0
@@ -96,6 +104,7 @@ export function ConclusionProjectSpine({ card, onClick, dragHandleProps }) {
         {card.title}
       </span>
     </button>
+    </Tooltip>
   );
 }
 

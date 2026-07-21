@@ -79,6 +79,10 @@ export default function Tooltip({
   align = 'center',
   width = 'w-64',
   delay = 200,
+  // Extra classes for the wrapper span. The wrapper becomes the flex item in
+  // place of whatever it wraps, so a trigger that relied on its own flex
+  // classes (shrink-0 in a scrolling rail, say) needs them passed through here.
+  className = '',
 }) {
   const triggerRef = useRef(null);
   const tooltipRef = useRef(null);
@@ -126,7 +130,7 @@ export default function Tooltip({
   return (
     <span
       ref={triggerRef}
-      className="relative inline-flex"
+      className={`relative inline-flex ${className}`}
       onMouseEnter={open}
       onMouseLeave={close}
       onFocus={open}
