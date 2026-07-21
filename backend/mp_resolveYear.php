@@ -642,15 +642,22 @@ function mp_enter_conference_phase($mysqli, $gameId) {
   $isSolo = count($attendees) === 1;
   $order  = 0;
 
-  // Every attendee's staged cards go into the pool, and each may take back
-  // what they brought PLUS their membership bonus — so a conference always
-  // sends you home with more than you carried in.
-  //
-  // The fresh cards the archive adds are counted ONCE for the table, not once
-  // per attendee: the highest contribution plus the highest membership rank
-  // among those attending. Per-attendee fresh draws would balloon the pool at
-  // a full table (five players staging four cards each would have drafted from
+  // Every attendee's staged cards go into the pool, and the archive adds ONE
+  // batch for the floor: the highest contribution plus the highest membership
+  // rank among those attending. Per-attendee fresh draws would balloon the
+  // pool at a full table (five players staging four cards each drafted from
   // forty), which is the opposite of a focused conference floor.
+  //
+  // A player takes back as many as they contributed — NOT contributed plus
+  // their rank bonus. The bonus-to-keeps rule is solo-only, and it does not
+  // survive contact with a full table: keeps would scale with the number of
+  // players while the fresh draw is sized off maxima, so the two diverge. Five
+  // rank-4 players staging four cards each would have been entitled to 40 from
+  // a pool of 28, and the last to draft would find an empty floor — turning the
+  // draft into a seat-order race. Keeping take limits at contributions means
+  // total demand can never exceed the pool, at any table size.
+  //
+  // The surplus isn't wasted: leftovers are what become conference papers.
   $maxContrib = 0;
   $maxBonus   = 0;
   $firstPid   = null;
@@ -671,7 +678,7 @@ function mp_enter_conference_phase($mysqli, $gameId) {
     $contrib = ($prow && $prow['evidence_card_ids']) ? (json_decode($prow['evidence_card_ids'], true) ?: []) : [];
     $contrib = array_map('intval', $contrib);
 
-    $takeLimit = count($contrib) + $bonus;
+    $takeLimit = count($contrib);
     if (count($contrib) > $maxContrib) $maxContrib = count($contrib);
     if ($bonus > $maxBonus) $maxBonus = $bonus;
     if ($firstPid === null) $firstPid = $pid;
