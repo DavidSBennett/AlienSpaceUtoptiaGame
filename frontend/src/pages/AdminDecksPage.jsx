@@ -103,7 +103,36 @@ export default function AdminDecksPage() {
       setNotice(`Deleted deck #${res.idDeck}. Next deck id is now ${res.decks_next_id}.`);
       await refresh();
     } catch (err) {
-      setError(err.message || 'Delete failed.');
+      // The server refuses when unfinished games still use the deck: their
+      // cards would go with it and the games would keep running against cards
+      // that no longer exist. Name the games rather than just saying no, and
+      // offer the override explicitly.
+      if (typeof err.gamesInUse === 'number') {
+        const lines = (err.games || [])
+          .map((g) => `#${g.game_id} (${g.status}, year ${g.current_year}) — ${g.players || 'no players'}`)
+          .join('\n');
+        const ok = confirm(
+          `${err.gamesInUse} unfinished game${err.gamesInUse === 1 ? '' : 's'} still use this deck:\n\n${lines}\n\n` +
+          'Deleting it removes their cards. Those games will keep running with ' +
+          'evidence missing from hands and manuscripts, and will score wrongly.\n\n' +
+          'Delete anyway?'
+        );
+        if (ok) {
+          try {
+            const res = await adminDeleteDeck({ idDeck: deck.idDeck, force: true });
+            setNotice(`Deleted deck #${res.idDeck} (forced, over ${err.gamesInUse} game${err.gamesInUse === 1 ? '' : 's'}).`);
+            await refresh();
+          } catch (e2) {
+            setError(e2.message || 'Delete failed.');
+          }
+        } else {
+          setError(
+            `Kept deck #${deck.idDeck}. Finish or purge those games first — /admin/games lists them.`
+          );
+        }
+      } else {
+        setError(err.message || 'Delete failed.');
+      }
     } finally {
       setDeletingId(null);
     }

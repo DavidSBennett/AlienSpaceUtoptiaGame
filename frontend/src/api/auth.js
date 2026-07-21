@@ -223,6 +223,20 @@ export async function adminWipeMultiplayer() {
  * @param {{ olderThanDays: number, dryRun?: boolean }} args
  * @returns {Promise<{ ok, dry_run, older_than_days, cutoff, matched, purged }>}
  */
+/**
+ * Every multiplayer game across every account, newest activity first. Optional
+ * filters: status ('lobby'|'active'|'ended') and idDeck.
+ */
+export async function adminListGames({ status = '', idDeck = 0, limit = 200 } = {}) {
+  try {
+    const params = { limit };
+    if (status) params.status = status;
+    if (idDeck) params.idDeck = idDeck;
+    const res = await api.get('/admin_listGames.php', { params });
+    return res.data;
+  } catch (err) { throw normalizeError(err); }
+}
+
 export async function adminPurgeOldGames({ olderThanDays, dryRun = false }) {
   try {
     const res = await api.post('/admin_purgeGames.php', {
@@ -260,11 +274,28 @@ export async function adminUploadDeck({ nameFirst, nameLast, nameDeck, file }) {
   } catch (err) { throw normalizeError(err); }
 }
 
-export async function adminDeleteDeck({ idDeck }) {
+/**
+ * Delete a deck. Refused with 409 if unfinished games still use it — deleting
+ * would take their cards with it and silently corrupt them. The rejection body
+ * carries games_in_use and the list, so the caller can show which. Pass
+ * force:true to override.
+ */
+export async function adminDeleteDeck({ idDeck, force = false }) {
   try {
-    const res = await api.post('/admin_deleteDeck.php', { idDeck });
+    const res = await api.post('/admin_deleteDeck.php', { idDeck, force: !!force });
     return res.data;
-  } catch (err) { throw normalizeError(err); }
+  } catch (err) {
+    // Preserve the structured 409 payload — the plain message alone can't tell
+    // the caller WHICH games are in the way.
+    const data = err?.response?.data;
+    if (data && typeof data.games_in_use === 'number') {
+      const e = new Error(data.error || 'Deck is in use');
+      e.gamesInUse = data.games_in_use;
+      e.games = data.games || [];
+      throw e;
+    }
+    throw normalizeError(err);
+  }
 }
 
 /**
