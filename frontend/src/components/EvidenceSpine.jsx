@@ -27,7 +27,7 @@ export function EvidenceSpine({ card, onClick, dragHandleProps }) {
       title={card.title}
       {...dragHandleProps}
       className="
-        relative w-7 h-44 flex-shrink-0
+        relative w-7 h-28 flex-shrink-0
         bg-cream-100 border-2 border-gold-700
         hover:bg-cream-50 hover:border-gold-500
         transition-colors duration-200 ease-desk
@@ -67,7 +67,7 @@ export function ConclusionProjectSpine({ card, onClick, dragHandleProps }) {
       title={card.title}
       {...dragHandleProps}
       className="
-        relative w-9 h-44 flex-shrink-0
+        relative w-9 h-28 flex-shrink-0
         bg-cream-50 border-2 border-oxblood-700
         hover:bg-cream-100 hover:border-oxblood-500
         transition-colors duration-200 ease-desk

@@ -182,7 +182,7 @@ export default function ProjectRow({
 
         {/* === Evidence rail — flows right, scrolls horizontally if it overflows === */}
         <div className="flex-1 min-w-0 overflow-x-auto">
-          <div className="flex gap-3 px-4 py-3 items-center">
+          <div className="flex gap-3 px-4 py-2 items-center">
 
             {project.evidence.map((card) => (
               <DraggableCard

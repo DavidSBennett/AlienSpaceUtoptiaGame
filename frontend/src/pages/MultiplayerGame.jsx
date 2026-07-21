@@ -1140,7 +1140,10 @@ export default function MultiplayerGame() {
           );
           const visibleShelf = conclusionShelf.filter((c) => !inUse.has(c.idCard));
           return (
-            <div className="flex-1 flex gap-4 p-4 min-h-0">
+            /* shrink-0, not flex-1: the row is exactly as tall as the archive
+               and conclusion columns need, which pulls the commit bar and the
+               notebook up to meet it instead of leaving a band of empty desk. */
+            <div className="shrink-0 flex gap-4 p-4">
               {/* The archive market sits to the LEFT of the conclusions and is
                   present in every phase — seeing a card you want is what should
                   push you to spend the year drawing. It only becomes takeable
@@ -1185,7 +1188,13 @@ export default function MultiplayerGame() {
                 onConclusionClick={(card) => setOpenCard({ card, source: 'conclusionShelf' })}
                 showTags={effTags} showSignificance={effSignificance}
               />
-              <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
+              {/* The projects are absolutely positioned inside this wrapper so
+                  their content can't drive the row's height. That's what keeps
+                  the column from growing past the conclusion shelf beside it:
+                  the row is sized by the archive and conclusions, and the
+                  projects fill exactly that and scroll if they overrun. */}
+              <div className="flex-1 relative min-w-0 self-stretch">
+              <main id="main-content" tabIndex={-1} className="absolute inset-0 flex flex-col gap-4 overflow-y-auto">
                 {projects.map((project, i) => (
                   <ProjectRow
                     key={project.id}
@@ -1206,6 +1215,7 @@ export default function MultiplayerGame() {
                   />
                 ))}
               </main>
+              </div>
             </div>
           );
         })()}

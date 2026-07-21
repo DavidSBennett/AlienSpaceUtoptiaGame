@@ -594,7 +594,13 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
         {/* ═══════════════════════════════════════════════════
             4. PLAY AREA — conclusions (skinny left rail) + project rows
             ═══════════════════════════════════════════════════ */}
-        <div className="flex-1 flex gap-4 p-4 min-h-0">
+        {/* shrink-0, not flex-1: the row is exactly as tall as the archive and
+            conclusion columns need, so the projects can't run past the shelf
+            beside them and the notebook rides up to meet it.
+            min-h guards the walkthrough, where the archive market is hidden and
+            ConclusionSidebar renders nothing until conclusions exist — with the
+            projects absolutely positioned, the row would otherwise be 0 tall. */}
+        <div className="shrink-0 flex gap-4 p-4 min-h-[28rem]">
           {/* The archive market sits to the LEFT of the conclusions. Only in a
               normal game — the walkthrough keeps its single deck below. */}
           {state.archivePiles.length > 1 && (
@@ -619,7 +625,10 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
             dragGate={tutorialDragAllowed}
           />
 
-          <main id="main-content" tabIndex={-1} data-tutorial="project-area" className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
+          {/* Absolutely positioned so the projects' own height can't stretch
+              the row past the conclusion shelf; they fill it and scroll. */}
+          <div className="flex-1 relative min-w-0 self-stretch">
+          <main id="main-content" tabIndex={-1} data-tutorial="project-area" className="absolute inset-0 flex flex-col gap-4 overflow-y-auto">
             {state.projects.map((project, i) => (
               <ProjectRow
                 key={project.id}
@@ -640,6 +649,7 @@ function GameBoard({ playerName, deck, allCards, totalYears, tutorial = false, s
               />
             ))}
           </main>
+          </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════
