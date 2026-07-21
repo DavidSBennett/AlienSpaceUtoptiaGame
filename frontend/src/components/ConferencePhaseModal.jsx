@@ -214,15 +214,10 @@ export default function ConferencePhaseModal({ conference, you, busy, onTake, on
             ) : (
               pool.map((card) => {
                 const isSel = selected.has(card.pool_id);
-                // can_take comes from the server. Cards you brought yourself
-                // are on the floor for everyone to see but aren't yours to
-                // take back — showing a Select button the server would reject
-                // is worse than showing why it's unavailable.
-                const takeable = card.can_take !== false;
                 const atLimit = selected.size >= takeLimit && !isSel;
                 return (
                   <div key={card.pool_id} className="flex flex-col items-center gap-1">
-                    <div className={`relative ${isSel ? 'ring-2 ring-gold-500 ring-offset-2 ring-offset-cream-50' : ''} ${takeable ? '' : 'opacity-60'}`}>
+                    <div className={`relative ${isSel ? 'ring-2 ring-gold-500 ring-offset-2 ring-offset-cream-50' : ''}`}>
                       <CardThumbnail
                         card={card}
                         onClick={() => setOpenCard(card)}
@@ -230,31 +225,25 @@ export default function ConferencePhaseModal({ conference, you, busy, onTake, on
                         showSignificance
                       />
                     </div>
-                    {isYourTurn && (
-                      takeable ? (
-                        <button
-                          type="button"
-                          onClick={() => toggle(card.pool_id)}
-                          disabled={atLimit}
-                          className={`font-mono text-[10px] uppercase tracking-wider px-3 py-1 border transition-colors ${
-                            isSel
-                              ? 'bg-gold-500 text-teal-950 border-gold-700'
-                              : atLimit
-                                ? 'border-cream-300 text-ink-400 cursor-not-allowed'
-                                : 'bg-cream-50 text-ink-900 border-cream-300 hover:border-gold-500'
-                          }`}
-                        >
-                          {isSel ? '✓ Selected' : 'Select'}
-                        </button>
-                      ) : (
-                        <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500 px-2 py-1">
-                          yours — can't reclaim
-                        </span>
-                      )
-                    )}
-                    {!isYourTurn && card.from_archive && (
-                      <span className="font-mono text-[9px] uppercase tracking-wider text-verdigris-600 px-2 py-1">
-                        from the archive
+                    {/* Every card on the floor is draftable, your own included. */}
+                    {isYourTurn ? (
+                      <button
+                        type="button"
+                        onClick={() => toggle(card.pool_id)}
+                        disabled={atLimit}
+                        className={`font-mono text-[10px] uppercase tracking-wider px-3 py-1 border transition-colors ${
+                          isSel
+                            ? 'bg-gold-500 text-teal-950 border-gold-700'
+                            : atLimit
+                              ? 'border-cream-300 text-ink-400 cursor-not-allowed'
+                              : 'bg-cream-50 text-ink-900 border-cream-300 hover:border-gold-500'
+                        }`}
+                      >
+                        {isSel ? '✓ Selected' : card.yours ? 'Take back' : 'Select'}
+                      </button>
+                    ) : (
+                      <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500 px-2 py-1">
+                        {card.yours ? 'yours' : card.from_archive ? 'from the archive' : ''}
                       </span>
                     )}
                   </div>

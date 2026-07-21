@@ -781,16 +781,6 @@ function mp_conference_contrib_state($mysqli, $gameId) {
   ];
 }
 
-/** How many players are at this conference. */
-function mp_conference_attendee_count($mysqli, $gameId) {
-  $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM mp_conference_attendees WHERE game_id = ?");
-  $stmt->bind_param('i', $gameId);
-  $stmt->execute();
-  $n = (int) $stmt->get_result()->fetch_assoc()['n'];
-  $stmt->close();
-  return $n;
-}
-
 /** Cards still reachable for the conference: undrawn archive, else discards. */
 function mp_conference_cards_available($mysqli, $gameId) {
   $stmt = $mysqli->prepare("
@@ -853,14 +843,14 @@ function mp_conference_take($mysqli, $gameId, $playerId, $poolIds) {
     $stmt->close();
     if (!$row) continue;
     if ($row['taken_by_player_id'] !== null) continue;  // already taken
-    // You can't draft back what you brought — that's what makes it a trade.
-    // Unless you're the only one who showed up, in which case there is nobody
-    // to trade with and the rule would just strand your own cards on the floor.
-    if ($row['contributor_player_id'] !== null
-        && (int) $row['contributor_player_id'] === (int) $playerId
-        && mp_conference_attendee_count($mysqli, $gameId) > 1) {
-      throw new Exception('You cannot take a card you contributed');
-    }
+    // Anyone may draft any untaken card, including one they contributed.
+    //
+    // The old rule blocked reclaiming your own, on the grounds that a
+    // conference should be a trade. But a player takes only as many as they
+    // brought, so taking your own back nets to keeping what you had — there is
+    // nothing to exploit, and the rule mostly punished bringing a card you
+    // actually needed. The choice of what to offer stays interesting because
+    // someone else may take it first.
     $cid = (int) $row['idCard'];
     $u = $mysqli->prepare("UPDATE mp_conference_pool SET taken_by_player_id = ? WHERE pool_id = ?");
     $u->bind_param('ii', $playerId, $poolId); $u->execute(); $u->close();

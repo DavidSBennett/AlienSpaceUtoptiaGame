@@ -900,7 +900,7 @@ function mp_build_review_phase($mysqli, $gameId, $youId, $reviewIndex) {
 
 /**
  * Build the conference payload: the attendees in pick order, whose turn it is,
- * and the pool of cards you may draft (untaken, and not ones you contributed).
+ * and the whole floor of untaken cards, all of which anyone may draft.
  * Pool cards carry full content/tags/significance so attendees can choose well.
  */
 function mp_build_conference($mysqli, $gameId, $youId) {
@@ -935,19 +935,17 @@ function mp_build_conference($mysqli, $gameId, $youId) {
   }
   $stmt->close();
 
-  // THE WHOLE FLOOR, to everyone. Cards you may not draft are sent anyway,
-  // flagged, rather than filtered out.
+  // THE WHOLE FLOOR, to everyone, all of it draftable.
   //
   // This used to hide the cards you contributed, which meant no attendee ever
   // saw the floor as it actually stood — each looked at a different, partial
-  // pool. That makes the stocking step unreadable, since the entire point of
-  // watching cards accumulate is judging what the floor still needs.
+  // pool. That makes the stocking step unreadable, since the point of watching
+  // cards accumulate is judging what the floor still needs.
   //
-  // can_take is the draft rule: your own contributions are off-limits (that's
-  // what makes it a trade) unless you're the only attendee, in which case
-  // there's nobody to trade with. Cards the archive supplied carry no
-  // contributor and are open to all.
-  $attendeeCount = mp_conference_attendee_count($mysqli, $gameId);
+  // Reclaiming your own is allowed too. A player takes only as many as they
+  // brought, so taking your own back nets to keeping what you had; the rule
+  // against it mostly punished bringing a card you actually needed. `yours`
+  // and `from_archive` are for labelling, not permission.
   $stmt = $mysqli->prepare("
     SELECT pool_id, idCard, contributor_player_id
     FROM mp_conference_pool
@@ -962,13 +960,11 @@ function mp_build_conference($mysqli, $gameId, $youId) {
     $card = mp_fetch_card($mysqli, (int) $r['idCard']);
     if (!$card) continue;
     $contributor = $r['contributor_player_id'] !== null ? (int) $r['contributor_player_id'] : null;
-    $isYours = ($contributor !== null && $contributor === (int) $youId);
 
     $entry = mp_card_for_you($card);
-    $entry['pool_id']     = (int) $r['pool_id'];
+    $entry['pool_id']      = (int) $r['pool_id'];
     $entry['from_archive'] = ($contributor === null);
-    $entry['yours']       = $isYours;
-    $entry['can_take']    = !$isYours || $attendeeCount <= 1;
+    $entry['yours']        = ($contributor !== null && $contributor === (int) $youId);
     $pool[] = $entry;
   }
   $stmt->close();
