@@ -126,6 +126,25 @@ try {
     $u->execute();
     $u->close();
 
+    // The citation-tag check moved behind the vote so a revise verdict could
+    // survive a bad citation — the revision is how you fix one. That makes
+    // this the point where it has to be enforced instead: accepting a revision
+    // that still leaves a mismatched citation must not publish.
+    if (count($revisedCiteIds) > 0
+        && mp_submission_has_invalid_citation_tags($mysqli, $concId, $revisedCiteIds)) {
+      mp_apply_auto_rejection($mysqli, $gid, $sid, $pid, 'invalid-citation', $year);
+      mp_return_revise_added($mysqli, $gid, $sid, $year, 0);
+      $stateVersion = mp_bump_state_version($mysqli, $gid);
+      $mysqli->commit();
+      mp_json([
+        'ok'            => true,
+        'decision'      => $decision,
+        'outcome'       => 'auto-rejected',
+        'reason'        => 'invalid-citation',
+        'state_version' => $stateVersion,
+      ]);
+    }
+
     // Full approval (writer prestige + upgrade + published work + discard).
     mp_apply_approval($mysqli, $gid, $sid, $pid, $kind, $revisedEv, $revisedCiteIds, $concId, $year);
 

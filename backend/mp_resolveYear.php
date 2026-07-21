@@ -1670,15 +1670,9 @@ function mp_resolve_submission_outcomes($mysqli, $gameId, $currentYear) {
                  : [];
     $concId  = (int) $s['conclusion_card_id'];
 
-    // ── PHASE B: citation-tag pre-validation ───────────────────────
-    // Citations are tag-checked at PUBLICATION time. A citation whose tag
-    // doesn't match the conclusion auto-rejects the submission regardless
-    // of votes. Any locked revise-proposal cards are returned.
-    if (count($citeIds) > 0 && mp_submission_has_invalid_citation_tags($mysqli, $concId, $citeIds)) {
-      mp_apply_auto_rejection($mysqli, $gameId, $sid, $writer, 'invalid-citation', $currentYear);
-      mp_return_revise_added($mysqli, $gameId, $sid, $currentYear, 0);
-      continue;
-    }
+    // A citation whose tag doesn't match the conclusion can't be published.
+    $badCitation = count($citeIds) > 0
+      && mp_submission_has_invalid_citation_tags($mysqli, $concId, $citeIds);
 
     // No verdicts at all (e.g. every reviewer ghosted) → leave pending so the
     // writer isn't auto-rejected; it'll be picked up next round.
@@ -1686,6 +1680,22 @@ function mp_resolve_submission_outcomes($mysqli, $gameId, $currentYear) {
 
     // Majority vote across all reviewers; ties lean to Revise & Resubmit.
     $outcome = mp_majority_outcome($approves, $rejects, $revises);
+
+    // The citation check used to run BEFORE this and auto-reject "regardless
+    // of votes", discarding a Revise & Resubmit ruling entirely — the writer
+    // was handed a rejection with reclaim and consolation buttons while the
+    // reviewer's revision was thrown away. That is precisely backwards: a
+    // mismatched citation is the textbook thing a revision fixes, and
+    // reviewers can already flag cited works for removal. So a revise verdict
+    // now takes precedence and the writer gets to drop the offending citation.
+    //
+    // It still overrides an APPROVAL, because a manuscript whose citations
+    // don't hold can't go on the shelf however many people liked it.
+    if ($badCitation && $outcome !== 'revise') {
+      mp_apply_auto_rejection($mysqli, $gameId, $sid, $writer, 'invalid-citation', $currentYear);
+      mp_return_revise_added($mysqli, $gameId, $sid, $currentYear, 0);
+      continue;
+    }
 
     if ($outcome === 'approve') {
       mp_apply_approval($mysqli, $gameId, $sid, $writer, $kind, $evIds, $citeIds, $concId, $currentYear);
