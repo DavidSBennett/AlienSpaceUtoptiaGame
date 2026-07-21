@@ -6,6 +6,23 @@
    Base — peacock teal ground with subtle atmospheric gradients
    =========================================================== */
 @layer base {
+  /* Board scale.
+     The boards are laid out to fit a screen at what a browser calls 90% zoom;
+     at 100% they run past the bottom. `zoom` reproduces exactly what that
+     browser control does — unlike a transform, it changes layout size rather
+     than painting a shrunken copy, so hit-testing, drag coordinates and
+     scrolling all stay correct.
+     Deliberately NOT a root font-size change: over 250 sizes in this codebase
+     are written in px (text-[10px] and friends), so a rem-only shrink would
+     scale the boxes while leaving the type alone.
+     It sits on :root so portalled elements — tooltips render into <body> —
+     scale with the trigger they're measured against.
+     Firefox supports zoom from 126; older versions ignore it and simply get
+     today's layout. One line to revert. */
+  :root {
+    zoom: 0.9;
+  }
+
   body {
     @apply bg-teal-950 text-cream-100 font-sans antialiased;
 
