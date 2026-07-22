@@ -249,7 +249,7 @@ function describeEvent(ev) {
       return `removed a citation.`;
 
     // ── Objection token mechanics ──────────────────────────────────
-    // The writer spent an objection token to contest a peer rejection.
+    // The writer contested a peer rejection.
     // On success, the rejection is overturned, the rejecting reviewer(s)
     // each lose 5 prestige, and the token is refunded. On failure, the
     // rejection stands and the token is spent.
@@ -261,11 +261,11 @@ function describeEvent(ev) {
       const penalty = n > 0
         ? `${n} reviewer${n === 1 ? '' : 's'}${names} lost 5 prestige`
         : 'no reviewers penalized';
-      const refund = d.token_refunded ? '; objection token refunded' : '';
+      const refund = '';
       return `objected successfully — rejection overturned, ${penalty}${refund}.`;
     }
     case 'objection_lost':
-      return `objected unsuccessfully — rejection stands, objection token spent.`;
+      return `objected unsuccessfully — the rejection stands.`;
     case 'objection_penalty': {
       const total = d.prestige_total != null ? ` → ${d.prestige_total} total` : '';
       return `lost ${d.prestige_lost ?? 5} prestige for rejecting a sound argument${total}.`;

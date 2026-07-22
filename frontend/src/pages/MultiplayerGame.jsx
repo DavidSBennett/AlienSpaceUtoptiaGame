@@ -204,7 +204,7 @@ export default function MultiplayerGame() {
   const prevStageRef = useRef(null);
 
   // Transient state for showing the outcome banner after a player spends
-  // an objection token. Cleared when the result dialog is dismissed.
+  // an objection. Cleared when the result dialog is dismissed.
   const [objectionOutcome, setObjectionOutcome] = useState(null);
 
   // Currently-open publication modal — set when a player left-clicks a
@@ -1397,7 +1397,6 @@ export default function MultiplayerGame() {
         {reviseDecision && (
           <ReviseDecisionDialog
             decision={reviseDecision}
-            tokensRemaining={you.objection_tokens_remaining ?? 0}
             onAccept={() => handleReviseDecision('accept')}
             onObject={() => handleReviseDecision('object')}
             onRebuild={() => handleReviseDecision('rebuild')}
@@ -1419,7 +1418,6 @@ export default function MultiplayerGame() {
             onDrawConsolation={handleDrawConsolationFromResult}
             onReclaim={handleReclaimFromResult}
             onObject={handleObjectFromResult}
-            tokensRemaining={you.objection_tokens_remaining ?? 0}
             objectionOutcome={objectionOutcome}
             busy={busy}
             error={error}

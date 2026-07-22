@@ -204,19 +204,9 @@ try {
     $outcome = 'accepted';
 
   } else if ($decision === 'object') {
-    // Spend one objection token regardless of outcome.
-    $t = $mysqli->prepare("SELECT objection_tokens_remaining FROM mp_game_players WHERE player_id = ? FOR UPDATE");
-    $t->bind_param('i', $pid);
-    $t->execute();
-    $t->bind_result($tok);
-    $t->fetch();
-    $t->close();
-    if ((int) $tok < 1) throw new Exception('No objection tokens remaining');
-
-    $sp = $mysqli->prepare("UPDATE mp_game_players SET objection_tokens_remaining = objection_tokens_remaining - 1 WHERE player_id = ?");
-    $sp->bind_param('i', $pid);
-    $sp->execute();
-    $sp->close();
+    // Objection tokens are disconnected — objecting costs no separate currency.
+    // The gamble is the price: you give up a guaranteed revised publication and
+    // stake the manuscript on the tag check, so losing means rejection.
 
     // Judge the ORIGINAL manuscript purely by tags.
     $matchedTag = mp_revise_find_common_tag($mysqli, $concId, $origEv, $citeIds);

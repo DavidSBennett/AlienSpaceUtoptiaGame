@@ -10,21 +10,19 @@ import FleuronDivider from './FleuronDivider.jsx';
  *
  *   Accept   — publish the revised manuscript; you get full prestige, the
  *              reviewer earns a third as a contributor.
- *   Object   — costs 1 objection token (spent regardless); your ORIGINAL
+ *   Object   — stake the guaranteed revised publication; your ORIGINAL
  *              manuscript is judged by the tag algorithm alone.
  *   Rebuild  — decline; reclaim your own cards and rebuild for review next
  *              year (treated as a rejection).
  *
  * Props:
  *   decision         — a revise_decisions_for_you entry
- *   tokensRemaining  — int, the writer's objection tokens
  *   onAccept/onObject/onRebuild — async () => void
  *   onClose          — () => void  ("decide later")
  *   busy, error
  */
 export default function ReviseDecisionDialog({
   decision,
-  tokensRemaining = 0,
   onAccept,
   onObject,
   onRebuild,
@@ -44,7 +42,6 @@ export default function ReviseDecisionDialog({
   const removedCitations = decision.removed_citations || [];
   const added = decision.added_cards || [];
   const kept = decision.kept_cards || [];
-  const canObject = tokensRemaining >= 1;
   const citationKind = (k) => (k === 'book' ? 'Book' : k === 'conference' ? 'Conference paper' : 'Article');
 
   const CardRow = ({ card, tone }) => (
@@ -173,15 +170,13 @@ export default function ReviseDecisionDialog({
               <button
                 type="button"
                 onClick={onObject}
-                disabled={busy || !canObject}
-                title={canObject
-                  ? 'Costs 1 objection token (spent whether you win or lose). Your original manuscript is judged by tags alone.'
-                  : 'You have no objection tokens remaining.'}
+                disabled={busy}
+                title='Your original manuscript is judged by tags alone — approved or rejected.'
                 className="w-full px-4 py-3 font-mono text-xs uppercase tracking-wider bg-ink-900/5 hover:bg-ink-900/10 text-ink-900 border border-ink-700/40 disabled:opacity-50 text-left"
               >
-                Object to the changes — costs 1 objection token ({tokensRemaining} left)
+                Object to the changes
                 <span className="block font-serif italic normal-case tracking-normal text-ink-700 text-xs mt-0.5">
-                  Your ORIGINAL manuscript is judged by the tag algorithm alone — approved or rejected, no reviewer share. Token is spent either way.
+                  Your ORIGINAL manuscript is judged by the tag algorithm alone — approved or rejected, no reviewer share. You stake the guaranteed revised publication on it.
                 </span>
               </button>
 
@@ -211,8 +206,8 @@ export default function ReviseDecisionDialog({
                 <li>
                   <strong className="text-ink-900 not-italic">Object</strong> — you stand on your original
                   manuscript and reject the edits. It's judged by the tag algorithm alone: if every piece of
-                  evidence and the conclusion share a common tag it's approved, otherwise it's rejected. This
-                  costs 1 objection token whether you win or lose, and the reviewer's added cards go back to them.
+                  evidence and the conclusion share a common tag it's approved, otherwise it's rejected — so you
+                  are staking a guaranteed revised publication on the check. The reviewer's added cards go back to them.
                 </li>
                 <li>
                   <strong className="text-oxblood-700 not-italic">Rebuild</strong> — you accept that the

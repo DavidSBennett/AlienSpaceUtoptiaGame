@@ -62,25 +62,10 @@ try {
   $stmt->execute();
   $stmt->close();
 
-  // Anti-grief: accepting a peer reviewer's rejection (acknowledging it
-  // without objecting) refunds one objection token, capped at 4. This stops
-  // a reviewer from grinding a writer down to zero tokens with repeat
-  // rejections. Granted once, only on the first acknowledgement, and only for
-  // a straight rejection (not objection-lost, where the writer already chose
-  // to spend tokens).
+  // Objection tokens are disconnected — nothing spends them, so there is
+  // nothing to refund. The anti-grief token that used to be granted here is
+  // gone with the rest of the token economy.
   $grantedToken = false;
-  if (((int) $row['writer_seen_result']) === 0
-      && in_array($row['status'], ['rejected', 'auto-rejected'], true)) {
-    $stmt = $mysqli->prepare("
-      UPDATE mp_game_players
-      SET objection_tokens_remaining = LEAST(objection_tokens_remaining + 1, 4)
-      WHERE player_id = ?
-    ");
-    $stmt->bind_param('i', $pid);
-    $stmt->execute();
-    $stmt->close();
-    $grantedToken = true;
-  }
 
   $mysqli->commit();
 } catch (Exception $e) {

@@ -68,28 +68,11 @@ try {
   if ((int) $sub['writer_player_id'] !== $pid) throw new Exception('Not your submission');
   if ($sub['status'] !== 'rejected')        throw new Exception('Submission is not in a contestable state');
 
-  // Lock and verify token count
-  $stmt = $mysqli->prepare("
-    SELECT objection_tokens_remaining FROM mp_game_players
-    WHERE player_id = ? FOR UPDATE
-  ");
-  $stmt->bind_param('i', $pid);
-  $stmt->execute();
-  $row = $stmt->get_result()->fetch_assoc();
-  $stmt->close();
-  $tokens = $row ? (int) $row['objection_tokens_remaining'] : 0;
-  if ($tokens < 2) throw new Exception('Objecting to a rejection costs 2 objection tokens');
-
-  // Spend two tokens unconditionally (refunded on a successful objection).
-  $stmt = $mysqli->prepare("
-    UPDATE mp_game_players
-    SET objection_tokens_remaining = objection_tokens_remaining - 2
-    WHERE player_id = ?
-  ");
-  $stmt->bind_param('i', $pid);
-  $stmt->execute();
-  $stmt->close();
-  $tokensRemaining = $tokens - 2;
+  // Objection tokens are disconnected. Objecting is no longer priced in a
+  // separate currency — the consequence lives in prestige now (a successful
+  // objection costs each rejecting reviewer 5). The column still exists and is
+  // simply left alone; nothing reads it.
+  $tokensRemaining = 0;
 
   // Run the tag check
   $evIds = json_decode($sub['evidence_card_ids'], true) ?: [];
@@ -149,17 +132,7 @@ try {
     $stmt->execute();
     $stmt->close();
 
-    // 3. Refund the objection tokens — the objection was correct, so it
-    //    shouldn't cost the writer anything. Capped at the maximum of 4.
-    $stmt = $mysqli->prepare("
-      UPDATE mp_game_players
-      SET objection_tokens_remaining = LEAST(objection_tokens_remaining + 2, 4)
-      WHERE player_id = ?
-    ");
-    $stmt->bind_param('i', $pid);
-    $stmt->execute();
-    $stmt->close();
-    $tokensRemaining = min($tokensRemaining + 2, 4);  // reflect the refund in the response
+    // (No token refund — nothing was spent. Objection tokens are disconnected.)
 
     // 4. Run the full approval flow. This grants writer-prestige,
     //    upgrade, published-work record, etc. — same as a normal

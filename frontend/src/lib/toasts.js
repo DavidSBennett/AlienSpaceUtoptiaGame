@@ -143,13 +143,8 @@ function _eventToToast(ev, youPid) {
       return null;
 
     case 'result_dismissed':
-      if (!isSelf || !d.objection_token_granted) return null;
-      return {
-        eyebrow: 'Objection',
-        title: '+1 objection token',
-        body: 'Accepting the rejection restored a token (max 4).',
-        variant: 'success',
-      };
+      // Objection tokens are disconnected — nothing to announce here any more.
+      return null;
 
     case 'publication_approved':
       // Your own approval is already shown by the auto-popping result

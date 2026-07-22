@@ -5,7 +5,7 @@ import MinimizedInterstitialBar from './MinimizedInterstitialBar.jsx';
  * AftermathPhaseModal — the final-year writer-response window.
  *
  * On the last year, a manuscript can still come back as a Revise & Resubmit, or
- * as a peer rejection the writer could contest with objection tokens. Normally
+ * as a peer rejection the writer could contest. Normally
  * that reply happens "next year"; on the final year there is none — so the game
  * holds in this phase until every writer has resolved or signed off.
  *

@@ -285,7 +285,7 @@ export async function mpDrawConsolation(args) {
 }
 
 /**
- * Spend an objection token to contest a rejected manuscript.
+ * Contest a rejected manuscript. Costs nothing — the tag check decides it.
  * Server runs an algorithmic tag check; if successful, the submission
  * is approved (objection-won) and rejecting reviewers lose 5 prestige.
  * If unsuccessful (objection-lost), the rejection stands.

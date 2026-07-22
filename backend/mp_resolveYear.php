@@ -505,7 +505,7 @@ function mp_game_has_open_responses($mysqli, $gameId) {
       AND p.game_over_reason IS NULL AND p.is_ghost = 0
       AND (
         s.status = 'revise-pending'
-        OR (s.status = 'rejected' AND p.objection_tokens_remaining >= 2)
+        OR s.status = 'rejected'
       )
   ");
   $stmt->bind_param('i', $gameId);
@@ -530,7 +530,7 @@ function mp_aftermath_blocking_count($mysqli, $gameId) {
       AND p.aftermath_ready = 0
       AND (
         s.status = 'revise-pending'
-        OR (s.status = 'rejected' AND p.objection_tokens_remaining >= 2)
+        OR s.status = 'rejected'
       )
   ");
   $stmt->bind_param('i', $gameId);

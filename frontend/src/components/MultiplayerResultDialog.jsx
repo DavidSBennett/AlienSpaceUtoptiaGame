@@ -20,7 +20,6 @@
  *   onDrawConsolation — async () => void
  *   onReclaim         — async () => void
  *   onObject          — async () => void
- *   tokensRemaining   — int
  *   objectionOutcome  — { outcome: 'won'|'lost' } | null
  *   busy              — bool
  *   error             — string | null
@@ -44,7 +43,6 @@ export default function MultiplayerResultDialog({
   onDrawConsolation,
   onReclaim,
   onObject,
-  tokensRemaining = 0,
   objectionOutcome = null,
   busy,
   error,
@@ -190,8 +188,7 @@ export default function MultiplayerResultDialog({
             <div className="mb-4 p-3 border border-verdigris-500 bg-verdigris-500/10 font-serif text-sm text-ink-900">
               <strong className="font-display text-verdigris-700">✓ Objection sustained.</strong>{' '}
               The board found a tag common to every piece of evidence and your conclusion. Your
-              publication is approved, the rejecting reviewer(s) lost 5 prestige each, and your
-              objection tokens have been refunded.
+              publication is approved and the rejecting reviewer(s) lost 5 prestige each.
             </div>
           )}
           {objectionOutcome && objectionOutcome.outcome === 'lost' && (
@@ -248,7 +245,6 @@ export default function MultiplayerResultDialog({
               </button>
               <ObjectionButton
                 submission={submission}
-                tokensRemaining={tokensRemaining}
                 objConfirming={objConfirming}
                 setObjConfirming={setObjConfirming}
                 onObject={onObject}
@@ -265,15 +261,14 @@ export default function MultiplayerResultDialog({
 
 /**
  * ObjectionButton — three visual states (ink-on-parchment):
- *   1. No tokens / wrong status: disabled with explanatory tooltip
- *   2. Idle: enabled ghost, "Object — 2 tokens (N left)" → sets confirming
+ *   1. Wrong status (auto-rejected, or already objected): disabled with tooltip
+ *   2. Idle: enabled ghost, "Object to the rejection" → sets confirming
  *   3. Confirming: oxblood confirm + cancel link → commits via onObject()
  * Once spent (status objection-won/lost) it stays visible but disabled,
  * showing the outcome so the writer sees a stable record of their choice.
  */
 function ObjectionButton({
   submission,
-  tokensRemaining,
   objConfirming,
   setObjConfirming,
   onObject,
@@ -282,7 +277,7 @@ function ObjectionButton({
   const alreadySpent = ['objection-won', 'objection-lost'].includes(submission.status);
   const isAutoRejected = submission.status === 'auto-rejected';
   const isPeerRejected = submission.status === 'rejected';
-  const canSpend = isPeerRejected && tokensRemaining >= 2 && !alreadySpent;
+  const canSpend = isPeerRejected && !alreadySpent;
 
   const tooltip = alreadySpent
     ? `Objection already spent on this manuscript (${submission.status === 'objection-won' ? 'won' : 'lost'}).`
@@ -290,16 +285,14 @@ function ObjectionButton({
     ? 'Auto-rejections cannot be appealed — the algorithm already evaluated the tags.'
     : !isPeerRejected
     ? null
-    : tokensRemaining < 2
-    ? `Objecting costs 2 objection tokens — you have ${tokensRemaining}.`
-    : 'Costs 2 objection tokens (refunded if you win). If the board finds a tag common to every piece of evidence and the conclusion, the rejection is overridden and each rejecting reviewer loses 5 prestige.';
+    : 'If the board finds a tag common to every piece of evidence and the conclusion, the rejection is overridden and each rejecting reviewer loses 5 prestige.';
 
   if (!canSpend) {
     return (
       <button disabled title={tooltip || undefined} className={GHOST}>
         {alreadySpent
           ? (submission.status === 'objection-won' ? '✓ Objection won' : '✗ Objection lost')
-          : `Object — 2 tokens (${tokensRemaining} left)`}
+          : 'Object to the rejection'}
       </button>
     );
   }
@@ -310,12 +303,12 @@ function ObjectionButton({
         <button
           onClick={() => { setObjConfirming(false); onObject(); }}
           disabled={busy}
-          title="Confirm spending 2 objection tokens (refunded if you win)"
+          title="Stake the rejection on the tag check"
           className="px-3 py-2 font-mono text-xs uppercase tracking-wider
                      bg-oxblood-600 hover:bg-oxblood-500 text-cream-50
                      border border-oxblood-700 disabled:opacity-50"
         >
-          Spend 2 tokens?
+          Object?
         </button>
         <button
           onClick={() => setObjConfirming(false)}
@@ -330,7 +323,7 @@ function ObjectionButton({
 
   return (
     <button onClick={() => setObjConfirming(true)} disabled={busy} title={tooltip} className={GHOST}>
-      Object — 2 tokens ({tokensRemaining} left)
+      Object to the rejection
     </button>
   );
 }

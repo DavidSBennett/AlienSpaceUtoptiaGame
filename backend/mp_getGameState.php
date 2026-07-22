@@ -1284,7 +1284,7 @@ function mp_build_aftermath($mysqli, $gameId, $youId) {
       AND p.aftermath_ready = 0
       AND (
         s.status = 'revise-pending'
-        OR (s.status = 'rejected' AND p.objection_tokens_remaining >= 2)
+        OR s.status = 'rejected'
       )
     ORDER BY p.player_name ASC
   ");
