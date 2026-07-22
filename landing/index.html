@@ -72,6 +72,15 @@
       font-style: italic; font-size: 1.5rem;
       color: var(--cream-200); margin-top: 0.55rem;
     }
+    /* Designer credit — mono and spaced, so it reads as an attribution line
+       rather than a third piece of the title. */
+    .byline {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.66rem; letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--cream-200); margin-top: 0.6rem;
+    }
+    .byline a { color: var(--gold-300); text-decoration: none; }
+    .byline a:hover { text-decoration: underline; }
 
     /* ── Hero: text + buttons left, video right ── */
     .hero {
@@ -194,6 +203,7 @@
       <p class="kicker">An educational history card game</p>
       <h1>The Historians</h1>
       <p class="tagline">A card game about how history gets written — and how scholars argue about it.</p>
+      <p class="byline">Designed by <a href="https://cv.thehistorians.org/">Dr. David S. Bennett</a></p>
     </header>
 
     <div class="hero">
@@ -230,7 +240,7 @@
 
       <div>
         <div class="video-tabs">
-          <button type="button" class="tab-btn active" data-status="in-process">Sizzle Reel</button>
+          <button type="button" class="tab-btn active" data-video="bdE7aJH3daw">Sizzle Reel</button>
           <button type="button" class="tab-btn" data-video="p8_6CFx8aPA">Solo</button>
           <button type="button" class="tab-btn" data-video="aNDIKc5arNo">Multiplayer</button>
         </div>
@@ -267,7 +277,7 @@
     </section>
 
     <footer>
-      <p>The Historians &middot; <a href="https://game.thehistorians.org/">game.thehistorians.org</a></p>
+      <p><a href="https://cv.thehistorians.org/">Dr. David S. Bennett</a> &middot; The Historians &middot; <a href="https://game.thehistorians.org/">game.thehistorians.org</a></p>
     </footer>
 
   </div>
@@ -296,6 +306,13 @@
           }
         });
       });
+
+      // Load whichever tab is marked active on page load. The markup starts
+      // with the frame hidden behind the placeholder, so without this the
+      // default tab would show the "in process" notice even though it now has
+      // a video. Driving it from the active button keeps one source of truth.
+      var initial = document.querySelector('.tab-btn.active');
+      if (initial) initial.click();
     })();
   </script>
 </body>
