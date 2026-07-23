@@ -319,6 +319,10 @@ mp_json([
     'timer_deadline_unix'    => $timerDeadlineUnix,
     'timer_seconds_remaining' => $timerSecondsRemaining,
     'host_player_id' => $game['host_player_id'],
+    // Seat holding the first-historian token this round. Derived from the
+    // game's shuffle seed plus the year, so it needs no column — see
+    // mp_first_player_seat.
+    'first_player_seat' => mp_first_player_seat($mysqli, $gameId),
     'force_show_tags' => $forceShowTags,
     'force_show_significance' => $forceShowSignificance,
   ],

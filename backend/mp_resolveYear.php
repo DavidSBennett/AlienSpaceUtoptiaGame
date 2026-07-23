@@ -618,16 +618,23 @@ function mp_count_conference_attendees($mysqli, $gameId) {
 
 /**
  * Build the conference: gather attendees in pick order (reputation desc, then
- * renown desc, then least prestige), build the card pool from their contributed
- * cards plus reputation fresh cards, and flip to the 'conference' phase.
+ * renown desc, then least prestige, then the first-historian token), build the
+ * card pool, and flip to the 'conference' phase.
  */
 function mp_enter_conference_phase($mysqli, $gameId) {
+  // Fully-tied attendees used to be ordered by player_id, which handed the
+  // earliest-joined player first pick of every level conference for the whole
+  // game. The token rotates that.
+  $confTie = mp_first_player_order_sql(
+    mp_first_player_seat($mysqli, $gameId),
+    mp_seat_count($mysqli, $gameId)
+  );
   $stmt = $mysqli->prepare("
     SELECT player_id, pending_action_data, reputation_level, renown_level, prestige
     FROM mp_game_players
     WHERE game_id = ? AND pending_action = 'attend_conference'
       AND game_over_reason IS NULL AND is_ghost = 0
-    ORDER BY reputation_level DESC, renown_level DESC, prestige ASC, player_id ASC
+    ORDER BY reputation_level DESC, renown_level DESC, prestige ASC, $confTie
   ");
   $stmt->bind_param('i', $gameId);
   $stmt->execute();
@@ -1209,13 +1216,87 @@ function mp_draws_outstanding($mysqli, $gameId) {
  * keeps it fair when players have different allowances — a research-4 player
  * simply keeps going after the others are done.
  */
+/**
+ * Which seat holds the FIRST HISTORIAN token this round.
+ *
+ * The token settles ties. Most orderings in the game rank players by something
+ * real — reputation, renown, prestige, cards already drawn — but when those come
+ * out level something still has to go first, and that used to be the lowest seat
+ * or the lowest player id. That quietly handed the same player the advantage
+ * every single time. The token rotates one seat per round instead, so a run of
+ * ties spreads evenly around the table.
+ *
+ * DERIVED, not stored — no column and no migration. The starting seat comes from
+ * the game's own shuffle_seed (set for every game at start), so it is random per
+ * game and reproducible in seed mode; the rotation is just the year. Nothing to
+ * keep in sync, and nothing that can drift from the game it describes.
+ *
+ * Rotation runs over every seat in the game, including players who have dropped,
+ * so the order doesn't lurch when someone concedes — the token passes an empty
+ * chair exactly as a physical one would.
+ *
+ * Returns the seat_index holding it, or null for an empty game.
+ */
+function mp_first_player_seat($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("
+    SELECT seat_index FROM mp_game_players WHERE game_id = ? ORDER BY seat_index ASC
+  ");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $seats = [];
+  while ($r = $res->fetch_assoc()) $seats[] = (int) $r['seat_index'];
+  $stmt->close();
+  $n = count($seats);
+  if ($n === 0) return null;
+
+  $stmt = $mysqli->prepare("SELECT shuffle_seed, current_year FROM mp_games WHERE game_id = ?");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $g = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+
+  $seed = ($g && $g['shuffle_seed'] !== null) ? (string) $g['shuffle_seed'] : '';
+  $year = $g ? max(1, (int) $g['current_year']) : 1;
+
+  $start = $seed !== '' ? (crc32($seed) % $n) : 0;
+  return $seats[($start + ($year - 1)) % $n];
+}
+
+/**
+ * SQL fragment ordering seats clockwise from the token holder, for use as the
+ * FINAL tiebreak in an ORDER BY. Both values are computed ints, never user
+ * input, so interpolating them is safe.
+ */
+function mp_first_player_order_sql($firstSeat, $seatCount) {
+  if ($seatCount <= 0) return 'seat_index ASC';
+  $f = (int) $firstSeat;
+  $n = (int) $seatCount;
+  return "((seat_index - $f + $n) % $n) ASC";
+}
+
+/** How many seats the game has (live or not) — the modulus for the rotation. */
+function mp_seat_count($mysqli, $gameId) {
+  $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM mp_game_players WHERE game_id = ?");
+  $stmt->bind_param('i', $gameId);
+  $stmt->execute();
+  $n = (int) $stmt->get_result()->fetch_assoc()['n'];
+  $stmt->close();
+  return $n;
+}
+
 function mp_draw_current_player($mysqli, $gameId) {
+  // Ties on draws-taken break from the first-historian token, not seat 0.
+  $tie = mp_first_player_order_sql(
+    mp_first_player_seat($mysqli, $gameId),
+    mp_seat_count($mysqli, $gameId)
+  );
   $stmt = $mysqli->prepare("
     SELECT player_id, player_name, seat_index, draws_remaining, draws_taken
     FROM mp_game_players
     WHERE game_id = ? AND draws_remaining > 0
       AND game_over_reason IS NULL AND is_ghost = 0
-    ORDER BY draws_taken ASC, seat_index ASC
+    ORDER BY draws_taken ASC, $tie
     LIMIT 1
   ");
   $stmt->bind_param('i', $gameId);

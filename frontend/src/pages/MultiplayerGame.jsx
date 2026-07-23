@@ -1116,6 +1116,7 @@ export default function MultiplayerGame() {
                   key={p.player_id}
                   player={p}
                   isYou={p.player_id === you.player_id}
+                  hasFirstToken={p.seat_index === game.first_player_seat}
                   publishedWorks={state.published_works}
                   showWorks={!libraryCollapsed}
                   onSpineClick={(work) => setOpenWork(work)}
@@ -2169,7 +2170,7 @@ function labelForStage(stage) {
  * collapsed; only the spines fold away, since reclaiming board room shouldn't
  * cost you the scoreboard.
  */
-function PlayerLibraryCell({ player, isYou = false, publishedWorks = [], showWorks = true, onSpineClick }) {
+function PlayerLibraryCell({ player, isYou = false, hasFirstToken = false, publishedWorks = [], showWorks = true, onSpineClick }) {
   const col = colorForSeat(player.seat_index);
   const citations = player.citations_received_count ?? 0;
   const mult = renownMultiplier(player.stat_levels?.renown);
@@ -2186,6 +2187,20 @@ function PlayerLibraryCell({ player, isYou = false, publishedWorks = [], showWor
           {player.player_name}
         </span>
         {isYou && <span className="text-gold-400 text-[10px] shrink-0">(you)</span>}
+        {hasFirstToken && (
+          <Tooltip
+            content="First Historian — holds the token this round. It breaks any tie the rankings leave level, and passes to the next seat each year."
+            side="bottom"
+            width="w-64"
+          >
+            <span
+              className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full border border-gold-400 bg-gold-500/25 text-gold-200 font-mono text-[9px] leading-none cursor-help"
+              aria-label="First Historian token"
+            >
+              I
+            </span>
+          </Tooltip>
+        )}
         <Tooltip content={scoreBreakdown(player, publishedWorks)} side="bottom" width="w-72">
           <span className="ml-auto shrink-0 font-display font-bold tabular-nums text-gold-200 text-xl leading-none cursor-help">
             {total}
