@@ -9,7 +9,7 @@
 <!--
   The Historians — rulebook reader.
 
-  Renders rulebook.pdf as a two-page spread you turn in 3D. The PDF is the
+  Renders The_Historians_rulebook.pdf as a two-page spread you turn in 3D. The
   single source of truth: the page you are reading and the file the Download
   button hands you are the same document, so the reader can never be looking at
   a stale transcription of the rules.
@@ -253,7 +253,7 @@
   </span>
   <button class="btn" id="next" title="Next page (&rarr;)">Forward &rsaquo;</button>
   <button class="btn" id="last" title="Last page">Last &raquo;</button>
-  <a class="btn download" href="rulebook.pdf" download="The-Historians-Rulebook.pdf">Download the Rulebook</a>
+  <a class="btn download" href="The_Historians_rulebook.pdf" download="The_Historians_rulebook.pdf">Download the Rulebook</a>
 </div>
 
 <div class="hint" id="hint" hidden>Use the arrow keys, or click the edge of a page.</div>
@@ -263,7 +263,7 @@
 (function () {
   'use strict';
 
-  var PDF_URL   = 'rulebook.pdf';
+  var PDF_URL   = 'The_Historians_rulebook.pdf';
   var FLIP_MS   = 620;
   var SCALE_CAP = 2;      // cap devicePixelRatio: a 3x canvas on every page is
                           // memory we never get back for detail nobody sees.
@@ -274,7 +274,7 @@
   if (!window.pdfjsLib) {
     statusEl.innerHTML =
       'The page-turning reader could not load in this browser.' +
-      '<br><a class="btn download" href="rulebook.pdf" download="The-Historians-Rulebook.pdf">Download the Rulebook (PDF)</a>';
+      '<br><a class="btn download" href="The_Historians_rulebook.pdf" download="The_Historians_rulebook.pdf">Download the Rulebook (PDF)</a>';
     return;
   }
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -610,7 +610,7 @@
   }).catch(function (err) {
     statusEl.innerHTML =
       'The rulebook could not be opened in this browser.' +
-      '<br><a class="btn download" href="rulebook.pdf" download="The-Historians-Rulebook.pdf">Download the Rulebook (PDF)</a>';
+      '<br><a class="btn download" href="The_Historians_rulebook.pdf" download="The_Historians_rulebook.pdf">Download the Rulebook (PDF)</a>';
     if (window.console) console.error(err);
   });
 })();
