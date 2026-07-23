@@ -14,36 +14,58 @@
  *   children — the form / body content
  *   footer   — bottom-of-card nav block (e.g. "Already have an account?
  *              Sign in." — optional)
+ *   wide     — roomier frame for the data-heavy admin pages (deck manager,
+ *              invite codes). A login form wants a narrow column; a table of
+ *              decks or invite codes crammed into that same column has its
+ *              rows fighting the frame. This widens the card AND opens up the
+ *              interior margins, and the gilt pinstripe and corner ornaments
+ *              step outward with it so the chrome stays in proportion rather
+ *              than hugging the text.
  */
 import SkipLink from '../components/SkipLink.jsx';
 import CornerOrnament from '../components/CornerOrnament.jsx';
 import FleuronDivider from '../components/FleuronDivider.jsx';
 
-export default function AuthFrame({ title, subtitle, eyebrow = 'The Historians', children, footer }) {
+export default function AuthFrame({ title, subtitle, eyebrow = 'The Historians', children, footer, wide = false }) {
+  // Chrome insets scale with the frame: the pinstripe sits just inside the
+  // outer rule, and the ornaments just inside the pinstripe. Keeping that
+  // relationship is what stops the wide variant looking like the narrow one
+  // stretched.
+  //
+  // Written as whole literal class strings, never interpolated fragments:
+  // Tailwind scans source text for complete class names, so a `top-${n}` would
+  // compile to nothing and the ornaments would silently collapse to the corner.
+  const maxW   = wide ? 'max-w-4xl' : 'max-w-lg';
+  const pad    = wide ? 'px-14 py-12' : 'px-8 py-10';
+  const stripe = wide ? 'inset-3' : 'inset-2';
+  const orn = wide
+    ? { tl: 'top-4 left-4', tr: 'top-4 right-4', bl: 'bottom-4 left-4', br: 'bottom-4 right-4' }
+    : { tl: 'top-3 left-3', tr: 'top-3 right-3', bl: 'bottom-3 left-3', br: 'bottom-3 right-3' };
+
   return (
     <>
       <SkipLink />
       <main
         id="main-content"
         tabIndex={-1}
-        className="min-h-screen flex items-center justify-center px-6 py-12"
+        className={`min-h-screen flex items-center justify-center py-12 ${wide ? 'px-10' : 'px-6'}`}
       >
-        <div className="relative max-w-lg w-full">
-          <div className="relative border border-gold-500/40 px-8 py-10 surface-binding">
-            {/* Inner gilt border */}
-            <div className="absolute inset-2 border border-gold-500/20 pointer-events-none" />
+        <div className={`relative ${maxW} w-full`}>
+          <div className={`relative border border-gold-500/40 ${pad} surface-binding`}>
+            {/* Inner gilt border — the pinstripe */}
+            <div className={`absolute ${stripe} border border-gold-500/20 pointer-events-none`} />
 
             {/* Corner ornaments */}
-            <div className="absolute top-3 left-3 text-gold-400 pointer-events-none">
+            <div className={`absolute ${orn.tl} text-gold-400 pointer-events-none`}>
               <CornerOrnament corner="tl" size={28} />
             </div>
-            <div className="absolute top-3 right-3 text-gold-400 pointer-events-none">
+            <div className={`absolute ${orn.tr} text-gold-400 pointer-events-none`}>
               <CornerOrnament corner="tr" size={28} />
             </div>
-            <div className="absolute bottom-3 left-3 text-gold-400 pointer-events-none">
+            <div className={`absolute ${orn.bl} text-gold-400 pointer-events-none`}>
               <CornerOrnament corner="bl" size={28} />
             </div>
-            <div className="absolute bottom-3 right-3 text-gold-400 pointer-events-none">
+            <div className={`absolute ${orn.br} text-gold-400 pointer-events-none`}>
               <CornerOrnament corner="br" size={28} />
             </div>
 

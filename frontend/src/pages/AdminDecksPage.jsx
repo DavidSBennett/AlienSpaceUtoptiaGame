@@ -140,6 +140,7 @@ export default function AdminDecksPage() {
 
   return (
     <AuthFrame
+      wide
       title="Deck Manager"
       subtitle="Upload, browse, and remove decks"
       eyebrow="Admin"

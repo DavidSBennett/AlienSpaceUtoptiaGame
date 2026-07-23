@@ -73,6 +73,7 @@ export default function AdminInvitesPage() {
 
   return (
     <AuthFrame
+      wide
       title="Invite Codes"
       subtitle="Generate, share, revoke"
       eyebrow="Admin"

@@ -687,7 +687,14 @@ export default function Home() {
           </a>
 
           <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-cream-200">
-            Davidsbennett.com
+            <a
+              href="https://cv.thehistorians.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cream-200 hover:text-gold-300 transition-colors"
+            >
+              David Stephen Bennett
+            </a>
           </p>
         </div>
       </div>
