@@ -229,6 +229,11 @@
       font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
     }
     .sb-table .col-rank { color: var(--cream-200); font-style: italic; }
+    .sb-table .col-deck { color: var(--cream-100); }
+    .sb-table td.col-style {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.66rem;
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold-300);
+    }
     .sb-table th.col-score, .sb-table td.col-score { text-align: right; }
     .sb-table td.col-score {
       font-family: 'JetBrains Mono', monospace; font-size: 0.92rem;
@@ -353,14 +358,7 @@
         </div>
       </div>
       <table class="sb-table">
-        <thead>
-          <tr>
-            <th class="col-num" scope="col">#</th>
-            <th scope="col">Historian</th>
-            <th class="col-rank" scope="col">Rank</th>
-            <th class="col-score" scope="col">Prestige</th>
-          </tr>
-        </thead>
+        <thead id="sbHead"></thead>
         <tbody id="sbBody"></tbody>
       </table>
       <div class="sb-status" id="sbStatus">Loading scores…</div>
@@ -413,10 +411,12 @@
     (function () {
       var API = 'https://game.thehistorians.org';
       var deckSel = document.getElementById('sbDeck');
+      var head = document.getElementById('sbHead');
       var body = document.getElementById('sbBody');
       var status = document.getElementById('sbStatus');
       var modeBtns = document.querySelectorAll('.sb-mode .tab-btn');
       var mode = 'all';
+      var deckNames = {};   // idDeck → deck name, from listDecks (for the Deck column)
 
       function setStatus(msg) {
         status.textContent = msg || '';
@@ -429,12 +429,27 @@
         });
       }
 
+      // The Deck and Style columns only earn their place when the rows actually
+      // span more than one deck / mode — i.e. "All decks" and "All". With a
+      // specific deck or mode chosen, that column would just repeat one value,
+      // so it's dropped. Header and rows are built from the same two flags.
+      function renderHead(showDeck, showStyle) {
+        var h = '<tr><th class="col-num" scope="col">#</th><th scope="col">Historian</th>';
+        if (showDeck)  h += '<th class="col-deck" scope="col">Deck</th>';
+        if (showStyle) h += '<th class="col-style" scope="col">Style</th>';
+        h += '<th class="col-rank" scope="col">Rank</th><th class="col-score" scope="col">Prestige</th></tr>';
+        head.innerHTML = h;
+      }
+
       function loadScores() {
         // deck is "" for "All decks" — a valid selection, not a missing one, so
         // there's no early-return here: the backend reads an empty/0 deck as
         // "every deck". A specific deck sends its positive id.
         var deck = deckSel.value;
+        var showDeck = deck === '';       // rows span every deck
+        var showStyle = mode === 'all';   // rows span solo + multiplayer
         body.innerHTML = '';
+        renderHead(showDeck, showStyle);
         setStatus('Loading scores…');
         fetch(API + '/publicScores.php?deck=' + encodeURIComponent(deck) + '&mode=' + mode + '&limit=15')
           .then(function (r) { return r.json(); })
@@ -447,12 +462,19 @@
             }
             setStatus('');
             body.innerHTML = rows.map(function (s, i) {
-              return '<tr>' +
+              var cells =
                 '<td class="col-num">' + (i + 1) + '</td>' +
-                '<td>' + esc(s.player_name) + '</td>' +
+                '<td>' + esc(s.player_name) + '</td>';
+              if (showDeck) {
+                cells += '<td class="col-deck">' + esc(deckNames[s.idDeck] || ('Deck ' + s.idDeck)) + '</td>';
+              }
+              if (showStyle) {
+                cells += '<td class="col-style">' + (s.mode === 'mp' ? 'Multiplayer' : 'Solo') + '</td>';
+              }
+              cells +=
                 '<td class="col-rank">' + esc(s.rank) + '</td>' +
-                '<td class="col-score">' + esc(s.prestige) + '</td>' +
-              '</tr>';
+                '<td class="col-score">' + esc(s.prestige) + '</td>';
+              return '<tr>' + cells + '</tr>';
             }).join('');
           })
           .catch(function () { setStatus('Scores are unavailable right now.'); });
@@ -470,6 +492,7 @@
           // "All decks" (value "") leads and is the default, so the opening
           // board is every deck merged; specific decks follow.
           deckSel.innerHTML = '<option value="">All decks</option>' + decks.map(function (d) {
+            deckNames[d.value] = d.label;
             return '<option value="' + esc(d.value) + '">' + esc(d.label) + '</option>';
           }).join('');
           deckSel.value = '';

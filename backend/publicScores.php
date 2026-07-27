@@ -55,6 +55,7 @@ if ($mode === 'solo' || $mode === 'all') {
            s.articles_published AS articles_published,
            s.books_published AS books_published,
            s.year_ended AS year_ended,
+           s.idDeck AS idDeck, 'solo' AS row_mode,
            s.submitted_at AS sort_time
     FROM user_scores s JOIN users u ON u.user_id = s.user_id
     $where";
@@ -72,6 +73,7 @@ if ($mode === 'mp' || $mode === 'all') {
            articles_published AS articles_published,
            books_published AS books_published,
            year_ended AS year_ended,
+           idDeck AS idDeck, 'mp' AS row_mode,
            created_at AS sort_time
     FROM Scores
     $where";
@@ -80,7 +82,8 @@ if ($mode === 'mp' || $mode === 'all') {
 
 $union = implode("\n    UNION ALL\n", $parts);
 $sql = "
-  SELECT player_name, prestige, rank_title, articles_published, books_published, year_ended
+  SELECT player_name, prestige, rank_title, articles_published, books_published,
+         year_ended, idDeck, row_mode
   FROM (
     $union
   ) t
@@ -105,6 +108,8 @@ while ($r = $res->fetch_assoc()) {
     'articles_published' => (int) $r['articles_published'],
     'books_published'    => (int) $r['books_published'],
     'year_ended'         => $r['year_ended'] !== null ? (int) $r['year_ended'] : null,
+    'idDeck'             => (int) $r['idDeck'],
+    'mode'               => $r['row_mode'],
   ];
 }
 $stmt->close();
