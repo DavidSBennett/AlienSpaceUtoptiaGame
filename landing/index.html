@@ -48,7 +48,10 @@
 
     .page {
       min-height: 100vh;
-      display: flex; flex-direction: column; justify-content: center;
+      /* `safe center` keeps the layout vertically centred when it fits, but
+         falls back to top-aligned (and fully scrollable) once the scoreboard
+         pushes the content taller than the viewport. */
+      display: flex; flex-direction: column; justify-content: safe center;
       /* Width also responds to height, so a short window narrows the layout
          and the 16:9 video gets shorter along with it. */
       max-width: min(1140px, 152vh);
@@ -177,6 +180,59 @@
     }
     .feature p { font-size: 0.81rem; line-height: 1.4; color: var(--cream-100); }
 
+    /* ── Live scoreboard ── */
+    .scoreboard {
+      margin-top: 1.6rem;
+      border-top: 0.0625rem solid rgba(184,146,58,0.35); padding-top: 0.9rem;
+    }
+    .sb-head {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 0.7rem 1rem; margin-bottom: 0.85rem;
+    }
+    .sb-head h2 {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-weight: 600; font-size: 1.6rem; color: var(--gold-300);
+      letter-spacing: 0.01em;
+    }
+    .sb-controls { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
+    /* Deck picker — the same hairline/flat-fill language as the buttons. */
+    .sb-deck {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 0.82rem; letter-spacing: 0.06em;
+      background: var(--teal-900); color: var(--cream-100);
+      border: 1px solid rgba(184,146,58,0.45); border-radius: 0;
+      padding: 0.42rem 0.7rem; cursor: pointer;
+    }
+    .sb-deck:focus-visible { outline: 1px solid var(--gold-500); outline-offset: 2px; }
+    /* Solo / Multiplayer segmented toggle reuses the video .tab-btn language. */
+    .sb-mode { display: flex; gap: 0.3rem; }
+
+    .sb-table { width: 100%; border-collapse: collapse; }
+    .sb-table th, .sb-table td {
+      text-align: left; padding: 0.4rem 0.65rem;
+      border-bottom: 0.0625rem solid rgba(184,146,58,0.16);
+    }
+    .sb-table th {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.58rem; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--gold-500); font-weight: 500;
+    }
+    .sb-table td { font-size: 0.95rem; color: var(--cream-100); }
+    .sb-table .col-num {
+      width: 2.4rem; color: var(--cream-200);
+      font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+    }
+    .sb-table .col-rank { color: var(--cream-200); font-style: italic; }
+    .sb-table th.col-score, .sb-table td.col-score { text-align: right; }
+    .sb-table td.col-score {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.92rem;
+      color: var(--gold-300); font-weight: 500;
+    }
+    .sb-status {
+      padding: 0.9rem 0.65rem; font-style: italic;
+      color: var(--cream-200); font-size: 0.92rem;
+    }
+
     /* ── Footer ── */
     footer {
       text-align: center; margin-top: 1.25rem;
@@ -276,6 +332,33 @@
       </div>
     </section>
 
+    <section class="scoreboard">
+      <div class="sb-head">
+        <h2>Live Scoreboard</h2>
+        <div class="sb-controls">
+          <select class="sb-deck" id="sbDeck" aria-label="Choose a deck">
+            <option>Loading decks…</option>
+          </select>
+          <div class="sb-mode" role="group" aria-label="Game mode">
+            <button type="button" class="tab-btn active" data-mode="solo">Solo</button>
+            <button type="button" class="tab-btn" data-mode="mp">Multiplayer</button>
+          </div>
+        </div>
+      </div>
+      <table class="sb-table">
+        <thead>
+          <tr>
+            <th class="col-num" scope="col">#</th>
+            <th scope="col">Historian</th>
+            <th class="col-rank" scope="col">Rank</th>
+            <th class="col-score" scope="col">Prestige</th>
+          </tr>
+        </thead>
+        <tbody id="sbBody"></tbody>
+      </table>
+      <div class="sb-status" id="sbStatus">Loading scores…</div>
+    </section>
+
     <footer>
       <p><a href="https://cv.thehistorians.org/">Dr. David S. Bennett</a> &middot; The Historians &middot; <a href="https://game.thehistorians.org/">game.thehistorians.org</a></p>
     </footer>
@@ -286,7 +369,7 @@
     (function () {
       var player = document.getElementById('player');
       var placeholder = document.getElementById('placeholder');
-      var buttons = document.querySelectorAll('.tab-btn');
+      var buttons = document.querySelectorAll('.video-tabs .tab-btn');
       buttons.forEach(function (btn) {
         btn.addEventListener('click', function () {
           buttons.forEach(function (b) { b.classList.remove('active'); });
@@ -311,8 +394,89 @@
       // with the frame hidden behind the placeholder, so without this the
       // default tab would show the "in process" notice even though it now has
       // a video. Driving it from the active button keeps one source of truth.
-      var initial = document.querySelector('.tab-btn.active');
+      var initial = document.querySelector('.video-tabs .tab-btn.active');
       if (initial) initial.click();
+    })();
+
+    // ── Live scoreboard ──
+    // The board is public and read-only. Deck list + scores come from the game
+    // server (game.thehistorians.org), which sends `Access-Control-Allow-Origin: *`
+    // so this page can fetch them cross-subdomain. Two controls: a deck picker
+    // and a Solo/Multiplayer toggle, both re-fetching from publicScores.php.
+    (function () {
+      var API = 'https://game.thehistorians.org';
+      var deckSel = document.getElementById('sbDeck');
+      var body = document.getElementById('sbBody');
+      var status = document.getElementById('sbStatus');
+      var modeBtns = document.querySelectorAll('.sb-mode .tab-btn');
+      var mode = 'solo';
+
+      function setStatus(msg) {
+        status.textContent = msg || '';
+        status.style.display = msg ? 'block' : 'none';
+      }
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+      }
+
+      function loadScores() {
+        var deck = deckSel.value;
+        if (!deck) return;
+        body.innerHTML = '';
+        setStatus('Loading scores…');
+        fetch(API + '/publicScores.php?deck=' + encodeURIComponent(deck) + '&mode=' + mode + '&limit=15')
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!data || !data.ok) throw new Error('bad response');
+            var rows = data.scores || [];
+            if (!rows.length) {
+              setStatus(mode === 'mp'
+                ? 'No multiplayer scores for this deck yet.'
+                : 'No solo scores for this deck yet.');
+              return;
+            }
+            setStatus('');
+            body.innerHTML = rows.map(function (s, i) {
+              return '<tr>' +
+                '<td class="col-num">' + (i + 1) + '</td>' +
+                '<td>' + esc(s.player_name) + '</td>' +
+                '<td class="col-rank">' + esc(s.rank) + '</td>' +
+                '<td class="col-score">' + esc(s.prestige) + '</td>' +
+              '</tr>';
+            }).join('');
+          })
+          .catch(function () { setStatus('Scores are unavailable right now.'); });
+      }
+
+      // Populate the deck picker, then load the first board.
+      fetch(API + '/listDecks.php')
+        .then(function (r) { return r.json(); })
+        .then(function (decks) {
+          if (!Array.isArray(decks) || !decks.length) {
+            deckSel.innerHTML = '';
+            setStatus('No decks available.');
+            return;
+          }
+          deckSel.innerHTML = decks.map(function (d) {
+            return '<option value="' + esc(d.value) + '">' + esc(d.label) + '</option>';
+          }).join('');
+          loadScores();
+        })
+        .catch(function () { setStatus('Scores are unavailable right now.'); });
+
+      deckSel.addEventListener('change', loadScores);
+      modeBtns.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (btn.classList.contains('active')) return;
+          modeBtns.forEach(function (b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          mode = btn.getAttribute('data-mode');
+          loadScores();
+        });
+      });
     })();
   </script>
 </body>
