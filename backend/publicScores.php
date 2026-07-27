@@ -79,6 +79,9 @@ if ($mode === 'solo' || $mode === 'all') {
            s.books_published AS books_published,
            s.year_ended AS year_ended,
            s.idDeck AS idDeck, 'solo' AS row_mode,
+           CASE WHEN s.year_ended <= 8 THEN 'short'
+                WHEN s.year_ended <= 12 THEN 'medium'
+                ELSE 'long' END AS length_bucket,
            s.submitted_at AS sort_time
     FROM user_scores s JOIN users u ON u.user_id = s.user_id
     $where";
@@ -100,6 +103,7 @@ if ($mode === 'mp' || $mode === 'all') {
            books_published AS books_published,
            year_ended AS year_ended,
            idDeck AS idDeck, 'mp' AS row_mode,
+           game_mode AS length_bucket,
            created_at AS sort_time
     FROM Scores
     $where";
@@ -109,7 +113,7 @@ if ($mode === 'mp' || $mode === 'all') {
 $union = implode("\n    UNION ALL\n", $parts);
 $sql = "
   SELECT player_name, prestige, rank_title, articles_published, books_published,
-         year_ended, idDeck, row_mode
+         year_ended, idDeck, row_mode, length_bucket
   FROM (
     $union
   ) t
@@ -136,6 +140,7 @@ while ($r = $res->fetch_assoc()) {
     'year_ended'         => $r['year_ended'] !== null ? (int) $r['year_ended'] : null,
     'idDeck'             => (int) $r['idDeck'],
     'mode'               => $r['row_mode'],
+    'length'             => $r['length_bucket'],
   ];
 }
 $stmt->close();

@@ -234,6 +234,7 @@
       font-family: 'JetBrains Mono', monospace; font-size: 0.66rem;
       letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold-300);
     }
+    .sb-table .col-length { color: var(--cream-200); }
     .sb-table th.col-score, .sb-table td.col-score { text-align: right; }
     .sb-table td.col-score {
       font-family: 'JetBrains Mono', monospace; font-size: 0.92rem;
@@ -441,12 +442,18 @@
       // span more than one deck / mode — i.e. "All decks" and "All". With a
       // specific deck or mode chosen, that column would just repeat one value,
       // so it's dropped. Header and rows are built from the same two flags.
-      function renderHead(showDeck, showStyle) {
+      function renderHead(showDeck, showStyle, showLength) {
         var h = '<tr><th class="col-num" scope="col">#</th><th scope="col">Historian</th>';
-        if (showDeck)  h += '<th class="col-deck" scope="col">Deck</th>';
-        if (showStyle) h += '<th class="col-style" scope="col">Style</th>';
+        if (showDeck)   h += '<th class="col-deck" scope="col">Deck</th>';
+        if (showStyle)  h += '<th class="col-style" scope="col">Style</th>';
+        if (showLength) h += '<th class="col-length" scope="col">Length</th>';
         h += '<th class="col-rank" scope="col">Rank</th><th class="col-score" scope="col">Prestige</th></tr>';
         head.innerHTML = h;
+      }
+
+      // 'short' → 'Short'; null (old MP rows with no stored length) → '—'.
+      function capLength(v) {
+        return v ? v.charAt(0).toUpperCase() + v.slice(1) : '—';
       }
 
       function loadScores() {
@@ -456,8 +463,9 @@
         var deck = deckSel.value;
         var showDeck = deck === '';       // rows span every deck
         var showStyle = mode === 'all';   // rows span solo + multiplayer
+        var showLength = length === 'all'; // rows span short + medium + long
         body.innerHTML = '';
-        renderHead(showDeck, showStyle);
+        renderHead(showDeck, showStyle, showLength);
         setStatus('Loading scores…');
         fetch(API + '/publicScores.php?deck=' + encodeURIComponent(deck) + '&mode=' + mode + '&length=' + length + '&limit=15')
           .then(function (r) { return r.json(); })
@@ -478,6 +486,9 @@
               }
               if (showStyle) {
                 cells += '<td class="col-style">' + (s.mode === 'mp' ? 'Multiplayer' : 'Solo') + '</td>';
+              }
+              if (showLength) {
+                cells += '<td class="col-length">' + capLength(s.length) + '</td>';
               }
               cells +=
                 '<td class="col-rank">' + esc(s.rank) + '</td>' +
