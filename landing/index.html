@@ -171,9 +171,15 @@
     /* ── Slim feature row ── */
     .features {
       display: grid; grid-template-columns: repeat(3, 1fr);
-      gap: 0.88rem; margin-top: 1.5rem;
+      gap: 2.4rem; margin-top: 1.5rem;
     }
-    .feature { border-top: 0.0625rem solid rgba(184,146,58,0.35); padding-top: 0.5rem; }
+    /* Each block is narrower than its column and centred in it, so the three
+       stay evenly spread across the row but read as tighter "cards" with more
+       air between them. The top rule tracks the tightened box width. */
+    .feature {
+      border-top: 0.0625rem solid rgba(184,146,58,0.35); padding-top: 0.5rem;
+      text-align: center; max-width: 14rem; margin: 0 auto;
+    }
     .feature h3 {
       font-family: 'Cormorant Garamond', Georgia, serif;
       font-weight: 600; font-size: 1.28rem; color: var(--gold-300); margin-bottom: 0.12rem;
