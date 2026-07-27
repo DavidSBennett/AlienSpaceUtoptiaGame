@@ -200,7 +200,17 @@
       font-weight: 600; font-size: 1.6rem; color: var(--gold-300);
       letter-spacing: 0.01em;
     }
-    .sb-controls { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
+    .sb-controls { display: flex; align-items: center; gap: 1.3rem; flex-wrap: wrap; }
+    /* Each toggle is a labelled, bordered capsule so the two segmented controls
+       read as distinct groups — the mono label ties each to its table column
+       (Style, Length) and stops the two "All" buttons from being mistaken for
+       one control. */
+    .sb-toggle { display: inline-flex; align-items: center; gap: 0.5rem; }
+    .sb-toggle-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.55rem; letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--gold-500);
+    }
     /* Deck picker — the same hairline/flat-fill language as the buttons. */
     .sb-deck {
       font-family: 'Cormorant Garamond', Georgia, serif;
@@ -210,8 +220,13 @@
       padding: 0.42rem 0.7rem; cursor: pointer;
     }
     .sb-deck:focus-visible { outline: 1px solid var(--gold-500); outline-offset: 2px; }
-    /* Segmented toggles (mode + length) reuse the video .tab-btn language. */
-    .sb-mode, .sb-len { display: flex; gap: 0.3rem; }
+    /* Segmented toggles (mode + length) reuse the video .tab-btn language,
+       enclosed in a faint capsule so each group reads as one control. */
+    .sb-mode, .sb-len {
+      display: flex; gap: 0.1rem; padding: 0.15rem;
+      border: 1px solid rgba(184,146,58,0.28);
+      background: rgba(0,0,0,0.22);
+    }
 
     .sb-table { width: 100%; border-collapse: collapse; }
     .sb-table th, .sb-table td {
@@ -351,16 +366,22 @@
           <select class="sb-deck" id="sbDeck" aria-label="Choose a deck">
             <option>Loading decks…</option>
           </select>
-          <div class="sb-mode" role="group" aria-label="Game mode">
-            <button type="button" class="tab-btn active" data-mode="all">All</button>
-            <button type="button" class="tab-btn" data-mode="solo">Solo</button>
-            <button type="button" class="tab-btn" data-mode="mp">Multiplayer</button>
+          <div class="sb-toggle">
+            <span class="sb-toggle-label">Style</span>
+            <div class="sb-mode" role="group" aria-label="Game mode">
+              <button type="button" class="tab-btn active" data-mode="all">All</button>
+              <button type="button" class="tab-btn" data-mode="solo">Solo</button>
+              <button type="button" class="tab-btn" data-mode="mp">Multiplayer</button>
+            </div>
           </div>
-          <div class="sb-len" role="group" aria-label="Game length">
-            <button type="button" class="tab-btn active" data-length="all">All</button>
-            <button type="button" class="tab-btn" data-length="short">Short</button>
-            <button type="button" class="tab-btn" data-length="medium">Medium</button>
-            <button type="button" class="tab-btn" data-length="long">Long</button>
+          <div class="sb-toggle">
+            <span class="sb-toggle-label">Length</span>
+            <div class="sb-len" role="group" aria-label="Game length">
+              <button type="button" class="tab-btn active" data-length="all">All</button>
+              <button type="button" class="tab-btn" data-length="short">Short</button>
+              <button type="button" class="tab-btn" data-length="medium">Medium</button>
+              <button type="button" class="tab-btn" data-length="long">Long</button>
+            </div>
           </div>
         </div>
       </div>
