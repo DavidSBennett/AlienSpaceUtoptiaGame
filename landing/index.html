@@ -340,7 +340,8 @@
             <option>Loading decks…</option>
           </select>
           <div class="sb-mode" role="group" aria-label="Game mode">
-            <button type="button" class="tab-btn active" data-mode="solo">Solo</button>
+            <button type="button" class="tab-btn active" data-mode="all">All</button>
+            <button type="button" class="tab-btn" data-mode="solo">Solo</button>
             <button type="button" class="tab-btn" data-mode="mp">Multiplayer</button>
           </div>
         </div>
@@ -409,7 +410,7 @@
       var body = document.getElementById('sbBody');
       var status = document.getElementById('sbStatus');
       var modeBtns = document.querySelectorAll('.sb-mode .tab-btn');
-      var mode = 'solo';
+      var mode = 'all';
 
       function setStatus(msg) {
         status.textContent = msg || '';
@@ -433,9 +434,7 @@
             if (!data || !data.ok) throw new Error('bad response');
             var rows = data.scores || [];
             if (!rows.length) {
-              setStatus(mode === 'mp'
-                ? 'No multiplayer scores for this deck yet.'
-                : 'No solo scores for this deck yet.');
+              setStatus('No scores here yet.');
               return;
             }
             setStatus('');
@@ -460,9 +459,12 @@
             setStatus('No decks available.');
             return;
           }
-          deckSel.innerHTML = decks.map(function (d) {
+          // "All decks" (value "") leads and is the default, so the opening
+          // board is every deck merged; specific decks follow.
+          deckSel.innerHTML = '<option value="">All decks</option>' + decks.map(function (d) {
             return '<option value="' + esc(d.value) + '">' + esc(d.label) + '</option>';
           }).join('');
+          deckSel.value = '';
           loadScores();
         })
         .catch(function () { setStatus('Scores are unavailable right now.'); });
