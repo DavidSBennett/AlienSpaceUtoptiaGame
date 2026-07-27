@@ -430,8 +430,10 @@
       }
 
       function loadScores() {
+        // deck is "" for "All decks" — a valid selection, not a missing one, so
+        // there's no early-return here: the backend reads an empty/0 deck as
+        // "every deck". A specific deck sends its positive id.
         var deck = deckSel.value;
-        if (!deck) return;
         body.innerHTML = '';
         setStatus('Loading scores…');
         fetch(API + '/publicScores.php?deck=' + encodeURIComponent(deck) + '&mode=' + mode + '&limit=15')
