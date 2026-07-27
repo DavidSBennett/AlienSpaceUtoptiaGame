@@ -367,7 +367,7 @@
             <option>Loading decks…</option>
           </select>
           <div class="sb-toggle">
-            <span class="sb-toggle-label">Style</span>
+            <span class="sb-toggle-label">Format</span>
             <div class="sb-mode" role="group" aria-label="Game mode">
               <button type="button" class="tab-btn active" data-mode="all">All</button>
               <button type="button" class="tab-btn" data-mode="solo">Solo</button>
@@ -466,7 +466,7 @@
       function renderHead(showDeck, showStyle, showLength) {
         var h = '<tr><th class="col-num" scope="col">#</th><th scope="col">Historian</th>';
         if (showDeck)   h += '<th class="col-deck" scope="col">Deck</th>';
-        if (showStyle)  h += '<th class="col-style" scope="col">Style</th>';
+        if (showStyle)  h += '<th class="col-style" scope="col">Format</th>';
         if (showLength) h += '<th class="col-length" scope="col">Length</th>';
         h += '<th class="col-rank" scope="col">Rank</th><th class="col-score" scope="col">Prestige</th></tr>';
         head.innerHTML = h;
