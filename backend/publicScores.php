@@ -8,7 +8,7 @@
  * fetch from the public landing page). It exposes player display names + scores
  * to anyone with the URL — that's the point of a public board.
  *
- *   GET /publicScores.php?deck=<idDeck>&mode=<all|solo|mp>&limit=<N>
+ *   GET /publicScores.php?deck=<idDeck>&mode=<all|solo|mp>&length=<all|short|medium|long>&limit=<N>
  *
  * deck: a positive idDeck filters to that deck; 0 / absent = every deck.
  * mode:
@@ -16,7 +16,9 @@
  *                   boards into one prestige-ranked list.
  *   solo          — reads user_scores only.
  *   mp            — reads the legacy Scores table only.
- * All three return the same JSON shape, so one embed can toggle between them.
+ * length: all (default) / short / medium / long — filters by game length.
+ *   MP uses Scores.game_mode; solo buckets by year_ended (<=8 / 9-12 / >=13).
+ * All combinations return the same JSON shape, so one embed can toggle freely.
  *
  * Response 200: { ok:true, deck:int, mode:str, count:int, scores:[ {player_name,
  *   prestige, rank, articles_published, books_published, year_ended} ] }
@@ -32,7 +34,25 @@ $idDeck   = isset($_GET['deck'])  ? (int) $_GET['deck']  : 0;    // 0 = all deck
 $limit    = isset($_GET['limit']) ? max(1, min(100, (int) $_GET['limit'])) : 20;
 $modeRaw  = strtolower($_GET['mode'] ?? 'all');
 $mode     = in_array($modeRaw, ['all', 'solo', 'mp'], true) ? $modeRaw : 'all';
+$lenRaw   = strtolower($_GET['length'] ?? 'all');
+$length   = in_array($lenRaw, ['all', 'short', 'medium', 'long'], true) ? $lenRaw : 'all';
 $deckCond = $idDeck > 0;
+$lenCond  = $length !== 'all';
+
+// Game-length buckets. Multiplayer stores the chosen length directly in
+// Scores.game_mode. Solo has no length column, but its careers are exactly
+// Short 8 / Medium 12 / Long 15 years and year_ended caps at the game length,
+// so the same thresholds bucket it (exact for a completed game; an early
+// retiree lands in a shorter bucket — a fair reading of career length played).
+// $length is whitelisted above, so these literal conditions are injection-safe.
+$soloLenSql = '';
+$mpLenSql   = '';
+if ($lenCond) {
+  $soloLenSql = $length === 'short'  ? 's.year_ended <= 8'
+              : ($length === 'medium' ? 's.year_ended BETWEEN 9 AND 12'
+              : 's.year_ended >= 13');
+  $mpLenSql   = "game_mode = '{$length}'";
+}
 
 $parts  = [];
 $types  = '';
@@ -48,7 +68,10 @@ if ($mode === 'solo' || $mode === 'all') {
     $c->close();
   }
   $nameExpr = $hasDisplayName ? 'COALESCE(s.display_name, u.username)' : 'u.username';
-  $where = $deckCond ? 'WHERE s.idDeck = ?' : '';
+  $conds = [];
+  if ($deckCond) $conds[] = 's.idDeck = ?';
+  if ($lenCond)  $conds[] = $soloLenSql;
+  $where = $conds ? 'WHERE ' . implode(' AND ', $conds) : '';
   $parts[] = "
     SELECT {$nameExpr} AS player_name, s.prestige AS prestige,
            s.rank AS rank_title,
@@ -66,7 +89,10 @@ if ($mode === 'solo' || $mode === 'all') {
 // reserved word, so it's backticked; aliased to rank_title to keep the outer
 // query and the UNION column names clear of reserved words.
 if ($mode === 'mp' || $mode === 'all') {
-  $where = $deckCond ? 'WHERE idDeck = ?' : '';
+  $conds = [];
+  if ($deckCond) $conds[] = 'idDeck = ?';
+  if ($lenCond)  $conds[] = $mpLenSql;
+  $where = $conds ? 'WHERE ' . implode(' AND ', $conds) : '';
   $parts[] = "
     SELECT player_name AS player_name, prestige AS prestige,
            `rank` AS rank_title,
@@ -114,4 +140,4 @@ while ($r = $res->fetch_assoc()) {
 }
 $stmt->close();
 
-mp_json(['ok' => true, 'deck' => $idDeck, 'mode' => $mode, 'count' => count($scores), 'scores' => $scores]);
+mp_json(['ok' => true, 'deck' => $idDeck, 'mode' => $mode, 'length' => $length, 'count' => count($scores), 'scores' => $scores]);

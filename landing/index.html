@@ -210,8 +210,8 @@
       padding: 0.42rem 0.7rem; cursor: pointer;
     }
     .sb-deck:focus-visible { outline: 1px solid var(--gold-500); outline-offset: 2px; }
-    /* Solo / Multiplayer segmented toggle reuses the video .tab-btn language. */
-    .sb-mode { display: flex; gap: 0.3rem; }
+    /* Segmented toggles (mode + length) reuse the video .tab-btn language. */
+    .sb-mode, .sb-len { display: flex; gap: 0.3rem; }
 
     .sb-table { width: 100%; border-collapse: collapse; }
     .sb-table th, .sb-table td {
@@ -355,6 +355,12 @@
             <button type="button" class="tab-btn" data-mode="solo">Solo</button>
             <button type="button" class="tab-btn" data-mode="mp">Multiplayer</button>
           </div>
+          <div class="sb-len" role="group" aria-label="Game length">
+            <button type="button" class="tab-btn active" data-length="all">All</button>
+            <button type="button" class="tab-btn" data-length="short">Short</button>
+            <button type="button" class="tab-btn" data-length="medium">Medium</button>
+            <button type="button" class="tab-btn" data-length="long">Long</button>
+          </div>
         </div>
       </div>
       <table class="sb-table">
@@ -415,7 +421,9 @@
       var body = document.getElementById('sbBody');
       var status = document.getElementById('sbStatus');
       var modeBtns = document.querySelectorAll('.sb-mode .tab-btn');
+      var lenBtns = document.querySelectorAll('.sb-len .tab-btn');
       var mode = 'all';
+      var length = 'all';
       var deckNames = {};   // idDeck → deck name, from listDecks (for the Deck column)
 
       function setStatus(msg) {
@@ -451,7 +459,7 @@
         body.innerHTML = '';
         renderHead(showDeck, showStyle);
         setStatus('Loading scores…');
-        fetch(API + '/publicScores.php?deck=' + encodeURIComponent(deck) + '&mode=' + mode + '&limit=15')
+        fetch(API + '/publicScores.php?deck=' + encodeURIComponent(deck) + '&mode=' + mode + '&length=' + length + '&limit=15')
           .then(function (r) { return r.json(); })
           .then(function (data) {
             if (!data || !data.ok) throw new Error('bad response');
@@ -507,6 +515,15 @@
           modeBtns.forEach(function (b) { b.classList.remove('active'); });
           btn.classList.add('active');
           mode = btn.getAttribute('data-mode');
+          loadScores();
+        });
+      });
+      lenBtns.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (btn.classList.contains('active')) return;
+          lenBtns.forEach(function (b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          length = btn.getAttribute('data-length');
           loadScores();
         });
       });
