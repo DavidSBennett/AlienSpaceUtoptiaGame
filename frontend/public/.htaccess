@@ -1,12 +1,6 @@
-# Apex redirect: thehistorians.org (and www.) → the sell-sheet landing site.
-# ONLY the bare apex host matches — game.thehistorians.org and
-# sellsheet.thehistorians.org pass straight through to the rules below. Kept in
-# the repo (not just hand-edited on the server) so a deploy never wipes it.
-RewriteEngine On
-RewriteCond %{HTTP_HOST} ^(www\.)?thehistorians\.org$ [NC]
-RewriteRule .* https://sellsheet.thehistorians.org%{REQUEST_URI} [R=301,L]
-
-# .htaccess for The Historians — frontend + backend share this folder.
+# .htaccess for the alienspace playtest install — frontend + backend share
+# this folder. (The Historians' apex-redirect block was removed: this install
+# lives on its own subdomain and must never redirect.)
 #
 # The React app (index.html + assets/) and the PHP backend (listCards.php,
 # saveScore.php, listScores.php, dbConfig.php, generatePDF.php, Images/, etc.)

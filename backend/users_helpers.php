@@ -81,7 +81,7 @@ const USERS_MAIL_FROM_NAME = 'The Historians';
 // password reset). Must match where the app actually lives. This
 // assumes a ROOT deploy at thehistorians.org; if you deploy in a
 // subfolder, append it here AND set vite's `base` to match.
-const USERS_APP_BASE_URL = 'https://thehistorians.org';
+const USERS_APP_BASE_URL = 'https://alienspace.thehistorians.org';
 
 // ── SMTP credentials (authenticated send via PHPMailer) ─────────────
 // GreenGeeks sends over SSL on port 465. Host is mail.<your-domain>.
