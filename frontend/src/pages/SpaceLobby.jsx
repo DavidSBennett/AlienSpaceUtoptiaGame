@@ -54,6 +54,13 @@ export default function SpaceLobby() {
 
   useEffect(() => { reload(); }, [reload]);
 
+  // Opt out of the Historians' :root zoom while on space pages.
+  useEffect(() => {
+    const prev = document.documentElement.style.zoom;
+    document.documentElement.style.zoom = '1';
+    return () => { document.documentElement.style.zoom = prev; };
+  }, []);
+
   // Poll while waiting in a lobby so the host's start flips us into the game.
   useEffect(() => {
     if (!waiting) return undefined;

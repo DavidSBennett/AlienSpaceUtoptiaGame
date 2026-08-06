@@ -52,7 +52,8 @@ const SP_UPGRADE_DISPLAY  = 4;
 const SP_TROPHY_VP        = 7;
 const SP_SELL_MARKUP      = 3;    // wanted goods sell at list + this (+ negotiating per unit)
 const SP_TRADE_BASE_CAP   = 3;    // + card Trade stat + ship negotiating
-const SP_REP_CAP          = 4;    // at rep 4 a region is SETTLED — no contracts remain
+// Diplomat pacing: each planet's crisis can be resolved only ONCE per
+// player (no rep cap) — track mastery means twelve solved planets.
 
 const SP_TRACK_MAX  = 12;
 const SP_TIER_STEPS = 4;
@@ -114,6 +115,7 @@ function sp_load_players($mysqli, $gameId) {
     if (!isset($row['tracks']['bounty']))  $row['tracks']['bounty'] = [];
     if (!isset($row['tracks']['rep']))     $row['tracks']['rep'] = [];
     if (!isset($row['tracks']['visited'])) $row['tracks']['visited'] = [];
+    if (!isset($row['tracks']['contracted'])) $row['tracks']['contracted'] = [];
     $row['intel']    = sp_j($row['intel'], []);
     $row['upgrades'] = sp_j($row['upgrades'], []);
     $players[(int)$row['seat']] = $row;
@@ -527,11 +529,11 @@ function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard)
     if (!in_array($k, $p['hand'], true)) throw new Exception('Crew not in hand: ' . $k);
   }
 
-  $rep = sp_rep_at($p, $region);
-  if ($rep >= SP_REP_CAP) {
-    throw new Exception('Your reputation here is settled (rep ' . SP_REP_CAP
-      . ') — nothing left to solve in this region. Fly on to new problems.');
+  if (in_array($planetId, $p['tracks']['contracted'], true)) {
+    throw new Exception('You already resolved ' . $planet['name']
+      . '\'s crisis — each planet negotiates only once. Fly on.');
   }
+  $rep = sp_rep_at($p, $region);
   $ship = sp_ship_stats($p);
   $total = $ship['political'] + (int)$cards[$asCard]['stats'][1] + count($commits);
   $need = max(1, (int)$planet['political'] - $rep);
@@ -550,6 +552,7 @@ function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard)
     $payout = max($prod, 3 * $prod - 2 * $rep);
     $p['credits'] += $payout;
     $p['tracks']['rep'][$region] = $rep + 1;
+    $p['tracks']['contracted'][] = $planetId;
     $suffix = sp_track_advance($game, $players, $seat, 'diplomacy', $planet['ring']);
     return $p['player_name'] . ' resolved a crisis on ' . $planet['name']
          . " ($total vs $need$crewNote) — paid $payout credits, rep now " . ($rep + 1) . $suffix;
@@ -1049,6 +1052,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       ],
       'bounty' => $you['tracks']['bounty'], 'rep' => $you['tracks']['rep'],
       'visited' => $you['tracks']['visited'],
+      'contracted' => $you['tracks']['contracted'],
       'upgrades' => $you['upgrades'],
       'ship' => sp_ship_stats($you),
       'ship_at' => $yourShipAt, 'region' => $yourRegion,

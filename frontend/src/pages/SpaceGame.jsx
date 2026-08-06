@@ -186,10 +186,10 @@ function PlanetTooltip({ planet, state }) {
           {bounty > 0 ? ` (your bounty here: ${bounty})` : ''}
         </div>
         <div className={rep > 0 ? T_GOOD : T_MUted}>
-          🤝 {rep >= 4
-            ? 'Region settled (rep 4) — no contracts remain for you here.'
+          🤝 {state.you.contracted?.includes(planet.id)
+            ? 'Crisis already resolved — each planet negotiates only once.'
             : <>Contract{known ? `: needs ${Math.max(1, known.p - rep)}` : ''} — pays {Math.max(planet.production, 3 * planet.production - 2 * rep)}c
-              {rep > 0 ? ` (your rep here: ${rep}/4)` : ''}</>}
+              {rep > 0 ? ` (your rep here: ${rep})` : ''}</>}
         </div>
         <div className={T_MUted}>
           💰 Trade: sell its wants, buy up to {planet.production} of its goods.
@@ -525,6 +525,15 @@ export default function SpaceGame() {
     setActionError(null);
   }, []);
 
+  // The Historians app sets :root { zoom: 0.9 }; under zoom, h-screen
+  // (100vh) renders ~10% short and leaves a blank strip at the bottom.
+  // This page owns its own layout, so opt out of the zoom while mounted.
+  useEffect(() => {
+    const prev = document.documentElement.style.zoom;
+    document.documentElement.style.zoom = '1';
+    return () => { document.documentElement.style.zoom = prev; };
+  }, []);
+
   useEffect(() => {
     if (centeredRef.current || !state?.map || !scrollRef.current) return;
     const home = state.map.planets[`H${state.you.seat}a`];
@@ -731,9 +740,12 @@ export default function SpaceGame() {
       case 'strike':
         return draft.planet ? (map.planets[draft.planet].system === region ? null : 'That planet is outside your region — fly there first.')
           : 'Click a highlighted planet in your region to raid.';
-      case 'diplomacy':
-        return draft.planet ? (map.planets[draft.planet].system === region ? null : 'That planet is outside your region — fly there first.')
-          : 'Click a highlighted planet in your region.';
+      case 'diplomacy': {
+        if (!draft.planet) return 'Click a highlighted planet in your region.';
+        if (map.planets[draft.planet].system !== region) return 'That planet is outside your region — fly there first.';
+        if (you.contracted?.includes(draft.planet)) return 'Already resolved — each planet negotiates only once.';
+        return null;
+      }
       case 'trade': {
         if (!draft.planet) return 'Click a highlighted planet in your region to trade with.';
         if (map.planets[draft.planet].system !== region) return 'That planet is outside your region — fly there first.';
