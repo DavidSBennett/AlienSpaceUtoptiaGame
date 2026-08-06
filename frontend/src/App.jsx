@@ -16,6 +16,10 @@ import MultiplayerWaitingRoom from './pages/MultiplayerWaitingRoom.jsx';
 import MultiplayerGame from './pages/MultiplayerGame.jsx';
 import MultiplayerResults from './pages/MultiplayerResults.jsx';
 
+// SPACE GAME (Concordia-engine prototype — docs/SPACE_REDESIGN.md)
+import SpaceLobby from './pages/SpaceLobby.jsx';
+import SpaceGame from './pages/SpaceGame.jsx';
+
 // Auth pages — public and gated
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
@@ -79,6 +83,14 @@ export default function App() {
       } />
       <Route path="/multiplayer/end/:gameId" element={
         <RequireAuth><MultiplayerResults /></RequireAuth>
+      } />
+
+      {/* SPACE GAME prototype — lobby + board (desktop, signed-in) */}
+      <Route path="/space" element={
+        <RequireAuth><SpaceLobby /></RequireAuth>
+      } />
+      <Route path="/space/game/:gameId" element={
+        <DesktopOnlyGate><RequireAuth><SpaceGame /></RequireAuth></DesktopOnlyGate>
       } />
 
       {/* Auth routes — public */}

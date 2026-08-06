@@ -645,6 +645,9 @@ export default function Home() {
             <Link to="/decks" className="btn-primary inline-block">
               Card Library
             </Link>
+            <Link to="/space" className="btn-primary inline-block">
+              Space Game (prototype)
+            </Link>
           </div>
 
           {isAdmin && (
