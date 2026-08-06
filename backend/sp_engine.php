@@ -51,7 +51,8 @@ const SP_MARKET_DISPLAY   = 7;
 const SP_UPGRADE_DISPLAY  = 4;
 const SP_TROPHY_VP        = 7;
 const SP_SELL_MARKUP      = 3;    // wanted goods sell at list + this (+ negotiating per unit)
-const SP_TRADE_BASE_CAP   = 2;    // + card Trade stat + ship negotiating
+const SP_TRADE_BASE_CAP   = 3;    // + card Trade stat + ship negotiating
+const SP_REP_CAP          = 4;    // at rep 4 a region is SETTLED — no contracts remain
 
 const SP_TRACK_MAX  = 12;
 const SP_TIER_STEPS = 4;
@@ -527,6 +528,10 @@ function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard)
   }
 
   $rep = sp_rep_at($p, $region);
+  if ($rep >= SP_REP_CAP) {
+    throw new Exception('Your reputation here is settled (rep ' . SP_REP_CAP
+      . ') — nothing left to solve in this region. Fly on to new problems.');
+  }
   $ship = sp_ship_stats($p);
   $total = $ship['political'] + (int)$cards[$asCard]['stats'][1] + count($commits);
   $need = max(1, (int)$planet['political'] - $rep);

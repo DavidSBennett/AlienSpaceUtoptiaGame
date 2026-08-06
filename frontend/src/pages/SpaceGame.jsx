@@ -186,8 +186,10 @@ function PlanetTooltip({ planet, state }) {
           {bounty > 0 ? ` (your bounty here: ${bounty})` : ''}
         </div>
         <div className={rep > 0 ? T_GOOD : T_MUted}>
-          🤝 Contract{known ? `: needs ${Math.max(1, known.p - rep)}` : ''} — pays {Math.max(planet.production, 3 * planet.production - 2 * rep)}c
-          {rep > 0 ? ` (your rep here: ${rep})` : ''}
+          🤝 {rep >= 4
+            ? 'Region settled (rep 4) — no contracts remain for you here.'
+            : <>Contract{known ? `: needs ${Math.max(1, known.p - rep)}` : ''} — pays {Math.max(planet.production, 3 * planet.production - 2 * rep)}c
+              {rep > 0 ? ` (your rep here: ${rep}/4)` : ''}</>}
         </div>
         <div className={T_MUted}>
           💰 Trade: sell its wants, buy up to {planet.production} of its goods.
