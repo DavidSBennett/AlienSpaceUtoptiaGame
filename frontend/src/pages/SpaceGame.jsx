@@ -457,16 +457,31 @@ function StarMap({ state, draft, activeAction, mySeat, shipPreviewAt, onPlanetCl
             <circle cx={p.x} cy={p.y} r={16.5} fill={FACTION_COLORS[p.faction]} opacity={0.25} />
             <circle cx={p.x} cy={p.y} r={13} fill={FACTION_COLORS[p.faction]}
               stroke={isDraftTarget ? '#79c9d6' : '#0a1120'} strokeWidth={isDraftTarget ? 3.5 : 1.5} />
-            <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize={10.5}
-              fill="#f0f4fa" fontFamily="monospace" pointerEvents="none">{p.faction}</text>
+            <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize={11}
+              fill="#f0f4fa" fontFamily="monospace" pointerEvents="none">{p.production}</text>
             <text x={p.x} y={p.y + 30} textAnchor="middle" fontSize={10.5} fill="#9db0cc"
               pointerEvents="none">
               {p.name}
             </text>
-            <text x={p.x} y={p.y + 42} textAnchor="middle" fontSize={9} fill="#6c7d9c"
-              pointerEvents="none">
-              prod {p.production} · wants {p.wants.join('')}
-            </text>
+            {/* trade circles: LEFT = goods it wants (buys), RIGHT = good it sells */}
+            <g pointerEvents="none">
+              {p.wants.map((w, wi) => (
+                <g key={w}>
+                  <circle cx={p.x - 23 + wi * 15} cy={p.y + 43} r={8}
+                    fill="#101a2e" stroke={FACTION_COLORS[w]} strokeWidth={1.3} />
+                  <text x={p.x - 23 + wi * 15} y={p.y + 46.5} textAnchor="middle"
+                    fontSize={9}>{RESOURCE_ICONS[w]}</text>
+                </g>
+              ))}
+              <circle cx={p.x + 16} cy={p.y + 43} r={8}
+                fill={FACTION_COLORS[p.faction] + '55'} stroke={FACTION_COLORS[p.faction]} strokeWidth={1.3} />
+              <text x={p.x + 16} y={p.y + 46.5} textAnchor="middle"
+                fontSize={9}>{RESOURCE_ICONS[p.faction]}</text>
+              <text x={p.x - 15.5} y={p.y + 57} textAnchor="middle" fontSize={7.5}
+                fill="#6c7d9c">wants</text>
+              <text x={p.x + 16} y={p.y + 57} textAnchor="middle" fontSize={7.5}
+                fill="#6c7d9c">sells</text>
+            </g>
             <g pointerEvents="none">
               <circle cx={p.x - 14} cy={p.y - 12} r={8}
                 fill={known ? '#301616' : '#101a2e'}
