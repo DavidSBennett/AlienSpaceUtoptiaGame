@@ -45,7 +45,7 @@ const AFFILIATION_SCORING = {
 const ACTION_LABELS = {
   reset: 'Regroup', move: 'Fly', strike: 'Raid', diplomacy: 'Contract',
   trade: 'Trade', recruit: 'Hire (2)', recruit_free: 'Hire (1, free position)',
-  copy: 'Intercept',
+  copy: 'Intercept', engineer: 'Install modules',
 };
 const MODULE_TYPE_LABELS = {
   weapon: 'Weapon', diplomatic: 'Diplomatic module', trade: 'Trade module', system: 'System',
@@ -207,8 +207,8 @@ function ModuleTooltip({ mod }) {
       <div className={T_MUted}>{MODULE_TYPE_LABELS[mod.type]}</div>
       <div>{mod.text}</div>
       <div className={T_MUted}>
-        Cost {mod.cost}c (installed during a Regroup) · also granted free at even
-        track steps · 2 VP per module for Engineering cards.
+        Cost {mod.cost}c — installed by playing an Engineer · also granted free
+        at even track steps · each module is worth 2 VP at game end.
       </div>
     </div>
   );
@@ -613,7 +613,7 @@ export default function SpaceGame() {
     ? state.trade_base_cap + effectiveCard.stats[2] + (you.ship?.negotiating || 0) : 0;
 
   const picking = effectiveAction === 'recruit' || effectiveAction === 'recruit_free';
-  const docking = activeCardDef?.action === 'reset';
+  const docking = effectiveAction === 'engineer';
 
   function onPanDown(e) {
     if (e.button !== 0) return;
@@ -697,7 +697,8 @@ export default function SpaceGame() {
           });
           return { picks };
         }
-        case 'reset': return { upgrades: draft.upgrades };
+        case 'engineer': return { upgrades: draft.upgrades };
+        case 'reset': return {};
         default: return {};
       }
     };
@@ -755,6 +756,8 @@ export default function SpaceGame() {
       }
       case 'recruit': case 'recruit_free':
         return draft.picks.length > 0 ? null : 'Pick a card from the Crew market panel (top right).';
+      case 'engineer':
+        return draft.upgrades.length > 0 ? null : 'Pick modules from the Upgrade dock panel (top right).';
       default: return null;
     }
   })();
@@ -882,7 +885,7 @@ export default function SpaceGame() {
             })}
             {!docking && (
               <div className={'text-[10px] ' + T_MUted}>
-                Install during a Regroup — or free at even track steps.
+                Install by playing an Engineer — or free at even track steps.
               </div>
             )}
           </div>

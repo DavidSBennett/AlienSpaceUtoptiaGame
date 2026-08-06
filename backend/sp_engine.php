@@ -690,22 +690,6 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
     $msg .= " (+$rider credits)";
   }
 
-  // Module purchases from the upgrade dock (credits).
-  $wanted = $params['upgrades'] ?? [];
-  if (is_array($wanted)) {
-    foreach ($wanted as $key) {
-      $pos = array_search($key, $game['board_state']['upgrade_display'], true);
-      if ($pos === false) throw new Exception('Module not in the upgrade dock');
-      $mod = sp_upgrade_cards()[$key];
-      if ($p['credits'] < $mod['cost']) throw new Exception('Not enough credits for ' . $mod['name']);
-      $p['credits'] -= $mod['cost'];
-      array_splice($game['board_state']['upgrade_display'], $pos, 1);
-      $name = sp_install_module($p, $key);
-      $msg .= ' — installed ' . $name;
-    }
-    sp_upgrade_dock_refill($game);
-  }
-
   // Intermediate scoring on each player's FIRST reset.
   if (!(int)$p['first_reset_done']) {
     $p['first_reset_done'] = 1;
@@ -716,6 +700,31 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
     sp_maybe_pay_intermediate($game, $players);
   }
   return $msg;
+}
+
+/**
+ * ENGINEER — the module-buying occupation. Install any number of modules
+ * from the upgrade dock, paying their credit costs. (Free even-track
+ * modules come from the stack automatically; this is the credit path.)
+ */
+function sp_exec_engineer(&$game, &$players, $seat, $cardKey, $params) {
+  $p = &$players[$seat];
+  $wanted = $params['upgrades'] ?? [];
+  if (!is_array($wanted) || count($wanted) === 0) {
+    throw new Exception('Pick at least one module from the upgrade dock');
+  }
+  $names = [];
+  foreach ($wanted as $key) {
+    $pos = array_search($key, $game['board_state']['upgrade_display'], true);
+    if ($pos === false) throw new Exception('Module not in the upgrade dock');
+    $mod = sp_upgrade_cards()[$key];
+    if ($p['credits'] < $mod['cost']) throw new Exception('Not enough credits for ' . $mod['name']);
+    $p['credits'] -= $mod['cost'];
+    array_splice($game['board_state']['upgrade_display'], $pos, 1);
+    $names[] = sp_install_module($p, $key);
+  }
+  sp_upgrade_dock_refill($game);
+  return $p['player_name'] . ' installed ' . implode(', ', $names);
 }
 
 /**
@@ -782,6 +791,7 @@ function sp_dispatch_action(&$game, &$players, $seat, $cardKey, $action, $params
     case 'trade':        return sp_exec_trade($game, $players, $seat, $cardKey, $params, $asCard);
     case 'recruit':      return sp_exec_recruit($game, $players, $seat, $cardKey, $params, false);
     case 'recruit_free': return sp_exec_recruit($game, $players, $seat, $cardKey, $params, true);
+    case 'engineer':     return sp_exec_engineer($game, $players, $seat, $cardKey, $params);
     case 'reset':        return sp_exec_reset($game, $players, $seat, $cardKey, $params, $asCard);
     case 'copy':         return sp_exec_copy($game, $players, $seat, $cardKey, $params);
     default: throw new Exception('Unknown action: ' . $action);

@@ -32,23 +32,27 @@ function sp_cards() {
     'name' => 'Quartermaster', 'action' => 'reset',
     'stats' => [0, 1, 1], 'affiliation' => 'wealth',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
-    'text' => 'Recover ALL cards — your whole discard pile plus this card — back into your hand. You may also install ship modules from the upgrade dock (pay credits).',
+    'text' => 'Recover ALL cards — your whole discard pile plus this card — back into your hand.',
   ];
   $c['navigator'] = [
     'name' => 'Navigator', 'action' => 'move',
     'stats' => [0, 1, 0], 'affiliation' => 'alliances',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
-    'steps' => 3,
-    'text' => 'Fly your ship up to 3 star-lane hops. Arriving reveals the stats of nearby planets, and every region you visit counts for Explorers Guild scoring.',
+    'steps' => 1,
+    'text' => 'Fly your ship ONE star-lane hop (Afterburners add more). Arriving reveals the stats of nearby planets, and every region you visit counts for Explorers Guild scoring.',
   ];
-  // Legacy starter (removed from new starting hands — kept in the catalog
-  // so games dealt before the change still resolve their copies).
   $c['navigator_b'] = [
     'name' => 'Relief Navigator', 'action' => 'move',
     'stats' => [0, 0, 1], 'affiliation' => 'alliances',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
-    'steps' => 3,
-    'text' => 'Fly your ship up to 3 star-lane hops.',
+    'steps' => 1,
+    'text' => 'Fly your ship ONE star-lane hop.',
+  ];
+  $c['engineer'] = [
+    'name' => 'Engineer', 'action' => 'engineer',
+    'stats' => [0, 1, 1], 'affiliation' => 'wealth',
+    'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
+    'text' => 'Install any number of ship modules from the upgrade dock, paying their credit costs. (Even track steps also grant free modules.)',
   ];
   $c['corsair'] = [
     'name' => 'Corsair', 'action' => 'strike',
@@ -92,13 +96,13 @@ function sp_cards() {
   $mk('caravan_master', 'Caravan Master', 'trade', 0, 0, 3, 'trade_guild', 1, ['B'], 0,
       'Trade in your region; capacity 3 + Trade 3 + negotiating.');
   $mk('wayfinder', 'Wayfinder', 'move', 0, 1, 1, 'alliances', 1, ['O'], 0,
-      'Fly your ship up to 4 star-lane hops.', ['steps' => 4]);
+      'Fly your ship ONE star-lane hop.', ['steps' => 1]);
   $mk('purser', 'Purser', 'trade', 0, 0, 2, 'wealth', 1, ['B'], 3,
       'Trade in your region (capacity 3 + Trade 2 + negotiating) and pocket 3 credits.');
   $mk('spy', 'Spy', 'copy', 1, 1, 1, 'diplomatic_corps', 1, ['C'], 0,
       'Execute the action of the top card of another player\'s discard pile (not a reset or copy card).');
   $mk('bosun', 'Bosun', 'reset', 1, 1, 1, 'wealth', 1, ['B'], 2,
-      'Recover ALL cards (discard plus this card), pocket 2 credits, and you may install modules.');
+      'Recover ALL cards (discard plus this card) and pocket 2 credits.');
 
   // ---------- Stage II (7) ----------
   $mk('freebooter', 'Freebooter', 'strike', 3, 1, 0, 'war_college', 2, ['C'], 0,
@@ -108,13 +112,15 @@ function sp_cards() {
   $mk('guild_factor', 'Guild Factor', 'trade', 0, 1, 4, 'trade_guild', 2, ['C'], 0,
       'Trade in your region; capacity 3 + Trade 4 + negotiating.');
   $mk('pathfinder', 'Pathfinder', 'move', 1, 1, 0, 'alliances', 2, ['B'], 0,
-      'Fly your ship up to 4 star-lane hops.', ['steps' => 4]);
+      'Fly your ship ONE star-lane hop.', ['steps' => 1]);
   $mk('infiltrator', 'Infiltrator', 'copy', 1, 2, 1, 'diplomatic_corps', 2, ['C'], 0,
       'Execute the top card of another player\'s discard pile.');
   $mk('marauder', 'Marauder', 'strike', 4, 0, 0, 'war_college', 2, ['C', 'N'], 0,
       'RAID in your region: ship military + Military 4 vs military + bounty.');
+  $mk('chief_engineer', 'Chief Engineer', 'engineer', 1, 1, 1, 'wealth', 2, ['C'], 0,
+      'Install any number of ship modules from the upgrade dock, paying credits.');
   $mk('first_mate', 'First Mate', 'reset', 1, 1, 1, 'wealth', 2, ['N'], 3,
-      'Recover ALL cards (discard plus this card), pocket 3 credits, and you may install modules.');
+      'Recover ALL cards (discard plus this card) and pocket 3 credits.');
 
   // ---------- Stage III (6) ----------
   $mk('legate', 'Legate', 'diplomacy', 0, 4, 0, 'diplomatic_corps', 3, ['N'], 0,
@@ -124,7 +130,7 @@ function sp_cards() {
   $mk('warlord', 'Warlord', 'strike', 4, 1, 0, 'war_college', 3, ['C', 'N'], 0,
       'RAID in your region: ship military + Military 4 vs military + bounty.');
   $mk('voidrunner', 'Voidrunner', 'move', 1, 0, 1, 'alliances', 3, ['N'], 0,
-      'Fly your ship up to 5 star-lane hops.', ['steps' => 5]);
+      'Fly your ship ONE star-lane hop.', ['steps' => 1]);
   $mk('guildmaster', 'Guildmaster', 'recruit', 0, 2, 2, 'wealth', 3, ['N'], 0,
       'Hire up to 2 crew from the market.');
   $mk('high_envoy', 'High Envoy', 'diplomacy', 1, 4, 0, 'diplomatic_corps', 3, ['N', 'C'], 0,
@@ -138,9 +144,11 @@ function sp_cards() {
   $mk('trade_prince', 'Trade Prince', 'trade', 0, 1, 5, 'trade_guild', 4, ['A'], 5,
       'Trade in your region (capacity 3 + Trade 5 + negotiating) and pocket 5 credits.');
   $mk('star_pilot', 'Star Pilot', 'move', 1, 1, 1, 'alliances', 4, ['C', 'N'], 0,
-      'Fly your ship up to 6 star-lane hops.', ['steps' => 6]);
+      'Fly your ship ONE star-lane hop.', ['steps' => 1]);
   $mk('spymaster', 'Spymaster', 'copy', 2, 2, 2, 'diplomatic_corps', 4, ['A'], 0,
       'Execute the top card of another player\'s discard pile.');
+  $mk('master_shipwright', 'Master Shipwright', 'engineer', 1, 1, 2, 'wealth', 4, ['C', 'N'], 0,
+      'Install any number of ship modules from the upgrade dock, paying credits.');
   $mk('press_gang', 'Press Gang', 'recruit_free', 1, 1, 2, 'wealth', 4, ['?', '?'], 0,
       'Hire 1 crew member from the market, ignoring its position cost.');
 
@@ -158,12 +166,12 @@ function sp_cards() {
   return $cards;
 }
 
-/** Keys of the starter crew, in display order. ONE move card (Concordia's
- *  single Architect) — more movement is hired from the market. */
+/** Keys of the starter crew, in display order. Two one-hop move cards;
+ *  the Engineer is the module-buying occupation. */
 function sp_starter_keys() {
   return [
-    'quartermaster', 'navigator', 'corsair',
-    'ambassador', 'trader', 'recruiter',
+    'quartermaster', 'navigator', 'navigator_b', 'corsair',
+    'ambassador', 'trader', 'recruiter', 'engineer',
   ];
 }
 
