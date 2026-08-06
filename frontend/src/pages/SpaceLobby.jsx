@@ -153,8 +153,15 @@ export default function SpaceLobby() {
         </p>
 
         {error && (
-          <div className="mb-4 rounded border border-oxblood-400 bg-oxblood-900/40 px-4 py-2 text-sm">
-            {error}
+          <div className="mb-4 rounded border border-oxblood-400 bg-oxblood-900/40 px-4 py-3 text-sm">
+            <b>⚠ Something went wrong:</b> {error}
+            {/error|table|exist/i.test(error) && (
+              <div className="mt-1 text-cream-300 text-[12px]">
+                If this mentions a missing table, the database migration
+                (database/34_space_game_tables.sql) hasn't been run on this
+                install yet — run it in phpMyAdmin, then retry.
+              </div>
+            )}
           </div>
         )}
 
@@ -196,7 +203,7 @@ export default function SpaceLobby() {
                 One captain against the sector. Same rules, same scoring.
               </p>
               <button className="btn-primary" disabled={busy} onClick={() => handleCreate(true)}>
-                Launch solo
+                {busy ? 'Launching…' : 'Launch solo'}
               </button>
             </div>
             <div className="rounded-lg border border-teal-700 bg-teal-900/60 p-5">
@@ -210,7 +217,7 @@ export default function SpaceLobby() {
                 </select>
               </div>
               <button className="btn-primary" disabled={busy} onClick={() => handleCreate(false)}>
-                Open a lobby
+                {busy ? 'Opening…' : 'Open a lobby'}
               </button>
             </div>
           </div>
