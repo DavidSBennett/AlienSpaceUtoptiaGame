@@ -52,7 +52,7 @@ function sp_cards() {
     'name' => 'Corsair', 'action' => 'strike',
     'stats' => [2, 0, 0], 'affiliation' => 'war_college',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
-    'text' => 'RAID a planet in your region: ship military + Military 2 vs its military + your local bounty. Loot = production + bounty in its goods; then your bounty there rises.',
+    'text' => 'RAID a planet in your region: ship military + Military 2 vs its military + your local bounty. Loot = production + bounty in its goods AND the same in credits; then your bounty there rises.',
   ];
   $c['ambassador'] = [
     'name' => 'Ambassador', 'action' => 'diplomacy',

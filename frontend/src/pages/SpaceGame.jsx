@@ -182,7 +182,7 @@ function PlanetTooltip({ planet, state }) {
       )}
       <div className="border-t border-[#26365a] pt-1 space-y-0.5">
         <div className={bounty > 0 ? T_BAD : T_MUted}>
-          ⚔ Raid{known ? `: needs ${known.m + bounty}` : ''} — loot {planet.production + bounty} {RESOURCE_ICONS[planet.faction]}
+          ⚔ Raid{known ? `: needs ${known.m + bounty}` : ''} — loot {planet.production + bounty} {RESOURCE_ICONS[planet.faction]} + {planet.production + bounty}c
           {bounty > 0 ? ` (your bounty here: ${bounty})` : ''}
         </div>
         <div className={rep > 0 ? T_GOOD : T_MUted}>
@@ -591,7 +591,7 @@ export default function SpaceGame() {
     if (effectiveAction === 'strike') {
       missionTotal = (you.ship?.military || 0) + effectiveCard.stats[0];
       missionNeed = targetIntel ? targetIntel.m + bounty : null;
-      missionReward = `${targetPlanet.production + bounty} ${RESOURCE_ICONS[targetPlanet.faction]}`;
+      missionReward = `${targetPlanet.production + bounty} ${RESOURCE_ICONS[targetPlanet.faction]} + ${targetPlanet.production + bounty}c`;
     } else if (effectiveAction === 'diplomacy') {
       missionTotal = (you.ship?.political || 0) + effectiveCard.stats[1] + draft.commits.length;
       missionNeed = targetIntel ? Math.max(1, targetIntel.p - rep) : null;

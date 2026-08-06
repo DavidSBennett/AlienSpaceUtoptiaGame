@@ -484,12 +484,15 @@ function sp_exec_strike(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   sp_reveal_around($p, $planetId);
 
   if ($total >= $need) {
+    // Yield scales with bounty on BOTH axes: goods (cargo-capped) and
+    // plundered credits (always paid, even with a full hold).
     $yield = (int)$planet['production'] + $bounty;
     $got = sp_cargo_add($p, $planet['faction'], $yield);
+    $p['credits'] += $yield;
     $p['tracks']['bounty'][$region] = $bounty + 1;
     $suffix = sp_track_advance($game, $players, $seat, 'military', $planet['ring']);
     return $p['player_name'] . ' raided ' . $planet['name'] . " ($total vs $need) — looted $got "
-         . SP_RESOURCE_NAMES[$planet['faction']] . ", bounty now " . ($bounty + 1) . $suffix;
+         . SP_RESOURCE_NAMES[$planet['faction']] . " and $yield credits, bounty now " . ($bounty + 1) . $suffix;
   }
   return $p['player_name'] . '\'s raid on ' . $planet['name'] . " was repelled ($total vs $need)";
 }
