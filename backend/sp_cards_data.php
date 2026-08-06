@@ -64,7 +64,7 @@ function sp_cards() {
     'name' => 'Ambassador', 'action' => 'diplomacy',
     'stats' => [0, 2, 0], 'affiliation' => 'diplomatic_corps',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
-    'text' => 'Take a DIPLOMATIC CONTRACT in your region: ship political + Diplomacy 2 vs its political − your local reputation. You may BARGAIN AWAY other crew from hand: +1 political each (they return on your next Regroup). Payout = 3 × production − 2 × rep, floor production; then your rep there rises. Each planet\'s crisis can be resolved only ONCE — mastering the track means twelve solved planets.',
+    'text' => 'Take a DIPLOMATIC CONTRACT in your region: ship political + Diplomacy 2 vs its political − your local reputation. You may BARGAIN AWAY other crew from hand: +1 political each (they return on your next Regroup). Payout = 3 × production − 2 × rep credits (floor production) PLUS 1 of the planet's own good; then your rep there rises. Each planet\'s crisis can be resolved only ONCE — mastering the track means twelve solved planets.',
   ];
   $c['trader'] = [
     'name' => 'Trader', 'action' => 'trade',

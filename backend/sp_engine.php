@@ -563,11 +563,16 @@ function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard)
     $prod = (int)$planet['production'];
     $payout = max($prod, 3 * $prod - 2 * $rep);
     $p['credits'] += $payout;
+    // Payment in kind: a grateful planet also hands over 1 of its own good
+    // (cargo permitting) — the diplomat's trickle of hiring currency.
+    $inKind = sp_cargo_add($p, $planet['faction'], 1);
     $p['tracks']['rep'][$region] = $rep + 1;
     $p['tracks']['contracted'][] = $planetId;
     $suffix = sp_track_advance($game, $players, $seat, 'diplomacy', $planet['ring']);
     return $p['player_name'] . ' resolved a crisis on ' . $planet['name']
-         . " ($total vs $need$crewNote) — paid $payout credits, rep now " . ($rep + 1) . $suffix;
+         . " ($total vs $need$crewNote) — paid $payout credits"
+         . ($inKind > 0 ? ' + 1 ' . SP_RESOURCE_NAMES[$planet['faction']] : '')
+         . ', rep now ' . ($rep + 1) . $suffix;
   }
   return $p['player_name'] . '\'s envoys were turned away at ' . $planet['name']
        . " ($total vs $need$crewNote)";

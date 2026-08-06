@@ -188,7 +188,7 @@ function PlanetTooltip({ planet, state }) {
         <div className={rep > 0 ? T_GOOD : T_MUted}>
           🤝 {state.you.contracted?.includes(planet.id)
             ? 'Crisis already resolved — each planet negotiates only once.'
-            : <>Contract{known ? `: needs ${Math.max(1, known.p - rep)}` : ''} — pays {Math.max(planet.production, 3 * planet.production - 2 * rep)}c
+            : <>Contract{known ? `: needs ${Math.max(1, known.p - rep)}` : ''} — pays {Math.max(planet.production, 3 * planet.production - 2 * rep)}c + 1 {RESOURCE_ICONS[planet.faction]}
               {rep > 0 ? ` (your rep here: ${rep})` : ''}</>}
         </div>
         <div className={T_MUted}>
@@ -629,7 +629,7 @@ export default function SpaceGame() {
     } else if (effectiveAction === 'diplomacy') {
       missionTotal = (you.ship?.political || 0) + effectiveCard.stats[1] + draft.commits.length;
       missionNeed = targetIntel ? Math.max(1, targetIntel.p - rep) : null;
-      missionReward = `${Math.max(targetPlanet.production, 3 * targetPlanet.production - 2 * rep)} credits`;
+      missionReward = `${Math.max(targetPlanet.production, 3 * targetPlanet.production - 2 * rep)}c + 1 ${RESOURCE_ICONS[targetPlanet.faction]}`;
     }
   }
   const tradeCapacity = effectiveAction === 'trade' && effectiveCard
