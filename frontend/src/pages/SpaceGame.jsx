@@ -953,7 +953,8 @@ export default function SpaceGame() {
                 selected={selectedCard === key}
                 committed={draft.commits.includes(key)}
                 disabled={!myTurn || ended}
-                onCommit={effectiveAction === 'diplomacy' && key !== selectedCard && myTurn && !ended
+                onCommit={effectiveAction === 'diplomacy' && key !== selectedCard
+                  && cards[key].action !== 'reset' && myTurn && !ended
                   ? () => toggleCommit(key) : undefined}
                 onClick={() => {
                   if (selectedCard === key) {

@@ -519,6 +519,8 @@ function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard)
   if ($planet['system'] !== $region) throw new Exception('Your ship must be in that region to negotiate');
 
   // Validate discarded crew: in hand, unique, not the played card itself.
+  // Reset crew (Quartermaster line) can NEVER be bargained — losing your
+  // only reset card to a bargain would soft-lock the hand cycle.
   $commits = is_array($params['commits'] ?? null) ? $params['commits'] : [];
   $seen = [];
   foreach ($commits as $k) {
@@ -527,6 +529,9 @@ function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard)
     }
     $seen[$k] = true;
     if (!in_array($k, $p['hand'], true)) throw new Exception('Crew not in hand: ' . $k);
+    if ((sp_cards()[$k]['action'] ?? '') === 'reset') {
+      throw new Exception(sp_cards()[$k]['name'] . ' refuses to be bargained away (reset crew never can be)');
+    }
   }
 
   if (in_array($planetId, $p['tracks']['contracted'], true)) {

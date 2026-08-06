@@ -41,6 +41,8 @@ function sp_cards() {
     'steps' => 3,
     'text' => 'Fly your ship up to 3 star-lane hops. Arriving reveals the stats of nearby planets, and every region you visit counts for Explorers Guild scoring.',
   ];
+  // Legacy starter (removed from new starting hands — kept in the catalog
+  // so games dealt before the change still resolve their copies).
   $c['navigator_b'] = [
     'name' => 'Relief Navigator', 'action' => 'move',
     'stats' => [0, 0, 1], 'affiliation' => 'alliances',
@@ -156,10 +158,11 @@ function sp_cards() {
   return $cards;
 }
 
-/** Keys of the starter crew, in display order. */
+/** Keys of the starter crew, in display order. ONE move card (Concordia's
+ *  single Architect) — more movement is hired from the market. */
 function sp_starter_keys() {
   return [
-    'quartermaster', 'navigator', 'navigator_b', 'corsair',
+    'quartermaster', 'navigator', 'corsair',
     'ambassador', 'trader', 'recruiter',
   ];
 }
