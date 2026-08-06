@@ -1,25 +1,37 @@
 <?php
 /**
- * sp_engine.php — the SPACE GAME rules engine (server-authoritative).
+ * sp_engine.php — the SPACE GAME rules engine (server-authoritative), v3.
  *
- * NOT an endpoint. require_once'd by every sp_*.php endpoint. This is the
- * single source of truth for the rules — there is deliberately no client
- * mirror (docs/SPACE_REDESIGN.md §8). Solo is a 1-player game through the
- * exact same code path.
+ * v3 model ("one ship, many occupations"):
+ *  - Hand cards are CREW OCCUPATIONS. Each player pilots ONE ship token
+ *    that sits at a planet; its system is the player's current REGION.
+ *  - The ship is the player board: installed upgrade modules give it
+ *    military / political / negotiating power (+ cargo & speed systems).
+ *    Modules are bought with credits during a reset, or granted free from
+ *    the upgrade stack when a track reaches an even step.
+ *  - RAID (pirate): ship military + card Military vs planet military +
+ *    local bounty. Loot = production + bounty (goods); bounty then rises —
+ *    harder and richer each time.
+ *  - DIPLOMATIC CONTRACT: ship political + card Diplomacy vs planet
+ *    political − local reputation. Payout = 2 × production − rep
+ *    (credits); rep then rises — easier and poorer each time.
+ *  - TRADE: no opposed roll. Sell what the planet WANTS at list + 2, buy
+ *    its own goods at list, capacity 2 + card Trade + negotiating; any
+ *    trade moving ≥1 unit advances the Merchant track.
+ *  - Tracks: Pirate / Diplomat / Merchant (internal keys unchanged:
+ *    military / diplomacy / trade). 12 steps, ring gates at 5 and 9,
+ *    free matching module at every even step, step 12 triggers endgame.
  *
- * Engine model: sequential turns (Concordia). Every mutation happens inside
- * a transaction holding SELECT ... FOR UPDATE on the sp_games row, so the
- * JSON-blob state columns are single-writer safe.
- *
- * Rules source: docs/SPACE_REDESIGN.md + docs/FACTIONS_AND_CARDS_V1.md.
+ * NOT an endpoint — require_once'd by every sp_*.php endpoint. All rules
+ * live here; the client is presentation only.
  */
 
-require_once __DIR__ . '/mp_dbConfig.php';   // $mysqli + mp_json/mp_error/etc.
+require_once __DIR__ . '/mp_dbConfig.php';
 require_once __DIR__ . '/sp_cards_data.php';
 require_once __DIR__ . '/sp_map_data.php';
 
 // ─────────────────────────────────────────────────────────────────────────
-// Tuning constants (the sync map lives HERE and nowhere else)
+// Tuning constants
 // ─────────────────────────────────────────────────────────────────────────
 
 const SP_RESOURCES      = ['O', 'B', 'C', 'N', 'A'];
@@ -32,41 +44,27 @@ const SP_RESOURCE_NAMES = [
   'O' => 'Ore', 'B' => 'Biomass', 'C' => 'Components', 'N' => 'Nectar', 'A' => 'Aether',
 ];
 
-const SP_STARTING_CREDITS   = 5;
-const SP_STARTING_CARGO     = ['O' => 1, 'B' => 1, 'C' => 0, 'N' => 0, 'A' => 0];
-const SP_CARGO_CAPACITY     = 12;
-const SP_TOTAL_DRONES       = 6;   // 2 start docked at home, 4 in cargo
-const SP_DRONE_COST         = ['O' => 1, 'B' => 1];
-const SP_STRIKE_YIELD       = 2;   // units seized on a successful strike
-const SP_MARKET_DISPLAY     = 7;
-const SP_TREATY_TRIGGER     = 10;  // Nth treaty ends the game (Concordia's 15 houses)
-const SP_TROPHY_VP          = 7;
+const SP_STARTING_CREDITS = 5;
+const SP_STARTING_CARGO   = ['O' => 1, 'B' => 1, 'C' => 0, 'N' => 0, 'A' => 0];
+const SP_CARGO_CAPACITY   = 12;
+const SP_MARKET_DISPLAY   = 7;
+const SP_UPGRADE_DISPLAY  = 4;
+const SP_TROPHY_VP        = 7;
+const SP_SELL_MARKUP      = 2;    // wanted goods sell at list + this
+const SP_TRADE_BASE_CAP   = 2;    // + card Trade stat + ship negotiating
 
-// Track tiers: 4 steps per tier, 3 tiers (12 steps). Crossing a gate needs
-// a win at a planet of at least that ring (medium ring 2, hard ring 3).
-const SP_TRACK_MAX          = 12;
-const SP_TIER_STEPS         = 4;
-const SP_GATE_RING          = [1 => 0, 2 => 2, 3 => 3]; // tier => min ring to enter
+const SP_TRACK_MAX  = 12;
+const SP_TIER_STEPS = 4;
+const SP_GATE_RING  = [1 => 0, 2 => 2, 3 => 3];   // tier => min ring to enter
 
-// Market position surcharge (extra '?' resources by display position 0..6).
 const SP_POSITION_COST = [[], [], ['?'], ['?'], ['?', '?'], ['?', '?'], ['?', '?', '?']];
 
-// Ship upgrades (Engineering scoring target: 2 VP per upgrade per envoy card).
 const SP_ENGINEERING_VP_PER_UPGRADE = 2;
-function sp_upgrades_catalog() {
-  return [
-    'cargo_pods'    => ['name' => 'Cargo Pods',    'credits' => 10, 'resources' => [],
-                        'text' => '+4 cargo capacity.'],
-    'nav_thrusters' => ['name' => 'Nav Thrusters', 'credits' => 8,  'resources' => ['C'],
-                        'text' => '+2 movement steps on every move action.'],
-    'deep_scanners' => ['name' => 'Deep Scanners', 'credits' => 6,  'resources' => [],
-                        'text' => 'Your drones also scout planets two lanes away.'],
-    'drone_foundry' => ['name' => 'Drone Foundry', 'credits' => 8,  'resources' => ['C'],
-                        'text' => 'Immediately gain 1 extra drone in reserve.'],
-    'trade_rig'     => ['name' => 'Trade Rig',     'credits' => 6,  'resources' => [],
-                        'text' => '+2 credits on every trade mission.'],
-  ];
-}
+
+// Track key → module type granted at even steps.
+const SP_TRACK_MODULE_TYPE = [
+  'military' => 'weapon', 'diplomacy' => 'diplomatic', 'trade' => 'trade',
+];
 
 // ─────────────────────────────────────────────────────────────────────────
 // State load / save
@@ -89,51 +87,13 @@ function sp_load_game($mysqli, $gameId, $forUpdate = false) {
   $row['market_display'] = sp_j($row['market_display'], []);
   $row['market_stack']   = sp_j($row['market_stack'], []);
   $row['board_state']    = sp_j($row['board_state'],
-    ['drones' => [], 'control' => [], 'markers' => [], 'meta' => []]);
-  sp_normalize_board($row['board_state']);
+    ['ships' => [], 'upgrade_display' => [], 'upgrade_stack' => [], 'meta' => []]);
+  // Pre-v3 games (drone/control boards) cannot be migrated to the ship
+  // model — flag them so the state endpoint can sunset them gracefully.
+  $row['legacy_ruleset'] = ($row['status'] !== 'lobby')
+    && !isset($row['board_state']['ships']);
+  if (!isset($row['board_state']['meta'])) $row['board_state']['meta'] = [];
   return $row;
-}
-
-/**
- * Normalize board state to the v2 mission model. Migrates v1 games in
- * place: treaties become allied control, lane-drones dock at a lane
- * endpoint, and drones gain a value (default 1). Idempotent.
- */
-function sp_normalize_board(&$board) {
-  if (!isset($board['control'])) $board['control'] = [];
-  if (isset($board['treaties'])) {
-    foreach ($board['treaties'] as $pid => $holders) {
-      foreach ($holders as $seat) {
-        $board['control'][$pid][(string)$seat] = 'allied';
-      }
-    }
-    unset($board['treaties']);
-  }
-  $map = sp_map();
-  foreach ($board['drones'] as $i => $d) {
-    if (($d['type'] ?? 'docked') === 'lane' && isset($map['lanes'][$d['at']])) {
-      $d['at'] = $map['lanes'][$d['at']][0];
-    }
-    unset($d['type']);
-    if (!isset($d['value'])) $d['value'] = 1;
-    $board['drones'][$i] = $d;
-  }
-  if (!isset($board['markers'])) $board['markers'] = [];
-  if (!isset($board['meta'])) $board['meta'] = [];
-}
-
-/** Control kind ('military'|'allied') the seat holds at a planet, or null. */
-function sp_control_of($board, $pid, $seat) {
-  return $board['control'][$pid][(string)$seat] ?? null;
-}
-
-/** Number of planets a seat controls (either kind). */
-function sp_control_count($board, $seat) {
-  $n = 0;
-  foreach ($board['control'] as $holders) {
-    if (isset($holders[(string)$seat])) $n++;
-  }
-  return $n;
 }
 
 function sp_load_players($mysqli, $gameId) {
@@ -146,8 +106,13 @@ function sp_load_players($mysqli, $gameId) {
     $row['cargo']    = sp_j($row['cargo'], ['O'=>0,'B'=>0,'C'=>0,'N'=>0,'A'=>0]);
     $row['hand']     = sp_j($row['hand'], []);
     $row['discard']  = sp_j($row['discard'], []);
-    $row['tracks']   = sp_j($row['tracks'],
-      ['military'=>['step'=>0], 'diplomacy'=>['step'=>0], 'trade'=>['step'=>0]]);
+    $row['tracks']   = sp_j($row['tracks'], []);
+    foreach (['military', 'diplomacy', 'trade'] as $t) {
+      if (!isset($row['tracks'][$t])) $row['tracks'][$t] = ['step' => 0];
+    }
+    if (!isset($row['tracks']['bounty']))  $row['tracks']['bounty'] = [];
+    if (!isset($row['tracks']['rep']))     $row['tracks']['rep'] = [];
+    if (!isset($row['tracks']['visited'])) $row['tracks']['visited'] = [];
     $row['intel']    = sp_j($row['intel'], []);
     $row['upgrades'] = sp_j($row['upgrades'], []);
     $players[(int)$row['seat']] = $row;
@@ -217,7 +182,7 @@ function sp_bump($mysqli, $gameId) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Auth — sp_ mirror of mp_authenticate (player_token + optional Bearer match)
+// Auth
 // ─────────────────────────────────────────────────────────────────────────
 
 function sp_authenticate($mysqli, $tokenOverride = null) {
@@ -251,108 +216,137 @@ function sp_authenticate($mysqli, $tokenOverride = null) {
   $touch->bind_param('i', $row['player_id']);
   $touch->execute();
   $touch->close();
-  return $row; // raw row; caller loads full decoded state via sp_load_*
+  return $row;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Geometry, cargo, intel helpers
+// Ship, cargo, region helpers
 // ─────────────────────────────────────────────────────────────────────────
 
+/** Derived ship stats from installed modules. */
+function sp_ship_stats($player) {
+  $u = sp_upgrade_cards();
+  $s = ['military' => 0, 'political' => 0, 'negotiating' => 0,
+        'cargo_bonus' => 0, 'speed_bonus' => 0];
+  foreach ($player['upgrades'] as $key) {
+    $mod = $u[$key] ?? null;
+    if (!$mod) continue;
+    if ($mod['type'] === 'weapon')     $s['military']    += $mod['bonus'];
+    if ($mod['type'] === 'diplomatic') $s['political']   += $mod['bonus'];
+    if ($mod['type'] === 'trade')      $s['negotiating'] += $mod['bonus'];
+    if ($mod['type'] === 'system') {
+      if ($mod['name'] === 'Cargo Pods')   $s['cargo_bonus'] += 4;
+      if ($mod['name'] === 'Afterburners') $s['speed_bonus'] += 1;
+    }
+  }
+  return $s;
+}
+
 function sp_cargo_used($p) {
-  return array_sum($p['cargo']) + (int)$p['drones_reserve'];
+  return array_sum($p['cargo']);
 }
 function sp_cargo_free($p) {
   return max(0, (int)$p['cargo_capacity'] - sp_cargo_used($p));
 }
-/** Add units of a resource, truncating at capacity. Returns units added. */
 function sp_cargo_add(&$p, $letter, $units) {
   $add = min($units, sp_cargo_free($p));
   if ($add > 0) $p['cargo'][$letter] += $add;
   return $add;
 }
 
-/** All drones of a seat from board state, with their array indices. */
-function sp_seat_drones($board, $seat) {
-  $out = [];
-  foreach ($board['drones'] as $i => $d) {
-    if ((int)$d['seat'] === (int)$seat) $out[$i] = $d;
-  }
-  return $out;
+/** The system id of the player's ship (their current region). */
+function sp_ship_region($board, $seat) {
+  $pid = $board['ships'][(string)$seat] ?? null;
+  if ($pid === null) return null;
+  return sp_map()['planets'][$pid]['system'] ?? null;
 }
 
-/** Planets adjacent to a seat's drones: the planets they sit on + neighbors. */
-function sp_adjacent_planets($board, $seat) {
-  $set = [];
-  foreach (sp_seat_drones($board, $seat) as $d) {
-    $set[$d['at']] = true;
-    foreach (sp_lanes_of_planet($d['at']) as $other) $set[$other] = true;
-  }
-  return array_keys($set);
+function sp_bounty_at(&$player, $sysId) {
+  return (int)($player['tracks']['bounty'][$sysId] ?? 0);
+}
+function sp_rep_at(&$player, $sysId) {
+  return (int)($player['tracks']['rep'][$sysId] ?? 0);
 }
 
-/** Sum of a seat's drone values AT a specific planet (diplomacy modifier). */
-function sp_drone_values_at($board, $seat, $pid) {
-  $sum = 0;
-  foreach ($board['drones'] as $d) {
-    if ((int)$d['seat'] === (int)$seat && $d['at'] === $pid) {
-      $sum += (int)($d['value'] ?? 1);
-    }
-  }
-  return $sum;
-}
-
-/** Grant intel: every planet adjacent to the seat's drones (+1 more hop with scanners). */
-function sp_auto_intel(&$player, $board) {
-  $near = sp_adjacent_planets($board, (int)$player['seat']);
+/** Reveal intel around a planet (that planet + lane neighbors). */
+function sp_reveal_around(&$player, $pid) {
   $known = array_flip($player['intel']);
-  foreach ($near as $pid) $known[$pid] = true;
-  if (in_array('deep_scanners', $player['upgrades'], true)) {
-    foreach ($near as $pid) {
-      foreach (sp_lanes_of_planet($pid) as $other) $known[$other] = true;
-    }
-  }
+  $known[$pid] = true;
+  foreach (sp_lanes_of_planet($pid) as $other) $known[$other] = true;
   $player['intel'] = array_keys($known);
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Missions & tracks
-// ─────────────────────────────────────────────────────────────────────────
-
-const SP_STAT_INDEX = ['military' => 0, 'diplomacy' => 1, 'trade' => 2];
-
-/**
- * Resolve an opposed mission. Commits must already be validated as in-hand.
- * Returns ['success'=>bool,'total'=>int,'opposition'=>int].
- * Side effects handled by caller (discarding, rewards, track advance).
- */
-function sp_mission_total($missionType, $baseCardKey, $commitKeys) {
-  $cards = sp_cards();
-  $idx = SP_STAT_INDEX[$missionType];
-  $total = $cards[$baseCardKey]['stats'][$idx];
-  foreach ($commitKeys as $k) $total += $cards[$k]['stats'][$idx];
-  return $total;
+/** Record a region visit (Explorers Guild scoring). */
+function sp_visit(&$player, $sysId) {
+  if ($sysId !== null && !in_array($sysId, $player['tracks']['visited'], true)) {
+    $player['tracks']['visited'][] = $sysId;
+  }
 }
 
-/** Advance a track by 1 win at a planet of the given ring, honoring tier gates. */
-function sp_track_advance(&$player, $missionType, $planetRing) {
-  $step = (int)$player['tracks'][$missionType]['step'];
-  if ($step >= SP_TRACK_MAX) return false;
+// ─────────────────────────────────────────────────────────────────────────
+// Tracks & the upgrade dock
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Install a module by key onto a player (stat effects are derived; only
+ *  cargo pods touch a stored column). */
+function sp_install_module(&$player, $key) {
+  $mod = sp_upgrade_cards()[$key] ?? null;
+  if (!$mod) throw new Exception('Unknown module');
+  $player['upgrades'][] = $key;
+  if ($mod['type'] === 'system' && $mod['name'] === 'Cargo Pods') {
+    $player['cargo_capacity'] = (int)$player['cargo_capacity'] + 4;
+  }
+  return $mod['name'];
+}
+
+function sp_upgrade_dock_refill(&$game) {
+  $b = &$game['board_state'];
+  while (count($b['upgrade_display']) < SP_UPGRADE_DISPLAY && count($b['upgrade_stack']) > 0) {
+    $b['upgrade_display'][] = array_shift($b['upgrade_stack']);
+  }
+}
+
+/**
+ * Advance a track by 1 (ring-gated). Even steps grant a free module of the
+ * matching type from the upgrade stack. Step 12 triggers the endgame.
+ * Returns a suffix string for the event message ('' if no advance).
+ */
+function sp_track_advance(&$game, &$players, $seat, $trackKey, $planetRing) {
+  $p = &$players[$seat];
+  $step = (int)$p['tracks'][$trackKey]['step'];
+  if ($step >= SP_TRACK_MAX) return '';
   $nextStep = $step + 1;
-  $nextTier = intdiv($nextStep - 1, SP_TIER_STEPS) + 1;   // 1..3
+  $nextTier = intdiv($nextStep - 1, SP_TIER_STEPS) + 1;
   $minRing = SP_GATE_RING[$nextTier] ?? 0;
-  if ($planetRing < $minRing) return false;               // gate holds
-  $player['tracks'][$missionType]['step'] = $nextStep;
-  return true;
+  if ($planetRing < $minRing) return '';
+  $p['tracks'][$trackKey]['step'] = $nextStep;
+  $label = ['military' => 'Pirate', 'diplomacy' => 'Diplomat', 'trade' => 'Merchant'][$trackKey];
+  $suffix = " ($label +1)";
+
+  // Even steps: free module of the matching type, drawn from the stack.
+  if ($nextStep % 2 === 0) {
+    $wantType = SP_TRACK_MODULE_TYPE[$trackKey];
+    $stack = &$game['board_state']['upgrade_stack'];
+    foreach ($stack as $i => $key) {
+      if ((sp_upgrade_cards()[$key]['type'] ?? '') === $wantType) {
+        array_splice($stack, $i, 1);
+        $name = sp_install_module($p, $key);
+        $suffix .= " — free module: $name";
+        break;
+      }
+    }
+  }
+  if ($nextStep >= SP_TRACK_MAX) {
+    sp_trigger_endgame($game, $players, $seat, 'track_mastery');
+    $suffix .= ' — TRACK MASTERED';
+  }
+  return $suffix;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Payments
+// Payments (market recruiting)
 // ─────────────────────────────────────────────────────────────────────────
 
-/**
- * Validate that $payment ({letter: count}) exactly covers $cost (array of
- * letters, '?' = any) and that the player owns it. Throws on mismatch.
- */
 function sp_validate_payment($player, $cost, $payment) {
   $need = [];
   $wild = 0;
@@ -383,24 +377,12 @@ function sp_apply_payment(&$player, $payment) {
   foreach ($payment as $letter => $n) $player['cargo'][$letter] -= (int)$n;
 }
 
-/** Deduct a fixed resource cost {letter: n}; throws if unaffordable. */
-function sp_deduct(&$player, $cost, $what) {
-  foreach ($cost as $letter => $n) {
-    if (($player['cargo'][$letter] ?? 0) < $n) {
-      throw new Exception("Not enough " . SP_RESOURCE_NAMES[$letter] . " for $what");
-    }
-  }
-  foreach ($cost as $letter => $n) $player['cargo'][$letter] -= $n;
-}
-
 // ─────────────────────────────────────────────────────────────────────────
 // Game setup
 // ─────────────────────────────────────────────────────────────────────────
 
 function sp_setup_game(&$game, &$players) {
-  $map = sp_map();
-
-  // Build the market stack: shuffle within each stage, concatenate I→V.
+  // Crew market: shuffle within each stage, concatenate I→V.
   $stack = [];
   foreach (sp_market_stages() as $stage => $keys) {
     shuffle($keys);
@@ -409,144 +391,99 @@ function sp_setup_game(&$game, &$players) {
   $game['market_display'] = array_splice($stack, 0, SP_MARKET_DISPLAY);
   $game['market_stack'] = $stack;
 
-  // Board: markers unflipped; 2 value-1 drones at each player's home planet.
-  $board = ['drones' => [], 'control' => [], 'markers' => [], 'meta' => []];
-  foreach ($map['systems'] as $sysId => $sys) {
-    $board['markers'][$sysId] = ['flipped' => false];
-  }
+  // Upgrade dock: full shuffled module deck, 4 on display.
+  $upgradeStack = array_keys(sp_upgrade_cards());
+  shuffle($upgradeStack);
+  $board = ['ships' => [], 'upgrade_display' => [], 'upgrade_stack' => $upgradeStack, 'meta' => []];
+
   foreach ($players as $seat => &$p) {
     $home = "H{$seat}a";
-    $board['drones'][] = ['seat' => $seat, 'at' => $home, 'value' => 1];
-    $board['drones'][] = ['seat' => $seat, 'at' => $home, 'value' => 1];
+    $board['ships'][(string)$seat] = $home;
     $p['hand'] = sp_starter_keys();
     $p['discard'] = [];
     $p['credits'] = SP_STARTING_CREDITS;
     $p['cargo'] = SP_STARTING_CARGO;
     $p['cargo_capacity'] = SP_CARGO_CAPACITY;
-    $p['drones_reserve'] = SP_TOTAL_DRONES - 2;
-    $p['tracks'] = ['military'=>['step'=>0], 'diplomacy'=>['step'=>0], 'trade'=>['step'=>0]];
+    $p['drones_reserve'] = 0;
+    $p['tracks'] = [
+      'military' => ['step' => 0], 'diplomacy' => ['step' => 0], 'trade' => ['step' => 0],
+      'bounty' => [], 'rep' => [], 'visited' => ["H{$seat}"],
+    ];
     $p['intel'] = [];
     $p['upgrades'] = [];
-    sp_auto_intel($p, $board);
+    sp_reveal_around($p, $home);
   }
   unset($p);
 
   $game['board_state'] = $board;
+  sp_upgrade_dock_refill($game);
   $game['status'] = 'active';
   $game['current_seat'] = 0;
   $game['turn_number'] = 1;
-  // Concordia: the LAST player starts with the Praefectus Magnus.
-  $game['boon_seat'] = count($players) - 1;
+  $game['boon_seat'] = count($players) - 1;   // retained only as the tie-break anchor
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Action executors — each mutates $game/$players and returns an event message
+// Action executors
 // ─────────────────────────────────────────────────────────────────────────
-
-/** Common: take commits + played card out of hand, into discard (played on top). */
-function sp_spend_cards(&$player, $cardKey, $commitKeys) {
-  $hand = $player['hand'];
-  foreach (array_merge($commitKeys, [$cardKey]) as $k) {
-    $pos = array_search($k, $hand, true);
-    if ($pos === false) throw new Exception('Card not in hand: ' . $k);
-    array_splice($hand, $pos, 1);
-  }
-  $player['hand'] = $hand;
-  foreach ($commitKeys as $k) $player['discard'][] = $k;
-  $player['discard'][] = $cardKey;   // played card ends on top
-}
-
-function sp_validate_commits($player, $cardKey, $commitKeys) {
-  if (!is_array($commitKeys)) throw new Exception('commits must be an array');
-  $seen = [];
-  foreach ($commitKeys as $k) {
-    if (!is_string($k) || $k === $cardKey || isset($seen[$k])) {
-      throw new Exception('Invalid commit list');
-    }
-    $seen[$k] = true;
-    if (!in_array($k, $player['hand'], true)) throw new Exception('Commit not in hand: ' . $k);
-  }
-}
 
 function sp_exec_move(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   $map = sp_map();
   $board = &$game['board_state'];
   $p = &$players[$seat];
   $cards = sp_cards();
-  $steps = $params['steps'] ?? [];
-  if (!is_array($steps)) throw new Exception('steps must be an array');
+  $path = $params['path'] ?? [];
+  if (!is_array($path) || count($path) === 0) throw new Exception('No flight path given');
 
-  $mine = sp_seat_drones($board, $seat);
-  $myIndices = array_keys($mine);
-  $allowed = count($mine) + (int)($cards[$asCard]['step_bonus'] ?? 0);
-  if (in_array('nav_thrusters', $p['upgrades'], true)) $allowed += 2;
-  if (count($steps) > $allowed) throw new Exception("Too many movement steps (max $allowed)");
+  $ship = sp_ship_stats($p);
+  $allowed = (int)($cards[$asCard]['steps'] ?? 3) + $ship['speed_bonus'];
+  if (count($path) > $allowed) throw new Exception("Flight path too long (max $allowed hops)");
 
-  // v2 movement: drones sit ON planets and hop planet-to-planet along
-  // lanes. No occupancy limits — drones stack (stacking is diplomacy power).
-  foreach ($steps as $s) {
-    $di = (int)($s['drone'] ?? -1);
-    $to = (string)($s['to'] ?? '');
-    if (!in_array($di, $myIndices, true)) throw new Exception('Not your drone');
+  $at = $board['ships'][(string)$seat];
+  foreach ($path as $to) {
+    $to = (string)$to;
     if (!isset($map['planets'][$to])) throw new Exception('Unknown planet: ' . $to);
-    $from = $board['drones'][$di]['at'];
-    $laneKey = sp_lane_key($from, $to);
-    if (!isset($map['lanes'][$laneKey])) {
-      throw new Exception('No star-lane connects those planets');
+    if (!isset($map['lanes'][sp_lane_key($at, $to)])) {
+      throw new Exception('No star-lane connects ' . $at . ' and ' . $to);
     }
-    $board['drones'][$di]['at'] = $to;
+    $at = $to;
+    sp_reveal_around($p, $at);
+    sp_visit($p, $map['planets'][$at]['system']);
   }
-
-  sp_auto_intel($p, $board);
-  return $p['player_name'] . ' maneuvered drones';
+  $board['ships'][(string)$seat] = $at;
+  return $p['player_name'] . ' flew to ' . $map['planets'][$at]['name'];
 }
 
-/**
- * CONQUER (v2): play a strike card at ANY planet. Total = the card's
- * Military stat + commit_power × committed cards (commits are generic
- * fuel). Win: the planet becomes militarily controlled — it produces a
- * flat 1 good. Fast, straightforward, weakest production.
- */
+/** RAID — harder and richer with every success in the region. */
 function sp_exec_strike(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   $map = sp_map();
   $board = &$game['board_state'];
   $p = &$players[$seat];
   $cards = sp_cards();
   $planetId = (string)($params['planet'] ?? '');
-  $commits = $params['commits'] ?? [];
   $planet = $map['planets'][$planetId] ?? null;
   if (!$planet) throw new Exception('Unknown planet');
-  if (sp_control_of($board, $planetId, $seat) !== null) {
-    throw new Exception('You already control that planet');
-  }
-  sp_validate_commits($p, $cardKey, $commits);
+  $region = sp_ship_region($board, $seat);
+  if ($planet['system'] !== $region) throw new Exception('Your ship must be in that region to raid');
 
-  $power = (int)($cards[$asCard]['commit_power'] ?? 1);
-  $total = (int)$cards[$asCard]['stats'][0] + $power * count($commits);
-  $need = (int)$planet['military'];
-  if (!in_array($planetId, $p['intel'], true)) $p['intel'][] = $planetId;
-  foreach ($commits as $k) {
-    $pos = array_search($k, $p['hand'], true);
-    array_splice($p['hand'], $pos, 1);
-    $p['discard'][] = $k;
-  }
+  $bounty = sp_bounty_at($p, $region);
+  $ship = sp_ship_stats($p);
+  $total = $ship['military'] + (int)$cards[$asCard]['stats'][0];
+  $need = (int)$planet['military'] + $bounty;
+  sp_reveal_around($p, $planetId);
+
   if ($total >= $need) {
-    $board['control'][$planetId][(string)$seat] = 'military';
-    $advanced = sp_track_advance($p, 'military', $planet['ring']);
-    sp_check_control_trigger($game, $players, $seat);
-    return $p['player_name'] . ' conquered ' . $planet['name']
-         . " ($total vs $need)" . ($advanced ? ' (Military +1)' : '');
+    $yield = (int)$planet['production'] + $bounty;
+    $got = sp_cargo_add($p, $planet['faction'], $yield);
+    $p['tracks']['bounty'][$region] = $bounty + 1;
+    $suffix = sp_track_advance($game, $players, $seat, 'military', $planet['ring']);
+    return $p['player_name'] . ' raided ' . $planet['name'] . " ($total vs $need) — looted $got "
+         . SP_RESOURCE_NAMES[$planet['faction']] . ", bounty now " . ($bounty + 1) . $suffix;
   }
-  return $p['player_name'] . '\'s assault on ' . $planet['name'] . " was repelled ($total vs $need)";
+  return $p['player_name'] . '\'s raid on ' . $planet['name'] . " was repelled ($total vs $need)";
 }
 
-/**
- * ALLY (v2): play a diplomacy card at ANY planet. Total = the card's
- * Diplomacy stat + the summed VALUE of your drones at the planet (no card
- * commits). Win: the planet becomes allied — it produces its full
- * production value. Slower to set up, strongest production. Also upgrades
- * your own military control to allied.
- */
+/** DIPLOMATIC CONTRACT — easier and poorer with every success in the region. */
 function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   $map = sp_map();
   $board = &$game['board_state'];
@@ -555,174 +492,91 @@ function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard)
   $planetId = (string)($params['planet'] ?? '');
   $planet = $map['planets'][$planetId] ?? null;
   if (!$planet) throw new Exception('Unknown planet');
-  if (sp_control_of($board, $planetId, $seat) === 'allied') {
-    throw new Exception('That planet is already your ally');
-  }
+  $region = sp_ship_region($board, $seat);
+  if ($planet['system'] !== $region) throw new Exception('Your ship must be in that region to negotiate');
 
-  $droneBonus = sp_drone_values_at($board, $seat, $planetId);
-  $total = (int)$cards[$asCard]['stats'][1] + $droneBonus;
-  $need = (int)$planet['political'];
-  if (!in_array($planetId, $p['intel'], true)) $p['intel'][] = $planetId;
+  $rep = sp_rep_at($p, $region);
+  $ship = sp_ship_stats($p);
+  $total = $ship['political'] + (int)$cards[$asCard]['stats'][1];
+  $need = max(1, (int)$planet['political'] - $rep);
+  sp_reveal_around($p, $planetId);
 
   if ($total >= $need) {
-    $was = sp_control_of($board, $planetId, $seat);
-    $board['control'][$planetId][(string)$seat] = 'allied';
-    $advanced = sp_track_advance($p, 'diplomacy', $planet['ring']);
-    sp_check_control_trigger($game, $players, $seat);
-    return $p['player_name'] . ($was === 'military' ? ' won over occupied ' : ' allied with ')
-         . $planet['name'] . " ($total vs $need, drones +$droneBonus)"
-         . ($advanced ? ' (Diplomacy +1)' : '');
+    $payout = max(1, 2 * (int)$planet['production'] - $rep);
+    $p['credits'] += $payout;
+    $p['tracks']['rep'][$region] = $rep + 1;
+    $suffix = sp_track_advance($game, $players, $seat, 'diplomacy', $planet['ring']);
+    return $p['player_name'] . ' resolved a crisis on ' . $planet['name']
+         . " ($total vs $need) — paid $payout credits, rep now " . ($rep + 1) . $suffix;
   }
-  return $p['player_name'] . '\'s envoys were turned away at ' . $planet['name']
-       . " ($total vs $need, drones +$droneBonus)";
+  return $p['player_name'] . '\'s envoys were turned away at ' . $planet['name'] . " ($total vs $need)";
 }
 
+/** TRADE — demand-matched, no opposed roll. */
 function sp_exec_trade(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   $map = sp_map();
   $board = &$game['board_state'];
   $p = &$players[$seat];
   $cards = sp_cards();
   $planetId = (string)($params['planet'] ?? '');
-  $commits = $params['commits'] ?? [];
   $planet = $map['planets'][$planetId] ?? null;
   if (!$planet) throw new Exception('Unknown planet');
-  if (!in_array($planetId, sp_adjacent_planets($board, $seat), true)) {
-    throw new Exception('No drone adjacent to that planet');
-  }
-  sp_validate_commits($p, $cardKey, $commits);
+  $region = sp_ship_region($board, $seat);
+  if ($planet['system'] !== $region) throw new Exception('Your ship must be in that region to trade');
 
-  // Interim v2: trade still opposed, vs the planet's political stat,
-  // commits add their own Trade stat. Full trade redesign is deferred.
-  $total = sp_mission_total('trade', $asCard, $commits);
-  $opp = (int)$planet['political'];
-  if (!in_array($planetId, $p['intel'], true)) $p['intel'][] = $planetId;
-  foreach ($commits as $k) {
-    $pos = array_search($k, $p['hand'], true);
-    array_splice($p['hand'], $pos, 1);
-    $p['discard'][] = $k;
-  }
-  if ($total < $opp) {
-    return $p['player_name'] . ' sought trade at ' . $planet['name'] . " and was refused ($total vs $opp)";
-  }
-
-  $rider = (int)$cards[$asCard]['rider_credits'];
-  if (in_array('trade_rig', $p['upgrades'], true)) $rider += 2;
-  $p['credits'] += $rider;
-
-  // Buy/sell at list prices — at most two distinct resource types total.
+  $ship = sp_ship_stats($p);
+  $capacity = SP_TRADE_BASE_CAP + (int)$cards[$asCard]['stats'][2] + $ship['negotiating'];
   $sell = is_array($params['sell'] ?? null) ? $params['sell'] : [];
   $buy  = is_array($params['buy'] ?? null) ? $params['buy'] : [];
-  $types = [];
+
+  $units = 0;
   foreach ([$sell, $buy] as $side) {
     foreach ($side as $letter => $n) {
-      if ((int)$n > 0) $types[$letter] = true;
       if (!in_array($letter, SP_RESOURCES, true)) throw new Exception('Bad resource');
+      if ((int)$n < 0) throw new Exception('Bad amount');
+      $units += (int)$n;
     }
   }
-  if (count($types) > 2) throw new Exception('Trade at most two resource types');
+  if ($units === 0) throw new Exception('Trade at least one unit');
+  if ($units > $capacity) throw new Exception("Over trade capacity (max $capacity units)");
+
+  $earned = 0; $spent = 0;
+  // Sell: only what this planet WANTS, at list + markup.
   foreach ($sell as $letter => $n) {
     $n = (int)$n;
     if ($n <= 0) continue;
+    if (!in_array($letter, $planet['wants'], true)) {
+      throw new Exception($planet['name'] . ' does not want ' . SP_RESOURCE_NAMES[$letter]
+        . ' (wants: ' . implode(', ', array_map(fn($w) => SP_RESOURCE_NAMES[$w], $planet['wants'])) . ')');
+    }
     if (($p['cargo'][$letter] ?? 0) < $n) throw new Exception('Not enough ' . SP_RESOURCE_NAMES[$letter] . ' to sell');
     $p['cargo'][$letter] -= $n;
-    $p['credits'] += $n * SP_PRICES[$letter];
+    $earned += $n * (SP_PRICES[$letter] + SP_SELL_MARKUP);
   }
+  // Buy: only the planet's own goods, at list, at most its production per visit.
   foreach ($buy as $letter => $n) {
     $n = (int)$n;
     if ($n <= 0) continue;
+    if ($letter !== $planet['faction']) {
+      throw new Exception($planet['name'] . ' only sells ' . SP_RESOURCE_NAMES[$planet['faction']]);
+    }
+    if ($n > (int)$planet['production']) {
+      throw new Exception($planet['name'] . ' sells at most ' . $planet['production'] . ' units per visit');
+    }
     $price = $n * SP_PRICES[$letter];
-    if ($p['credits'] < $price) throw new Exception('Not enough credits');
+    if ($p['credits'] + $earned < $price + $spent) throw new Exception('Not enough credits');
     if (sp_cargo_free($p) < $n) throw new Exception('Not enough cargo space');
-    $p['credits'] -= $price;
     $p['cargo'][$letter] += $n;
-  }
-  $advanced = sp_track_advance($p, 'trade', $planet['ring']);
-  return $p['player_name'] . ' concluded trade at ' . $planet['name']
-       . " (+$rider credits)" . ($advanced ? ' (Trade +1)' : '');
-}
-
-function sp_exec_produce(&$game, &$players, $seat, $cardKey, $params) {
-  $map = sp_map();
-  $board = &$game['board_state'];
-  $p = &$players[$seat];
-  $mode = (string)($params['mode'] ?? 'production');
-
-  if ($mode === 'levy') {
-    $coins = 0;
-    foreach ($board['markers'] as $sysId => $m) {
-      if (!empty($m['flipped'])) { $coins++; $board['markers'][$sysId]['flipped'] = false; }
-    }
-    $p['credits'] += $coins;
-    return $p['player_name'] . " collected the levy (+$coins credits)";
+    $spent += $price;
   }
 
-  $sysId = (string)($params['system'] ?? '');
-  $sys = $map['systems'][$sysId] ?? null;
-  if (!$sys) throw new Exception('Unknown system');
-  $marker = $board['markers'][$sysId] ?? ['flipped' => false];
-  if (!empty($marker['flipped'])) {
-    throw new Exception('That system has already produced (marker spent) — choose another or collect the levy');
-  }
-
-  // Chooser bonus: 1 unit of the system's marker resource (2 with the boon).
-  $bonusUnits = ($game['boon_seat'] !== null && (int)$game['boon_seat'] === $seat) ? 2 : 1;
-  $gotBonus = sp_cargo_add($p, $sys['marker'], $bonusUnits);
-  $usedBoon = ($bonusUnits === 2);
-  $board['markers'][$sysId]['flipped'] = true;
-
-  // Every controlled planet in the system produces for its controller(s):
-  // allied = the planet's full production value; conquered = a flat 1.
-  foreach ($sys['planets'] as $pid) {
-    $holders = $board['control'][$pid] ?? [];
-    foreach ($holders as $hSeat => $kind) {
-      $amount = ($kind === 'allied') ? (int)$map['planets'][$pid]['production'] : 1;
-      sp_cargo_add($players[(int)$hSeat], $map['planets'][$pid]['faction'], $amount);
-    }
-  }
-
-  // The boon must be used when able, then passes to the right.
-  if ($usedBoon) {
-    $n = count($players);
-    $game['boon_seat'] = ((int)$game['boon_seat'] - 1 + $n) % $n;
-  }
-
-  return $p['player_name'] . ' ran production in ' . $sys['name']
-       . " (+$gotBonus " . SP_RESOURCE_NAMES[$sys['marker']] . ' bonus'
-       . ($usedBoon ? ', boon doubled' : '') . ')';
-}
-
-function sp_exec_deploy(&$game, &$players, $seat, $cardKey, $params) {
-  $map = sp_map();
-  $board = &$game['board_state'];
-  $p = &$players[$seat];
-  $mode = (string)($params['mode'] ?? 'place');
-
-  if ($mode === 'credits') {
-    $gain = 5 + count(sp_seat_drones($board, $seat));
-    $p['credits'] += $gain;
-    return $p['player_name'] . " recalled logistics (+$gain credits)";
-  }
-
-  $placements = $params['placements'] ?? [];
-  if (!is_array($placements) || count($placements) === 0) throw new Exception('No placements');
-  $cards = sp_cards();
-  $droneValue = (int)($cards[$cardKey]['drone_value'] ?? 1);
-  foreach ($placements as $pl) {
-    if ((int)$p['drones_reserve'] <= 0) throw new Exception('No drones in reserve');
-    $pid = (string)($pl['planet'] ?? '');
-    $planet = $map['planets'][$pid] ?? null;
-    if (!$planet) throw new Exception('Unknown planet');
-    $isHome = ($planet['home_seat'] !== null && (int)$planet['home_seat'] === $seat);
-    $controlled = sp_control_of($board, $pid, $seat) !== null;
-    if (!$isHome && !$controlled) {
-      throw new Exception('Drones launch at your home planet or planets you control');
-    }
-    sp_deduct($p, SP_DRONE_COST, 'a drone');
-    $p['drones_reserve'] = (int)$p['drones_reserve'] - 1;
-    $board['drones'][] = ['seat' => $seat, 'at' => $pid, 'value' => $droneValue];
-  }
-  sp_auto_intel($p, $board);
-  return $p['player_name'] . ' launched ' . count($placements) . " value-$droneValue drone(s)";
+  $rider = (int)$cards[$asCard]['rider_credits'] + $ship['negotiating'];
+  $p['credits'] += $earned - $spent + $rider;
+  sp_reveal_around($p, $planetId);
+  $suffix = sp_track_advance($game, $players, $seat, 'trade', $planet['ring']);
+  $net = $earned - $spent + $rider;
+  return $p['player_name'] . ' traded at ' . $planet['name']
+       . " ($units units, " . ($net >= 0 ? '+' : '') . "$net credits)" . $suffix;
 }
 
 function sp_market_refill(&$game) {
@@ -755,74 +609,41 @@ function sp_exec_recruit(&$game, &$players, $seat, $cardKey, $params, $freeMode)
   }
   sp_market_refill($game);
 
-  // Endgame trigger: the market is exhausted.
   if (count($game['market_display']) === 0 && count($game['market_stack']) === 0) {
     sp_trigger_endgame($game, $players, $seat, 'market_exhausted');
   }
-  return $p['player_name'] . ' installed ' . implode(', ', $names);
-}
-
-function sp_exec_envoy(&$game, &$players, $seat, $cardKey, $asCard) {
-  $map = sp_map();
-  $board = $game['board_state'];
-  $p = &$players[$seat];
-  $faction = sp_cards()[$asCard]['faction'];
-  $count = 0;
-  foreach ($board['control'] as $pid => $holders) {
-    if ($map['planets'][$pid]['faction'] !== $faction) continue;
-    if (isset($holders[(string)$seat])) $count++;
-  }
-  $got = sp_cargo_add($p, $faction, $count);
-  return $p['player_name'] . ' activated ' . sp_cards()[$asCard]['name']
-       . " (+$got " . SP_RESOURCE_NAMES[$faction] . ')';
+  return $p['player_name'] . ' hired ' . implode(', ', $names);
 }
 
 function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
-  $map = sp_map();
-  $board = &$game['board_state'];
   $p = &$players[$seat];
+  $cards = sp_cards();
 
-  // Recover: everything previously played returns; the reset card alone
-  // remains face-up on the discard (Concordia Tribune).
   $p['hand'] = array_merge($p['hand'], $p['discard']);
   $p['discard'] = [];
-  $recovered = true;
   $msg = $p['player_name'] . ' regrouped and recovered their cards';
 
-  // Optional drone build (free with Maintenance Bay Mk II).
-  if (!empty($params['build_drone'])) {
-    if ((int)$p['drones_reserve'] <= 0) throw new Exception('No drones in reserve');
-    $pid = (string)($params['drone_planet'] ?? "H{$seat}a");
-    $planet = $map['planets'][$pid] ?? null;
-    if (!$planet) throw new Exception('Unknown planet');
-    $isHome = ($planet['home_seat'] !== null && (int)$planet['home_seat'] === $seat);
-    $controlled = sp_control_of($board, $pid, $seat) !== null;
-    if (!$isHome && !$controlled) throw new Exception('Drones launch at home or controlled planets');
-    if ($asCard !== 'maintenance_bay_2') sp_deduct($p, SP_DRONE_COST, 'a drone');
-    $p['drones_reserve'] = (int)$p['drones_reserve'] - 1;
-    $board['drones'][] = ['seat' => $seat, 'at' => $pid, 'value' => 1];
-    sp_auto_intel($p, $board);
-    $msg .= ' and built a drone';
+  // Reset riders (Bosun / First Mate pocket credits).
+  $rider = (int)($cards[$asCard]['rider_credits'] ?? 0);
+  if ($rider > 0) {
+    $p['credits'] += $rider;
+    $msg .= " (+$rider credits)";
   }
 
-  // Optional upgrade purchases.
-  $catalog = sp_upgrades_catalog();
+  // Module purchases from the upgrade dock (credits).
   $wanted = $params['upgrades'] ?? [];
   if (is_array($wanted)) {
     foreach ($wanted as $key) {
-      if (!isset($catalog[$key])) throw new Exception('Unknown upgrade');
-      if (in_array($key, $p['upgrades'], true)) throw new Exception('Upgrade already installed');
-      $u = $catalog[$key];
-      if ($p['credits'] < $u['credits']) throw new Exception('Not enough credits for ' . $u['name']);
-      $fixed = [];
-      foreach ($u['resources'] as $letter) $fixed[$letter] = ($fixed[$letter] ?? 0) + 1;
-      sp_deduct($p, $fixed, $u['name']);
-      $p['credits'] -= $u['credits'];
-      $p['upgrades'][] = $key;
-      if ($key === 'cargo_pods') $p['cargo_capacity'] += 4;
-      if ($key === 'drone_foundry') $p['drones_reserve'] += 1;
-      $msg .= ' — installed ' . $u['name'];
+      $pos = array_search($key, $game['board_state']['upgrade_display'], true);
+      if ($pos === false) throw new Exception('Module not in the upgrade dock');
+      $mod = sp_upgrade_cards()[$key];
+      if ($p['credits'] < $mod['cost']) throw new Exception('Not enough credits for ' . $mod['name']);
+      $p['credits'] -= $mod['cost'];
+      array_splice($game['board_state']['upgrade_display'], $pos, 1);
+      $name = sp_install_module($p, $key);
+      $msg .= ' — installed ' . $name;
     }
+    sp_upgrade_dock_refill($game);
   }
 
   // Intermediate scoring on each player's FIRST reset.
@@ -838,31 +659,26 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
 }
 
 /**
- * One-time rescue for games created before the reset-card fix: reset-action
- * cards used to be left stranded in the discard (unplayable forever). Move
- * any discarded reset cards back to their owner's hand, once per game.
- * Caller must hold the game-row lock and save afterward.
+ * One-time rescue kept from the v1 era (reset cards stranded in discards).
+ * Harmless for new games; still referenced by sp_getGameState.
  */
 function sp_heal_stranded_resets(&$game, &$players) {
   if (!empty($game['board_state']['meta']['reset_healed'])) return false;
   $cards = sp_cards();
-  $changed = false;
   foreach ($players as $seat => &$p) {
     for ($i = count($p['discard']) - 1; $i >= 0; $i--) {
       $k = $p['discard'][$i];
       if (isset($cards[$k]) && $cards[$k]['action'] === 'reset') {
         array_splice($p['discard'], $i, 1);
         $p['hand'][] = $k;
-        $changed = true;
       }
     }
   }
   unset($p);
   $game['board_state']['meta']['reset_healed'] = true;
-  return true;   // flag set counts as a change worth saving
+  return true;
 }
 
-/** Once every active player has reset once: pay 2/1 credits, once per game. */
 function sp_maybe_pay_intermediate(&$game, &$players) {
   if (!empty($game['board_state']['meta']['intermediate_paid'])) return;
   foreach ($players as $p) {
@@ -894,38 +710,24 @@ function sp_exec_copy(&$game, &$players, $seat, $cardKey, $params) {
     throw new Exception('Resets and copy cards cannot be copied');
   }
   $inner = is_array($params['params'] ?? null) ? $params['params'] : [];
-  // Execute the copied card's action AS that card (its stats, its rider),
-  // but the physical card played/discarded is the copy card itself.
   $msg = sp_dispatch_action($game, $players, $seat, $cardKey, $action, $inner, $copied);
   return $msg . ' (via ' . sp_cards()[$cardKey]['name'] . ')';
 }
 
-/**
- * Dispatch on action type. $asCard = the card whose stats/rider apply
- * (differs from $cardKey only for copy).
- */
 function sp_dispatch_action(&$game, &$players, $seat, $cardKey, $action, $params, $asCard) {
   switch ($action) {
     case 'move':         return sp_exec_move($game, $players, $seat, $cardKey, $params, $asCard);
     case 'strike':       return sp_exec_strike($game, $players, $seat, $cardKey, $params, $asCard);
     case 'diplomacy':    return sp_exec_diplomacy($game, $players, $seat, $cardKey, $params, $asCard);
     case 'trade':        return sp_exec_trade($game, $players, $seat, $cardKey, $params, $asCard);
-    case 'produce':      return sp_exec_produce($game, $players, $seat, $cardKey, $params);
-    case 'deploy':       return sp_exec_deploy($game, $players, $seat, $cardKey, $params);
     case 'recruit':      return sp_exec_recruit($game, $players, $seat, $cardKey, $params, false);
     case 'recruit_free': return sp_exec_recruit($game, $players, $seat, $cardKey, $params, true);
-    case 'envoy':        return sp_exec_envoy($game, $players, $seat, $cardKey, $asCard);
     case 'reset':        return sp_exec_reset($game, $players, $seat, $cardKey, $params, $asCard);
     case 'copy':         return sp_exec_copy($game, $players, $seat, $cardKey, $params);
     default: throw new Exception('Unknown action: ' . $action);
   }
 }
 
-/**
- * THE turn entry point. Validates turn ownership + card, executes, spends
- * the card, advances the turn. Called by sp_playCard.php inside the
- * game-row lock.
- */
 function sp_play_card(&$game, &$players, $seat, $cardKey, $params, $mysqli) {
   if ($game['status'] !== 'active') throw new Exception('Game is not active');
   if ((int)$game['current_seat'] !== $seat) throw new Exception('Not your turn');
@@ -936,20 +738,14 @@ function sp_play_card(&$game, &$players, $seat, $cardKey, $params, $mysqli) {
   $cards = sp_cards();
   $action = $cards[$cardKey]['action'];
 
-  // Reset recovers BEFORE the played card is discarded (handled inside);
-  // everything else discards commits+card inside their executors or here.
   if ($action === 'reset') {
-    // Remove the reset card from hand first so it isn't duplicated by recovery.
     $pos = array_search($cardKey, $p['hand'], true);
     array_splice($p['hand'], $pos, 1);
     $msg = sp_exec_reset($game, $players, $seat, $cardKey, $params, $cardKey);
-    // The reset card returns to hand WITH everything else (Concordia Tribune:
-    // after a Tribune the discard is empty — that's why a Tribune player
-    // "cannot be copied"). Leaving it in the discard would strand it forever.
+    // The reset card returns with everything else (Concordia Tribune).
     $p['hand'][] = $cardKey;
   } else {
     $msg = sp_dispatch_action($game, $players, $seat, $cardKey, $action, $params, $cardKey);
-    // Mission executors already moved commits to discard; now the played card.
     $pos = array_search($cardKey, $p['hand'], true);
     if ($pos !== false) {
       array_splice($p['hand'], $pos, 1);
@@ -973,14 +769,8 @@ function sp_active_seats($players) {
   return $out;
 }
 
-function sp_check_control_trigger(&$game, &$players, $seat) {
-  if (sp_control_count($game['board_state'], $seat) >= SP_TREATY_TRIGGER) {
-    sp_trigger_endgame($game, $players, $seat, 'control_network');
-  }
-}
-
 function sp_trigger_endgame(&$game, &$players, $seat, $reason) {
-  if ($game['endgame_trigger'] !== null) return;   // already triggered
+  if ($game['endgame_trigger'] !== null) return;
   $game['endgame_trigger'] = $reason;
   $game['trigger_seat'] = $seat;
   $players[$seat]['trophy'] = 1;
@@ -988,16 +778,12 @@ function sp_trigger_endgame(&$game, &$players, $seat, $reason) {
 }
 
 function sp_advance_turn(&$game, &$players, $mysqli) {
-  // Endgame countdown: the triggering player's turn is done; every other
-  // player gets exactly one more turn.
   if ($game['endgame_trigger'] !== null) {
     if ((int)$game['final_turns_remaining'] <= 0) {
       sp_end_game($game, $players, $mysqli);
       return;
     }
     $game['final_turns_remaining'] = (int)$game['final_turns_remaining'] - 1;
-    // Note: decremented for the turn ABOUT to be granted below. When it was
-    // just set by the trigger, this grants exactly (players-1) further turns.
   }
 
   $seats = sp_active_seats($players);
@@ -1011,45 +797,33 @@ function sp_advance_turn(&$game, &$players, $mysqli) {
   if ($next <= (int)$game['current_seat']) $game['turn_number'] = (int)$game['turn_number'] + 1;
   $game['current_seat'] = $next;
 
-  // Endgame fully consumed? (single survivor edge: trigger with 0 remaining)
   if ($game['endgame_trigger'] !== null && (int)$game['final_turns_remaining'] <= 0
       && count($seats) <= 1) {
     sp_end_game($game, $players, $mysqli);
   }
 }
 
-/**
- * Compute a player's score. $final=true includes the trophy.
- * Breakdown keys mirror the six affiliations (docs/SPACE_REDESIGN.md §6).
- */
 function sp_compute_score($game, $players, $seat, $final = true) {
-  $map = sp_map();
   $cards = sp_cards();
   $p = $players[$seat];
-  $board = $game['board_state'];
 
-  // All owned cards score — hand + discard (pure Concordia).
   $owned = array_merge($p['hand'], $p['discard']);
   $counts = ['wealth'=>0,'diplomatic_corps'=>0,'alliances'=>0,
              'trade_guild'=>0,'war_college'=>0,'engineering'=>0];
-  foreach ($owned as $k) $counts[$cards[$k]['affiliation']]++;
-
-  // Multiplicands
-  $systemsWithTreaty = [];
-  foreach ($board['control'] as $pid => $holders) {
-    if (isset($holders[(string)$seat])) {
-      $systemsWithTreaty[$map['planets'][$pid]['system']] = true;
-    }
+  foreach ($owned as $k) {
+    if (isset($cards[$k])) $counts[$cards[$k]['affiliation']]++;
   }
+
   $cargoValue = 0;
   foreach ($p['cargo'] as $letter => $n) $cargoValue += $n * SP_PRICES[$letter];
+  $visited = count($p['tracks']['visited'] ?? []);
 
   $b = [];
   $b['wealth']           = intdiv((int)$p['credits'] + $cargoValue, 10);
   $b['diplomatic_corps'] = $counts['diplomatic_corps'] * (int)$p['tracks']['diplomacy']['step'];
   $b['trade_guild']      = $counts['trade_guild'] * (int)$p['tracks']['trade']['step'];
   $b['war_college']      = $counts['war_college'] * (int)$p['tracks']['military']['step'];
-  $b['alliances']        = $counts['alliances'] * count($systemsWithTreaty);
+  $b['alliances']        = $counts['alliances'] * $visited;
   $b['engineering']      = $counts['engineering'] * SP_ENGINEERING_VP_PER_UPGRADE * count($p['upgrades']);
   $b['trophy']           = ($final && (int)$p['trophy']) ? SP_TROPHY_VP : 0;
 
@@ -1058,7 +832,6 @@ function sp_compute_score($game, $players, $seat, $final = true) {
 
 function sp_end_game(&$game, &$players, $mysqli) {
   $game['status'] = 'ended';
-  $best = null; $bestSeat = null;
   foreach ($players as $seat => &$p) {
     $score = sp_compute_score($game, $players, $seat, true);
     $p['final_score'] = $score['total'];
@@ -1066,8 +839,6 @@ function sp_end_game(&$game, &$players, $mysqli) {
     $p['vp_current'] = $score['total'];
   }
   unset($p);
-  // Winner: highest score among non-conceded; ties go to the boon holder,
-  // else the tied seat the boon would reach first moving right.
   $maxScore = null;
   foreach ($players as $seat => $p) {
     if ((int)$p['conceded']) continue;
@@ -1077,15 +848,16 @@ function sp_end_game(&$game, &$players, $mysqli) {
   foreach ($players as $seat => $p) {
     if (!(int)$p['conceded'] && (int)$p['final_score'] === $maxScore) $tied[] = $seat;
   }
+  $bestSeat = null;
   if (count($tied) === 1) {
     $bestSeat = $tied[0];
   } elseif (count($tied) > 1) {
     $n = count($players);
-    $boon = $game['boon_seat'] !== null ? (int)$game['boon_seat'] : 0;
+    $anchor = $game['boon_seat'] !== null ? (int)$game['boon_seat'] : 0;
     $bestSeat = $tied[0];
     $bestDist = PHP_INT_MAX;
     foreach ($tied as $s) {
-      $dist = ($boon - $s + $n) % $n;   // boon passes right (decreasing seat)
+      $dist = ($anchor - $s + $n) % $n;
       if ($dist < $bestDist) { $bestDist = $dist; $bestSeat = $s; }
     }
   }
@@ -1102,8 +874,8 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
   $map = sp_map();
   $cards = sp_cards();
   $you = $players[$yourSeat];
+  $board = $game['board_state'];
 
-  // Card catalog — static, no secrets, lets the client render everything.
   $catalog = [];
   foreach ($cards as $key => $c) {
     $catalog[$key] = [
@@ -1111,22 +883,16 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'stats' => $c['stats'], 'affiliation' => $c['affiliation'],
       'stage' => $c['stage'], 'cost' => $c['cost'],
       'rider_credits' => $c['rider_credits'], 'text' => $c['text'],
-      'faction' => $c['faction'] ?? null,
-      'commit_power' => $c['commit_power'] ?? null,
-      'drone_value' => $c['drone_value'] ?? null,
-      'step_bonus' => $c['step_bonus'] ?? null,
-      'kind' => $c['kind'],
+      'steps' => $c['steps'] ?? null, 'kind' => $c['kind'],
     ];
   }
 
-  // Map WITHOUT the secret military/political stats; production is public.
-  // Your intel carries the revealed stat pairs.
   $planets = [];
   foreach ($map['planets'] as $pid => $pl) {
     $planets[$pid] = [
       'id' => $pid, 'system' => $pl['system'], 'name' => $pl['name'],
       'faction' => $pl['faction'], 'ring' => $pl['ring'],
-      'production' => $pl['production'],
+      'production' => $pl['production'], 'wants' => $pl['wants'],
       'x' => $pl['x'], 'y' => $pl['y'], 'home_seat' => $pl['home_seat'],
     ];
   }
@@ -1142,13 +908,21 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
 
   $pubPlayers = [];
   foreach ($players as $seat => $p) {
+    $ship = sp_ship_stats($p);
     $pubPlayers[] = [
       'seat' => $seat, 'name' => $p['player_name'],
       'user_id' => $p['user_id'] !== null ? (int)$p['user_id'] : null,
       'credits' => (int)$p['credits'], 'cargo' => $p['cargo'],
       'cargo_capacity' => (int)$p['cargo_capacity'],
-      'drones_reserve' => (int)$p['drones_reserve'],
-      'tracks' => $p['tracks'], 'upgrades' => $p['upgrades'],
+      'tracks' => [
+        'military' => $p['tracks']['military'], 'diplomacy' => $p['tracks']['diplomacy'],
+        'trade' => $p['tracks']['trade'],
+      ],
+      'bounty' => $p['tracks']['bounty'], 'rep' => $p['tracks']['rep'],
+      'visited_count' => count($p['tracks']['visited'] ?? []),
+      'upgrades' => $p['upgrades'],
+      'ship' => $ship,
+      'ship_at' => $board['ships'][(string)$seat] ?? null,
       'hand_count' => count($p['hand']),
       'discard_count' => count($p['discard']),
       'discard_top' => count($p['discard']) ? $p['discard'][count($p['discard']) - 1] : null,
@@ -1161,7 +935,6 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
     ];
   }
 
-  // Recent events
   $events = [];
   $stmt = $mysqli->prepare("
     SELECT event_id, seat, event_type, message FROM sp_event_log
@@ -1174,6 +947,9 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
   $stmt->close();
   $events = array_reverse($events);
 
+  $yourShipAt = $board['ships'][(string)$yourSeat] ?? null;
+  $yourRegion = $yourShipAt !== null ? ($map['planets'][$yourShipAt]['system'] ?? null) : null;
+
   return [
     'game' => [
       'game_id' => (int)$game['game_id'], 'status' => $game['status'],
@@ -1181,18 +957,22 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'max_players' => (int)$game['max_players'],
       'current_seat' => (int)$game['current_seat'],
       'turn_number' => (int)$game['turn_number'],
-      'boon_seat' => $game['boon_seat'] !== null ? (int)$game['boon_seat'] : null,
       'endgame_trigger' => $game['endgame_trigger'],
       'trigger_seat' => $game['trigger_seat'] !== null ? (int)$game['trigger_seat'] : null,
       'final_turns_remaining' => $game['final_turns_remaining'] !== null ? (int)$game['final_turns_remaining'] : null,
       'winner_seat' => $game['winner_seat'] !== null ? (int)$game['winner_seat'] : null,
       'state_version' => (int)$game['state_version'],
       'host_player_id' => $game['host_player_id'] !== null ? (int)$game['host_player_id'] : null,
-      'treaty_trigger_count' => SP_TREATY_TRIGGER,
     ],
     'cards' => $catalog,
-    'upgrades_catalog' => sp_upgrades_catalog(),
+    'upgrades_catalog' => sp_upgrade_cards(),
+    'upgrade_dock' => [
+      'display' => $board['upgrade_display'] ?? [],
+      'stack_count' => count($board['upgrade_stack'] ?? []),
+    ],
     'prices' => SP_PRICES,
+    'sell_markup' => SP_SELL_MARKUP,
+    'trade_base_cap' => SP_TRADE_BASE_CAP,
     'resource_names' => SP_RESOURCE_NAMES,
     'faction_names' => SP_FACTION_NAMES,
     'position_costs' => SP_POSITION_COST,
@@ -1200,7 +980,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'key' => $map['key'], 'name' => $map['name'],
       'systems' => $map['systems'], 'planets' => $planets, 'lanes' => $map['lanes'],
     ],
-    'board' => $game['board_state'],
+    'board' => ['ships' => $board['ships'] ?? []],
     'market' => [
       'display' => $game['market_display'],
       'stack_count' => count($game['market_stack']),
@@ -1209,8 +989,15 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'seat' => $yourSeat, 'hand' => $you['hand'], 'discard' => $you['discard'],
       'credits' => (int)$you['credits'], 'cargo' => $you['cargo'],
       'cargo_capacity' => (int)$you['cargo_capacity'],
-      'drones_reserve' => (int)$you['drones_reserve'],
-      'tracks' => $you['tracks'], 'upgrades' => $you['upgrades'],
+      'tracks' => [
+        'military' => $you['tracks']['military'], 'diplomacy' => $you['tracks']['diplomacy'],
+        'trade' => $you['tracks']['trade'],
+      ],
+      'bounty' => $you['tracks']['bounty'], 'rep' => $you['tracks']['rep'],
+      'visited' => $you['tracks']['visited'],
+      'upgrades' => $you['upgrades'],
+      'ship' => sp_ship_stats($you),
+      'ship_at' => $yourShipAt, 'region' => $yourRegion,
       'intel' => $intel,
       'first_reset_done' => (int)$you['first_reset_done'],
       'intermediate_score' => $you['intermediate_score'] !== null ? (int)$you['intermediate_score'] : null,

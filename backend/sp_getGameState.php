@@ -14,15 +14,22 @@ if (!$game) mp_error('Game not found', 404);
 $players = sp_load_players($mysqli, $gameId);
 $seat = (int)$me['seat'];
 
-// One-time heal for pre-fix games whose reset cards were stranded in the
-// discard (see sp_heal_stranded_resets). Runs on the poll path so even a
-// player with an empty hand — who can't take any action — gets unstuck.
-if ($game['status'] === 'active' && empty($game['board_state']['meta']['reset_healed'])) {
+// Poll-path maintenance:
+//  1. Pre-v3 games (drone/control boards) can't run under the ship ruleset —
+//     sunset them gracefully so the client shows a clean ending.
+//  2. One-time v1 heal for reset cards stranded in discards.
+if ($game['status'] === 'active'
+    && (!empty($game['legacy_ruleset']) || empty($game['board_state']['meta']['reset_healed']))) {
   $mysqli->begin_transaction();
   try {
     $game = sp_load_game($mysqli, $gameId, true);
     $players = sp_load_players($mysqli, $gameId);
-    if (sp_heal_stranded_resets($game, $players)) {
+    if (!empty($game['legacy_ruleset'])) {
+      $game['status'] = 'ended';
+      sp_save_game($mysqli, $game);
+      sp_log($mysqli, $gameId, null, 'game_ended',
+        'Ruleset updated (ships & occupations) — this old game was closed. Launch a new one!');
+    } elseif (sp_heal_stranded_resets($game, $players)) {
       sp_save_game($mysqli, $game);
       foreach ($players as $p) sp_save_player($mysqli, $p);
     }
@@ -32,6 +39,18 @@ if ($game['status'] === 'active' && empty($game['board_state']['meta']['reset_he
     $mysqli->rollback();
     // Non-fatal: serve state as loaded.
   }
+}
+
+// A sunset legacy game has no v3 board — return a minimal ended shell the
+// client can render without the map machinery.
+if (!empty($game['legacy_ruleset'])) {
+  mp_json([
+    'game' => [
+      'game_id' => $gameId, 'status' => 'ended', 'legacy' => true,
+      'state_version' => (int)$game['state_version'],
+    ],
+    'message' => 'This game predates the ships-and-occupations ruleset and has been closed. Start a new game from the lobby.',
+  ]);
 }
 
 if ($game['status'] === 'lobby') {

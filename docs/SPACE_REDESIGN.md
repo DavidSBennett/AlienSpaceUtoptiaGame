@@ -441,3 +441,42 @@ comparisons; there are no acquisition costs beyond tempo.
 - Tracks, tier gates, scoring, market, produce/levy/boon, reset, copy,
   endgame triggers all unchanged; the 10-treaty trigger now counts
   controlled planets.
+
+---
+
+## 13. Ruleset v3 — "one ship, many occupations" (2026-08-06, supersedes §12)
+
+Back-to-the-drawing-board pass. Decisions: control layer REMOVED (jobs
+economy only); mission strength = ship stat + card stat.
+
+- **Occupations:** hand cards are crew (Corsair, Ambassador, Trader,
+  Navigator, Quartermaster, Recruiter, Spy…). One action each; no card
+  committing anywhere.
+- **One ship** per player (drones deleted). It sits at a planet; its
+  system is the player's REGION; raids/contracts/trades only happen in
+  the current region. Flying reveals nearby planet stats and charts
+  regions (Explorers Guild scoring: VP per region visited).
+- **The ship is the player board.** Stats — military / political /
+  negotiating (+ cargo, speed) — come from installed modules. An
+  UPGRADE DECK (weapons, diplomatic modules, trade modules, systems)
+  feeds a 4-slot upgrade dock: buy with credits during a Regroup, or get
+  a free matching module at every EVEN track step.
+- **Tracks → Pirate / Diplomat / Merchant** (internal keys unchanged).
+  Ring gates at 5/9 stay; step 12 triggers the endgame (trophy +7); the
+  crew market emptying still triggers it too.
+- **Raid:** ship military + card Military vs planet military + your
+  regional BOUNTY. Success: loot = production + bounty (goods), bounty
+  +1 — each raid is harder and richer.
+- **Diplomatic contract:** ship political + card Diplomacy vs planet
+  political − your regional REPUTATION. Success: payout = 2 × production
+  − rep (credits), rep +1 — each contract easier and poorer.
+- **Trade (no opposed roll):** planets WANT the next two resources in
+  the value cycle after their own (public). Sell wants at list + 2; buy
+  the planet's own goods at list (≤ production per visit). Capacity =
+  2 + card Trade + negotiating; flat bonus credits = negotiating. Any
+  trade moving ≥1 unit: Merchant +1 (ring-gated by that planet).
+  Player-to-player trading (same region) is speced but NOT yet
+  implemented — needs an offer/accept flow.
+- **Removed:** drones, deploy, produce/levy/markers/boon production,
+  envoys, planet control, treaty costs, commits, the old fixed upgrade
+  catalog. Pre-v3 games are sunset gracefully on next poll.

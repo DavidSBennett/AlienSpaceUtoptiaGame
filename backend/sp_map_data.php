@@ -132,6 +132,14 @@ function sp_map() {
     $addLane("I{$k}b", 'CORE' . ($k % 3));  // inner → core
   }
 
+  // Demand (v3 trading): every planet WANTS the next two resources in the
+  // value cycle after its own faction's (O→B→C→N→A→O). Public information.
+  $cycle = ['O', 'B', 'C', 'N', 'A'];
+  foreach ($planets as $pid => $pl) {
+    $i = array_search($pl['faction'], $cycle, true);
+    $planets[$pid]['wants'] = [$cycle[($i + 1) % 5], $cycle[($i + 2) % 5]];
+  }
+
   $map = [
     'key'     => 'sector_v1',
     'name'    => 'Sector Umbra',
