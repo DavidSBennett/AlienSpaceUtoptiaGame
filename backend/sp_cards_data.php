@@ -52,7 +52,7 @@ function sp_cards() {
     'name' => 'Engineer', 'action' => 'engineer',
     'stats' => [0, 1, 1], 'affiliation' => 'engineering',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
-    'text' => 'Install any number of ship modules from the upgrade dock, paying their credit costs. (Even track steps also grant free modules.)',
+    'text' => 'Install any number of ship modules from the upgrade dock, paying their credit costs. Each installed module occupies one cargo slot. (Even track steps also grant free modules.)',
   ];
   $c['corsair'] = [
     'name' => 'Corsair', 'action' => 'strike',

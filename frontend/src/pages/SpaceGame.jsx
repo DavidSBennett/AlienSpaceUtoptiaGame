@@ -207,8 +207,9 @@ function ModuleTooltip({ mod }) {
       <div className={T_MUted}>{MODULE_TYPE_LABELS[mod.type]}</div>
       <div>{mod.text}</div>
       <div className={T_MUted}>
-        Cost {mod.cost}c — installed by playing an Engineer · also granted free
-        at even track steps · worth 2 VP per Engineer card at game end.
+        Cost {mod.cost}c — installed by playing an Engineer · occupies 1 cargo
+        slot · also granted free at even track steps (forfeited if the hold is
+        full) · worth 2 VP per Engineer card at game end.
       </div>
     </div>
   );
@@ -218,6 +219,7 @@ function ModuleTooltip({ mod }) {
 
 function CargoHold({ you, resourceNames, tipHandlers }) {
   const slots = [];
+  for (let i = 0; i < (you.upgrades || []).length; i++) slots.push({ kind: 'mod' });
   for (const l of RESOURCE_LETTERS) {
     for (let i = 0; i < (you.cargo[l] || 0); i++) slots.push({ kind: 'res', letter: l });
   }
@@ -229,12 +231,16 @@ function CargoHold({ you, resourceNames, tipHandlers }) {
       {...tipHandlers(
         <div className="space-y-1">
           <b className={T_HEAD + ' text-[12px]'}>Cargo hold — {used}/{you.cargo_capacity} spaces</b>
+          {(you.upgrades || []).length > 0 && (
+            <div>\ud83d\udd29 Installed modules × {(you.upgrades || []).length} (each occupies a slot)</div>
+          )}
           {RESOURCE_LETTERS.filter((l) => you.cargo[l] > 0).map((l) => (
             <div key={l}>{RESOURCE_ICONS[l]} {resourceNames[l]} × {you.cargo[l]}</div>
           ))}
           <div className={T_MUted}>
-            A full hold refuses new loot. Cargo value counts toward Wealth at game end.
-            Cargo Pods modules add +4 spaces.
+            A full hold refuses new loot AND new modules — even free track modules
+            are forfeited without a slot. Cargo value counts toward Wealth at game
+            end. Cargo Pods add +4 spaces (net +3 after their own slot).
           </div>
         </div>
       )}
@@ -243,10 +249,12 @@ function CargoHold({ you, resourceNames, tipHandlers }) {
         <span key={i}
           className={
             'inline-flex items-center justify-center w-6 h-6 rounded-sm text-[13px] ' +
-            (s.kind === 'empty' ? 'border border-dashed border-[#26365a] ' : 'border border-[#3a4f7d] ')
+            (s.kind === 'empty' ? 'border border-dashed border-[#26365a] ' :
+             s.kind === 'mod' ? 'border border-[#79c9d6]/60 bg-[#12303a]/70 ' :
+             'border border-[#3a4f7d] ')
           }
           style={s.kind === 'res' ? { backgroundColor: FACTION_COLORS[s.letter] + '2e' } : undefined}>
-          {s.kind === 'res' ? RESOURCE_ICONS[s.letter] : ''}
+          {s.kind === 'res' ? RESOURCE_ICONS[s.letter] : s.kind === 'mod' ? '\ud83d\udd29' : ''}
         </span>
       ))}
     </div>

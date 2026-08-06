@@ -246,7 +246,9 @@ function sp_ship_stats($player) {
 }
 
 function sp_cargo_used($p) {
-  return array_sum($p['cargo']);
+  // Installed modules occupy hull space alongside goods (the Concordia
+  // storehouse tension: your ship's build-out squeezes your loot room).
+  return array_sum($p['cargo']) + count($p['upgrades']);
 }
 function sp_cargo_free($p) {
   return max(0, (int)$p['cargo_capacity'] - sp_cargo_used($p));
@@ -327,15 +329,20 @@ function sp_track_advance(&$game, &$players, $seat, $trackKey, $planetRing) {
   $suffix = " ($label +1)";
 
   // Even steps: free module of the matching type, drawn from the stack.
+  // Needs a free hull slot — a stuffed hold forfeits the freebie.
   if ($nextStep % 2 === 0) {
-    $wantType = SP_TRACK_MODULE_TYPE[$trackKey];
-    $stack = &$game['board_state']['upgrade_stack'];
-    foreach ($stack as $i => $key) {
-      if ((sp_upgrade_cards()[$key]['type'] ?? '') === $wantType) {
-        array_splice($stack, $i, 1);
-        $name = sp_install_module($p, $key);
-        $suffix .= " — free module: $name";
-        break;
+    if (sp_cargo_free($p) < 1) {
+      $suffix .= ' — free module forfeited (no hull space!)';
+    } else {
+      $wantType = SP_TRACK_MODULE_TYPE[$trackKey];
+      $stack = &$game['board_state']['upgrade_stack'];
+      foreach ($stack as $i => $key) {
+        if ((sp_upgrade_cards()[$key]['type'] ?? '') === $wantType) {
+          array_splice($stack, $i, 1);
+          $name = sp_install_module($p, $key);
+          $suffix .= " — free module: $name";
+          break;
+        }
       }
     }
   }
@@ -719,6 +726,9 @@ function sp_exec_engineer(&$game, &$players, $seat, $cardKey, $params) {
     if ($pos === false) throw new Exception('Module not in the upgrade dock');
     $mod = sp_upgrade_cards()[$key];
     if ($p['credits'] < $mod['cost']) throw new Exception('Not enough credits for ' . $mod['name']);
+    if (sp_cargo_free($p) < 1) {
+      throw new Exception('No hull space for ' . $mod['name'] . ' — modules occupy a cargo slot (sell or spend goods first)');
+    }
     $p['credits'] -= $mod['cost'];
     array_splice($game['board_state']['upgrade_display'], $pos, 1);
     $names[] = sp_install_module($p, $key);
