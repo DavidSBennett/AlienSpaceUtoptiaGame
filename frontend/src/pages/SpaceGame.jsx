@@ -887,6 +887,9 @@ export default function SpaceGame() {
           {rep > 0 && <span className={T_GOOD}> · rep {rep}</span>}
           {' · '}{you.visited.length} regions charted
         </div>
+        {/* Explicit ship stat tally */}
+        <ShipStatTally you={you} catalog={state.upgrades_catalog} />
+        <div className="border-t border-[#1d2c4c]" />
         <TrackBar label="Pirate" trackKey="military" step={you.tracks.military.step} tipHandlers={tipHandlers} />
         <TrackBar label="Diplomat" trackKey="diplomacy" step={you.tracks.diplomacy.step} tipHandlers={tipHandlers} />
         <TrackBar label="Merchant" trackKey="trade" step={you.tracks.trade.step} tipHandlers={tipHandlers} />
@@ -1024,6 +1027,45 @@ export default function SpaceGame() {
       )}
 
       {ended && <ResultsOverlay state={state} />}
+    </div>
+  );
+}
+
+/** The explicit "+X to everything" readout for the ship board. */
+function ShipStatTally({ you, catalog }) {
+  const counts = { weapon: 0, diplomatic: 0, trade: 0 };
+  for (const key of you.upgrades || []) {
+    const t = catalog[key]?.type;
+    if (t && counts[t] !== undefined) counts[t] += 1;
+  }
+  const s = you.ship || {};
+  const rows = [
+    { icon: '⚔', label: 'Military', value: s.military ?? 0, cls: T_BAD,
+      src: counts.weapon ? `${counts.weapon} weapon${counts.weapon > 1 ? 's' : ''}` : 'no weapons yet',
+      note: 'added to every raid' },
+    { icon: '🤝', label: 'Diplomacy', value: s.political ?? 0, cls: T_HEAD,
+      src: counts.diplomatic ? `${counts.diplomatic} module${counts.diplomatic > 1 ? 's' : ''}` : 'no modules yet',
+      note: 'added to every contract' },
+    { icon: '💰', label: 'Negotiating', value: s.negotiating ?? 0, cls: T_GOOD,
+      src: counts.trade ? `${counts.trade} module${counts.trade > 1 ? 's' : ''}` : 'no modules yet',
+      note: 'trade capacity + bonus credits' },
+    { icon: '📦', label: 'Cargo', value: you.cargo_capacity, cls: T_GOLD, flat: true,
+      src: (s.cargo_bonus ?? 0) > 0 ? `base 12 + ${s.cargo_bonus} pods` : 'base 12',
+      note: 'hold spaces' },
+    { icon: '🚀', label: 'Speed', value: s.speed_bonus ?? 0, cls: T_GOOD,
+      src: (s.speed_bonus ?? 0) > 0 ? 'afterburners' : 'no afterburners yet',
+      note: 'extra hops per flight' },
+  ];
+  return (
+    <div className="text-[11px] leading-tight">
+      {rows.map((r) => (
+        <div key={r.label} className="flex items-baseline gap-1.5">
+          <span className={'w-28 whitespace-nowrap ' + r.cls}>
+            {r.icon} {r.flat ? '' : '+'}{r.value} {r.label}
+          </span>
+          <span className={T_MUted}>({r.src} — {r.note})</span>
+        </div>
+      ))}
     </div>
   );
 }
