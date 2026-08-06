@@ -405,3 +405,39 @@ modified beyond two additive route/link edits. Everything is `sp_`-prefixed.
 3. PHP could not be lint-checked locally (no PHP on the dev machine) — after
    first deploy, hit `/sp_listMyGames.php` signed-in and check for a clean
    JSON response before opening the lobby to players.
+
+---
+
+## 12. Mission model v2 (2026-08-06 — supersedes §5's opposed-mission design)
+
+Playtest-driven simplification. Planets now carry TWO secret stats —
+**military** and **political** (political always higher) — plus a PUBLIC
+**production** value (2/3/4/5 by ring). Missions are single-turn
+comparisons; there are no acquisition costs beyond tempo.
+
+- **Conquer (strike card, any planet, no drone needed):** total = the
+  card's Military stat + (its printed **commit power** × committed cards —
+  commits are generic fuel, their own stats don't matter). Total ≥
+  military ⇒ the planet is **occupied**: it produces a flat **1 good**.
+  Fast, straightforward, weakest production.
+- **Ally (diplomacy card — its own action now, any planet):** total = the
+  card's Diplomacy stat + the summed **value of your drones at the
+  planet** (no card commits). Total ≥ political ⇒ the planet is
+  **allied**: it produces its **full production value**. Slower logistics,
+  strongest production. Diplomacy also upgrades your own occupied planet
+  to allied.
+- **Drones** now sit ON planets and hop planet-to-planet (lane occupancy
+  rules deleted). Drones have a VALUE (1–3) stamped by the deploy card
+  that launched them (reset-built drones are value 1). Scouting reveals
+  both stats of a drone's planet and its neighbors, privately.
+- **Removed:** treaty resource/credit costs, the treaty rider on move
+  cards, commit-stat matching, land-of-lanes drone placement,
+  strike loot (conquest replaces raid-farming — income now flows from
+  the produce action over controlled planets).
+- Control is per-player and non-exclusive for now (several players can
+  independently control one planet) — exclusivity is an open toggle.
+- Trade is UNCHANGED mechanically (opposed vs the political stat,
+  commits add their Trade stats) pending its own redesign pass.
+- Tracks, tier gates, scoring, market, produce/levy/boon, reset, copy,
+  endgame triggers all unchanged; the 10-treaty trigger now counts
+  controlled planets.

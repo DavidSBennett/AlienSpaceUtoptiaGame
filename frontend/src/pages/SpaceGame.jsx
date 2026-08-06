@@ -7,25 +7,23 @@ import { loadSpSession } from '../api/spSession.js';
 /**
  * SpaceGame — the playable board for the SPACE GAME prototype.
  *
- * Layout: one fixed viewport. The star map is a full-screen PANNABLE
- * background layer (drag anywhere to pan; auto-centers on your home
- * system). Everything else floats over it: slim top bar, collapsible
- * right-side panels (captains / market / log), a stats cluster bottom-left,
- * the action panel bottom-right, and the hand of cards overlaid
- * bottom-center as an overlapping fan.
+ * Mission model v2:
+ *  - CONQUER: strike card vs planet's military value; commits add the
+ *    played card's commit power each. Conquered planets produce 1 good.
+ *  - ALLY: diplomacy card vs planet's political value; your drone values
+ *    at the planet add. Allied planets produce their full value.
+ *  - Drones live ON planets and hop planet-to-planet along lanes.
  *
  * Server-authoritative: this page only BUILDS action params and renders
- * state; every rule lives in backend/sp_engine.php. Client-side checks and
- * tooltip figures are advisory mirrors, never authority.
+ * state; every rule lives in backend/sp_engine.php.
  */
 
-// ── space palette (self-contained; deliberately NOT the Victorian tokens) ──
 const PANEL = 'rounded-lg border border-[#26365a] bg-[#0a1120]/90 backdrop-blur-sm';
 const BTN = 'px-3 py-1.5 rounded border border-[#2f4b6e] bg-[#122036] hover:bg-[#1a2c4a] text-[#dbe4f0] text-sm disabled:opacity-40 disabled:cursor-not-allowed';
 const BTN_ACCENT = 'px-3 py-1.5 rounded border border-[#79c9d6]/70 bg-[#12454f] hover:bg-[#186273] text-[#d6f2f7] text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed';
-const T_HEAD = 'text-[#79c9d6]';       // starlight cyan — headings/accents
-const T_GOLD = 'text-[#e0b45c]';       // star amber — values/warnings
-const T_MUted = 'text-[#8593ad]';      // muted steel — secondary text
+const T_HEAD = 'text-[#79c9d6]';
+const T_GOLD = 'text-[#e0b45c]';
+const T_MUted = 'text-[#8593ad]';
 const T_BAD = 'text-[#e58787]';
 const T_GOOD = 'text-[#7fd8a0]';
 
@@ -45,44 +43,66 @@ const AFFILIATION_LABELS = {
 const AFFILIATION_SCORING = {
   wealth: 'Wealth scores once for everyone: 1 VP per 10 credits of cash + cargo value at game end (extra Wealth cards add no more).',
   diplomatic_corps: 'At game end this card scores VP equal to your Diplomacy track position.',
-  alliances: 'At game end this card scores VP per star system where you hold at least one treaty.',
+  alliances: 'At game end this card scores VP per star system where you control at least one planet.',
   trade_guild: 'At game end this card scores VP equal to your Trade track position.',
   war_college: 'At game end this card scores VP equal to your Military track position.',
   engineering: 'At game end this card scores 2 VP per ship upgrade you own.',
 };
 const ACTION_LABELS = {
-  reset: 'Reset', move: 'Navigate', strike: 'Strike', trade: 'Trade',
-  produce: 'Produce', deploy: 'Deploy drones', recruit: 'Install (2)',
-  recruit_free: 'Install (1, free position)', copy: 'Intercept', envoy: 'Envoy',
+  reset: 'Reset', move: 'Navigate', strike: 'Conquer', diplomacy: 'Ally',
+  trade: 'Trade', produce: 'Produce', deploy: 'Deploy drones',
+  recruit: 'Install (2)', recruit_free: 'Install (1, free position)',
+  copy: 'Intercept', envoy: 'Envoy',
 };
-const MISSION_STAT = { move: 1, strike: 0, trade: 2 };
-
-const MAP_PX = 1500;   // rendered map size; viewport pans over it
 
 const emptyDraft = {
-  steps: [], selectedDrone: null, treatyPlanet: null, commits: [],
+  steps: [], selectedDrone: null, commits: [],
   planet: null, sell: {}, buy: {}, system: null, mode: 'production',
   deployMode: 'place', placements: [], picks: [],
   buildDrone: false, dronePlanet: null, upgrades: [], copyTarget: null,
 };
 
+const MAP_PX = 1500;
+
 // ── geometry helpers ─────────────────────────────────────────────────────
 
-function laneEnds(map, laneKey) { return map.lanes[laneKey]; }
-
-function lanesOfPlanet(map, pid) {
-  const out = {};
-  for (const [key, pair] of Object.entries(map.lanes)) {
-    if (pair[0] === pid) out[key] = pair[1];
-    else if (pair[1] === pid) out[key] = pair[0];
+function neighborsOf(map, pid) {
+  const out = [];
+  for (const [, pair] of Object.entries(map.lanes)) {
+    if (pair[0] === pid) out.push(pair[1]);
+    else if (pair[1] === pid) out.push(pair[0]);
   }
   return out;
 }
 
+function connected(map, a, b) {
+  const key = a < b ? `${a}~${b}` : `${b}~${a}`;
+  return !!map.lanes[key];
+}
+
+/** Apply queued move steps (drone hops) to the board's drones. */
 function virtualDrones(board, steps) {
   const drones = board.drones.map((d) => ({ ...d }));
-  for (const s of steps) drones[s.drone] = { ...drones[s.drone], type: 'lane', at: s.to };
+  for (const s of steps) drones[s.drone] = { ...drones[s.drone], at: s.to };
   return drones;
+}
+
+function adjacentPlanets(map, drones, seat) {
+  const set = new Set();
+  for (const d of drones) {
+    if (d.seat !== seat) continue;
+    set.add(d.at);
+    for (const n of neighborsOf(map, d.at)) set.add(n);
+  }
+  return set;
+}
+
+function droneValuesAt(drones, seat, pid) {
+  let sum = 0;
+  for (const d of drones) {
+    if (d.seat === seat && d.at === pid) sum += d.value || 1;
+  }
+  return sum;
 }
 
 function autoPayment(cost, cargo) {
@@ -105,13 +125,6 @@ function autoPayment(cost, cargo) {
     pay[best] = (pay[best] || 0) + 1;
   }
   return pay;
-}
-
-function treatyCostText(planet, holders, prices) {
-  const n = (holders?.length || 0) + 1;
-  if (planet.faction === 'O') return `1 ${RESOURCE_ICONS.B} Biomass + ${n} credit${n > 1 ? 's' : ''}`;
-  const credits = (prices[planet.faction] - 2) * n;
-  return `1 ${RESOURCE_ICONS.O} Ore + 1 ${RESOURCE_ICONS[planet.faction]} + ${credits} credits`;
 }
 
 function costIcons(cost) {
@@ -154,6 +167,15 @@ function CardTooltip({ cardKey, cards }) {
         <span className={T_GOOD}>Trade {c.stats[2]}</span>
       </div>
       <div>{c.text}</div>
+      {c.commit_power != null && (
+        <div className={T_BAD}>Each committed card adds +{c.commit_power} to this strike.</div>
+      )}
+      {c.drone_value != null && (
+        <div className={T_GOLD}>Launches value-{c.drone_value} drones.</div>
+      )}
+      {c.step_bonus != null && c.step_bonus > 0 && (
+        <div className={T_GOOD}>+{c.step_bonus} extra movement steps.</div>
+      )}
       {c.rider_credits > 0 && <div className={T_GOLD}>Grants {c.rider_credits} credits when it leads a successful trade.</div>}
       {c.kind !== 'starter' && c.cost?.length > 0 && (
         <div>Cost: {costIcons(c.cost)} <span className={T_MUted}>(+ its market-position cost)</span></div>
@@ -162,17 +184,16 @@ function CardTooltip({ cardKey, cards }) {
         <b className={T_GOLD}>{AFFILIATION_LABELS[c.affiliation]}.</b>{' '}
         {AFFILIATION_SCORING[c.affiliation]}
       </div>
-      <div className={T_MUted}>
-        Commit it to a mission (+ button) to add its matching stat; it discards, recoverable on reset.
-      </div>
     </div>
   );
 }
 
 function PlanetTooltip({ planet, state }) {
-  const { board, players, prices } = state;
-  const holders = board.treaties[planet.id] || [];
+  const { board, players } = state;
+  const holders = board.control?.[planet.id] || {};
   const known = state.you.intel[planet.id];
+  const mySeat = state.you.seat;
+  const myDrones = droneValuesAt(board.drones, mySeat, planet.id);
   return (
     <div className="space-y-1">
       <div className="flex justify-between gap-3">
@@ -183,15 +204,18 @@ function PlanetTooltip({ planet, state }) {
         <span style={{ color: FACTION_COLORS[planet.faction] }}>
           {state.faction_names[planet.faction]}
         </span>
-        {' — '}yields {RESOURCE_ICONS[planet.faction]} {state.resource_names[planet.faction]}
-        {' '}(sells for {prices[planet.faction]}c)
+        {' — '}{RESOURCE_ICONS[planet.faction]} {state.resource_names[planet.faction]}
+        {' '}(sells {state.prices[planet.faction]}c)
       </div>
       <div>{RING_LABELS[planet.ring] || `Ring ${planet.ring}`}</div>
       <div>
-        Opposition:{' '}
-        {known !== undefined
-          ? <b className={T_GOLD}>{known}</b>
-          : <span className={T_MUted}>unknown — move a drone adjacent to scout it</span>}
+        <span className={T_BAD}>Military: {known ? known.m : '?'}</span>{' · '}
+        <span className={T_HEAD}>Political: {known ? known.p : '?'}</span>
+        {!known && <span className={T_MUted}> — move a drone here or next door to scout</span>}
+      </div>
+      <div>
+        Production: <b className={T_GOOD}>{planet.production}</b> if allied
+        {' · '}<b className={T_BAD}>1</b> if conquered
       </div>
       {planet.home_seat !== null && planet.home_seat !== undefined && (
         <div style={{ color: SEAT_COLORS[planet.home_seat] }}>
@@ -199,19 +223,22 @@ function PlanetTooltip({ planet, state }) {
         </div>
       )}
       <div>
-        Treaties:{' '}
-        {holders.length === 0 ? <span className={T_MUted}>none yet</span>
-          : holders.map((s, i) => (
-            <span key={i} style={{ color: SEAT_COLORS[s] }}>
-              {players.find((p) => p.seat === s)?.name || `seat ${s + 1}`}{i < holders.length - 1 ? ', ' : ''}
+        Control:{' '}
+        {Object.keys(holders).length === 0 ? <span className={T_MUted}>independent</span>
+          : Object.entries(holders).map(([s, kind], i, arr) => (
+            <span key={s} style={{ color: SEAT_COLORS[Number(s)] }}>
+              {players.find((p) => p.seat === Number(s))?.name || `seat ${Number(s) + 1}`}
+              {' '}({kind === 'allied' ? 'ally' : 'occupied'}){i < arr.length - 1 ? ', ' : ''}
             </span>
           ))}
       </div>
-      <div className="border-t border-[#26365a] pt-1 space-y-0.5">
-        <div>🤝 Treaty (Diplomacy mission, then pay): {treatyCostText(planet, holders, prices)}</div>
-        <div>⚔️ Strike (Military mission): seize 2 {RESOURCE_ICONS[planet.faction]}</div>
-        <div>💰 Trade (Trade mission): credits + buy/sell at list prices</div>
-        <div className={T_MUted}>All missions need one of your drones adjacent. Winning here advances that track{planet.ring >= 2 ? ' and can break tier gates' : ' (tier 1 only — gates need farther rings)'}.</div>
+      {myDrones > 0 && (
+        <div className={T_GOLD}>Your drones here add +{myDrones} to diplomacy.</div>
+      )}
+      <div className={'border-t border-[#26365a] pt-1 ' + T_MUted}>
+        ⚔ Conquer: strike card + committed cards vs military · yields 1/production.
+        {' '}🤝 Ally: diplomacy card + drone values here vs political · full production.
+        Wins advance the matching track{planet.ring >= 2 ? ' and can break tier gates.' : ' (tier 1 only).'}
       </div>
     </div>
   );
@@ -251,8 +278,7 @@ function CargoHold({ you, resourceNames, tipHandlers }) {
           ))}
           <div>{DRONE_ICON} Drones in reserve × {you.drones_reserve} (each occupies a cargo space until launched)</div>
           <div className={T_MUted}>
-            A full hold refuses new goods — production and mission loot are lost
-            beyond capacity. Cargo value counts toward Wealth at game end.
+            A full hold refuses new goods. Cargo value counts toward Wealth at game end.
           </div>
         </div>
       )}
@@ -342,9 +368,8 @@ function TrackBar({ label, step, tipHandlers }) {
   const handlers = tipHandlers ? tipHandlers(
     <div className="space-y-1">
       <b className={T_HEAD + ' text-[12px]'}>{label} track — step {step}/12</b>
-      <div>Every successful {label.toLowerCase()} mission advances this +1.</div>
-      <div>Gates (red rings) block advancement: crossing step 4→5 needs a win at a
-        medium-ring planet (Verge); step 8→9 needs a hard-ring win (Core).</div>
+      <div>Every won {label.toLowerCase()} mission advances this +1.</div>
+      <div>Gates (red rings): step 4→5 needs a medium-ring win (Verge); step 8→9 a hard-ring win (Core).</div>
       <div className={T_MUted}>Matching cards score VP × this number at game end.</div>
     </div>
   ) : {};
@@ -372,7 +397,6 @@ function Collapsible({ title, badge, open, onToggle, children }) {
 
 // ── the star map ─────────────────────────────────────────────────────────
 
-/** Deterministic starfield (no Math.random — stable across renders). */
 function starPoints(n) {
   const pts = [];
   for (let i = 0; i < n; i++) {
@@ -386,16 +410,22 @@ function starPoints(n) {
 }
 const STARS = starPoints(170);
 
-function StarMap({ state, draft, activeAction, onPlanetClick, onLaneClick, onDroneClick, tipHandlers }) {
+function StarMap({ state, draft, activeAction, mySeat, onPlanetClick, onDroneClick, tipHandlers }) {
   const map = state.map;
   const board = state.board;
   const drones = activeAction === 'move' ? virtualDrones(board, draft.steps) : board.drones;
   const intel = state.you.intel || {};
 
-  const dockedAt = {};
+  const dronesAt = {};
   drones.forEach((d, i) => {
-    if (d.type === 'docked') (dockedAt[d.at] = dockedAt[d.at] || []).push(i);
+    (dronesAt[d.at] = dronesAt[d.at] || []).push(i);
   });
+
+  // Highlight legal hop targets while a drone is selected.
+  const hopTargets = new Set();
+  if (activeAction === 'move' && draft.selectedDrone !== null && drones[draft.selectedDrone]) {
+    for (const n of neighborsOf(map, drones[draft.selectedDrone].at)) hopTargets.add(n);
+  }
 
   return (
     <svg viewBox="0 0 1000 1000" className="w-full h-full select-none block">
@@ -424,29 +454,18 @@ function StarMap({ state, draft, activeAction, onPlanetClick, onLaneClick, onDro
       {Object.entries(map.lanes).map(([key, [a, b]]) => {
         const pa = map.planets[a]; const pb = map.planets[b];
         if (!pa || !pb) return null;
-        const occupant = drones.find((d) => d.type === 'lane' && d.at === key);
-        const mx = (pa.x + pb.x) / 2; const my = (pa.y + pb.y) / 2;
         return (
-          <g key={key} onClick={() => onLaneClick(key)} style={{ cursor: 'pointer' }}>
-            <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y}
-              stroke="#33507a" strokeWidth={1.6} strokeDasharray="6 5" opacity={0.85} />
-            <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="transparent" strokeWidth={16} />
-            {occupant && (
-              <polygon
-                points={`${mx},${my - 9} ${mx - 8},${my + 6} ${mx + 8},${my + 6}`}
-                fill={SEAT_COLORS[occupant.seat]} stroke="#03060d" strokeWidth={1.5}
-                onClick={(e) => { e.stopPropagation(); onDroneClick(drones.indexOf(occupant)); }}
-                style={{ cursor: 'pointer' }} />
-            )}
-          </g>
+          <line key={key} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y}
+            stroke="#33507a" strokeWidth={1.6} strokeDasharray="6 5" opacity={0.85} />
         );
       })}
 
       {Object.values(map.planets).map((p) => {
-        const treaties = board.treaties[p.id] || [];
+        const holders = board.control?.[p.id] || {};
         const known = intel[p.id];
-        const isDraftTarget = draft.treatyPlanet === p.id || draft.planet === p.id ||
+        const isDraftTarget = draft.planet === p.id ||
           draft.placements.some((pl) => pl.planet === p.id) || draft.dronePlanet === p.id;
+        const isHopTarget = hopTargets.has(p.id);
         const isHome = p.home_seat !== null && p.home_seat !== undefined;
         const handlers = tipHandlers(<PlanetTooltip planet={p} state={state} />);
         return (
@@ -457,6 +476,10 @@ function StarMap({ state, draft, activeAction, onPlanetClick, onLaneClick, onDro
               <circle cx={p.x} cy={p.y} r={24} fill="none"
                 stroke={SEAT_COLORS[p.home_seat]} strokeWidth={2} opacity={0.85} />
             )}
+            {isHopTarget && (
+              <circle cx={p.x} cy={p.y} r={20} fill="none"
+                stroke="#7fd8a0" strokeWidth={2} strokeDasharray="4 3" />
+            )}
             <circle cx={p.x} cy={p.y} r={16.5} fill={FACTION_COLORS[p.faction]} opacity={0.25} />
             <circle cx={p.x} cy={p.y} r={13} fill={FACTION_COLORS[p.faction]}
               stroke={isDraftTarget ? '#79c9d6' : '#0a1120'} strokeWidth={isDraftTarget ? 3.5 : 1.5} />
@@ -466,46 +489,60 @@ function StarMap({ state, draft, activeAction, onPlanetClick, onLaneClick, onDro
               pointerEvents="none">
               {p.name}
             </text>
+            <text x={p.x} y={p.y + 42} textAnchor="middle" fontSize={9} fill="#6c7d9c"
+              pointerEvents="none">
+              yield {p.production}
+            </text>
+            {/* military / political badges */}
             <g pointerEvents="none">
+              <circle cx={p.x - 14} cy={p.y - 12} r={8}
+                fill={known ? '#301616' : '#101a2e'}
+                stroke={known ? '#e58787' : '#33507a'} strokeWidth={1} />
+              <text x={p.x - 14} y={p.y - 8.5} textAnchor="middle" fontSize={9.5}
+                fill={known ? '#e58787' : '#8593ad'} fontFamily="monospace">
+                {known ? known.m : '?'}
+              </text>
               <circle cx={p.x + 14} cy={p.y - 12} r={8}
-                fill={known !== undefined ? '#2c2410' : '#101a2e'}
-                stroke={known !== undefined ? '#e0b45c' : '#33507a'} strokeWidth={1} />
+                fill={known ? '#122c33' : '#101a2e'}
+                stroke={known ? '#79c9d6' : '#33507a'} strokeWidth={1} />
               <text x={p.x + 14} y={p.y - 8.5} textAnchor="middle" fontSize={9.5}
-                fill={known !== undefined ? '#e0b45c' : '#8593ad'} fontFamily="monospace">
-                {known !== undefined ? known : '?'}
+                fill={known ? '#79c9d6' : '#8593ad'} fontFamily="monospace">
+                {known ? known.p : '?'}
               </text>
             </g>
-            {treaties.map((seat, i) => (
-              <rect key={i} x={p.x - 14 + i * 7} y={p.y + 14} width={6} height={6}
-                fill={SEAT_COLORS[seat]} stroke="#03060d" strokeWidth={0.7}
-                pointerEvents="none" />
+            {/* control markers: square = occupied (military), circle = allied */}
+            {Object.entries(holders).map(([s, kind], i) => (
+              kind === 'allied'
+                ? <circle key={s} cx={p.x - 12 + i * 9} cy={p.y + 17} r={3.5}
+                    fill={SEAT_COLORS[Number(s)]} stroke="#03060d" strokeWidth={0.7} pointerEvents="none" />
+                : <rect key={s} x={p.x - 15 + i * 9} y={p.y + 14} width={7} height={7}
+                    fill={SEAT_COLORS[Number(s)]} stroke="#03060d" strokeWidth={0.7} pointerEvents="none" />
             ))}
-            {(dockedAt[p.id] || []).map((di, i) => {
+            {/* drones stacked at the planet, value shown for >1 */}
+            {(dronesAt[p.id] || []).map((di, i) => {
               const d = drones[di];
+              const dx = p.x - 24 + i * 11;
               return (
-                <polygon key={di}
-                  points={`${p.x - 21 + i * 10},${p.y - 17} ${p.x - 25 + i * 10},${p.y - 7} ${p.x - 17 + i * 10},${p.y - 7}`}
-                  fill={SEAT_COLORS[d.seat]} stroke="#03060d" strokeWidth={1}
-                  onClick={(e) => { e.stopPropagation(); onDroneClick(di); }}
-                  style={{ cursor: 'pointer' }} />
+                <g key={di} onClick={(e) => { e.stopPropagation(); onDroneClick(di); }}
+                  style={{ cursor: 'pointer' }}>
+                  <polygon
+                    points={`${dx + 4},${p.y - 19} ${dx},${p.y - 9} ${dx + 8},${p.y - 9}`}
+                    fill={SEAT_COLORS[d.seat]} stroke="#03060d" strokeWidth={1}
+                    opacity={activeAction === 'move' && d.seat === mySeat ? 1 : 0.85} />
+                  {(d.value || 1) > 1 && (
+                    <text x={dx + 4} y={p.y - 22} textAnchor="middle" fontSize={8.5}
+                      fill={SEAT_COLORS[d.seat]} fontFamily="monospace">{d.value}</text>
+                  )}
+                  {draft.selectedDrone === di && (
+                    <circle cx={dx + 4} cy={p.y - 13} r={10} fill="none"
+                      stroke="#79c9d6" strokeWidth={1.8} strokeDasharray="3 2" />
+                  )}
+                </g>
               );
             })}
           </g>
         );
       })}
-
-      {draft.selectedDrone !== null && drones[draft.selectedDrone] && (() => {
-        const d = drones[draft.selectedDrone];
-        let x; let y;
-        if (d.type === 'docked') {
-          const p = map.planets[d.at]; x = p.x - 21; y = p.y - 12;
-        } else {
-          const [a, b] = laneEnds(map, d.at);
-          x = (map.planets[a].x + map.planets[b].x) / 2;
-          y = (map.planets[a].y + map.planets[b].y) / 2;
-        }
-        return <circle cx={x} cy={y} r={14} fill="none" stroke="#79c9d6" strokeWidth={2} strokeDasharray="4 3" />;
-      })()}
     </svg>
   );
 }
@@ -524,7 +561,6 @@ export default function SpaceGame() {
   const [tip, setTip] = useState(null);
   const [panels, setPanels] = useState({ captains: true, market: false, log: false });
 
-  // Pan/scroll refs. movedRef suppresses clicks that were really drags.
   const scrollRef = useRef(null);
   const dragRef = useRef(null);
   const movedRef = useRef(false);
@@ -542,7 +578,6 @@ export default function SpaceGame() {
     setActionError(null);
   }, []);
 
-  // Center the viewport on the player's home planet, once.
   useEffect(() => {
     if (centeredRef.current || !state?.map || !scrollRef.current) return;
     const home = state.map.planets[`H${state.you.seat}a`];
@@ -586,26 +621,41 @@ export default function SpaceGame() {
     ? (copiedKey ? cards[copiedKey].action : null)
     : activeCardDef?.action;
   const effectiveCardKey = activeCardDef?.action === 'copy' ? copiedKey : selectedCard;
+  const effectiveCard = effectiveCardKey ? cards[effectiveCardKey] : null;
 
   const previewDrones = effectiveAction === 'move'
     ? virtualDrones(state.board, draft.steps) : state.board.drones;
 
   const myDroneCount = state.board.drones.filter((d) => d.seat === mySeat).length;
-  let moveAllowance = myDroneCount;
+  let moveAllowance = myDroneCount + (effectiveCard?.step_bonus || 0);
   if ((you.upgrades || []).includes('nav_thrusters')) moveAllowance += 2;
 
-  const missionStatIdx = MISSION_STAT[effectiveAction];
-  const missionType = effectiveAction === 'move' ? 'diplomacy'
-    : effectiveAction === 'strike' ? 'military'
+  // Mission math (advisory mirror of sp_engine):
+  //   strike:    M stat + commit_power × commits    vs planet.military
+  //   diplomacy: D stat + your drone values there   vs planet.political
+  //   trade:     T stat + commits' T stats          vs planet.political
+  const missionType = effectiveAction === 'strike' ? 'military'
+    : effectiveAction === 'diplomacy' ? 'diplomacy'
     : effectiveAction === 'trade' ? 'trade' : null;
-  const missionTotal = missionType && effectiveCardKey
-    ? cards[effectiveCardKey].stats[missionStatIdx] +
-      draft.commits.reduce((sum, k) => sum + cards[k].stats[missionStatIdx], 0)
-    : 0;
+  const commitsAllowed = effectiveAction === 'strike' || effectiveAction === 'trade';
+  let missionTotal = 0;
+  if (effectiveCard && missionType) {
+    if (effectiveAction === 'strike') {
+      missionTotal = effectiveCard.stats[0] + (effectiveCard.commit_power || 1) * draft.commits.length;
+    } else if (effectiveAction === 'diplomacy') {
+      missionTotal = effectiveCard.stats[1] +
+        (draft.planet ? droneValuesAt(state.board.drones, mySeat, draft.planet) : 0);
+    } else {
+      missionTotal = effectiveCard.stats[2] +
+        draft.commits.reduce((sum, k) => sum + cards[k].stats[2], 0);
+    }
+  }
+  const missionNeed = draft.planet && you.intel[draft.planet]
+    ? (effectiveAction === 'strike' ? you.intel[draft.planet].m : you.intel[draft.planet].p)
+    : null;
 
   const picking = effectiveAction === 'recruit' || effectiveAction === 'recruit_free';
 
-  // ── pan handlers (background layer) ──
   function onPanDown(e) {
     if (e.button !== 0) return;
     movedRef.current = false;
@@ -625,25 +675,28 @@ export default function SpaceGame() {
   function onPanUp() { dragRef.current = null; }
   const dragged = () => movedRef.current;
 
-  // ── click handlers feeding the draft ──
   function onDroneClick(index) {
     if (dragged() || effectiveAction !== 'move') return;
     const d = previewDrones[index];
     if (!d || d.seat !== mySeat) return;
-    setDraft((dr) => ({ ...dr, selectedDrone: index }));
-  }
-
-  function onLaneClick(laneKey) {
-    if (dragged() || effectiveAction !== 'move' || draft.selectedDrone === null) return;
-    if (draft.steps.length >= moveAllowance) return;
-    setDraft((dr) => ({ ...dr, steps: [...dr.steps, { drone: dr.selectedDrone, to: laneKey }] }));
+    setDraft((dr) => ({ ...dr, selectedDrone: dr.selectedDrone === index ? null : index }));
   }
 
   function onPlanetClick(pid) {
     if (dragged() || !effectiveAction) return;
+    if (effectiveAction === 'move') {
+      // Hop the selected drone one lane per click.
+      if (draft.selectedDrone === null) return;
+      const d = previewDrones[draft.selectedDrone];
+      if (!d || !connected(map, d.at, pid)) return;
+      if (draft.steps.length >= moveAllowance) return;
+      setDraft((dr) => ({ ...dr, steps: [...dr.steps, { drone: dr.selectedDrone, to: pid }] }));
+      return;
+    }
     setDraft((dr) => {
-      if (effectiveAction === 'move') return { ...dr, treatyPlanet: dr.treatyPlanet === pid ? null : pid };
-      if (effectiveAction === 'strike' || effectiveAction === 'trade') return { ...dr, planet: pid };
+      if (effectiveAction === 'strike' || effectiveAction === 'diplomacy' || effectiveAction === 'trade') {
+        return { ...dr, planet: dr.planet === pid ? null : pid };
+      }
       if (effectiveAction === 'produce') return { ...dr, system: map.planets[pid].system };
       if (effectiveAction === 'deploy') {
         return { ...dr, placements: [...dr.placements, { planet: pid }] };
@@ -654,7 +707,7 @@ export default function SpaceGame() {
   }
 
   function toggleCommit(key) {
-    if (!missionType) return;
+    if (!commitsAllowed) return;
     setDraft((dr) => ({
       ...dr,
       commits: dr.commits.includes(key)
@@ -676,13 +729,12 @@ export default function SpaceGame() {
     const a = activeCardDef.action;
     const inner = () => {
       switch (effectiveAction) {
-        case 'move': {
-          const p = { steps: draft.steps };
-          if (draft.treatyPlanet) p.treaty = { planet: draft.treatyPlanet, commits: draft.commits };
-          return p;
-        }
+        case 'move':
+          return { steps: draft.steps };
         case 'strike':
           return { planet: draft.planet, commits: draft.commits };
+        case 'diplomacy':
+          return { planet: draft.planet };
         case 'trade':
           return { planet: draft.planet, commits: draft.commits, sell: draft.sell, buy: draft.buy };
         case 'produce':
@@ -745,13 +797,17 @@ export default function SpaceGame() {
     if (!myTurn) return game.status === 'ended' ? 'The game has ended.' : 'Not your turn yet.';
     if (activeCardDef.action === 'copy' && draft.copyTarget === null) return 'Choose whose last action to intercept.';
     switch (effectiveAction) {
-      case 'strike': case 'trade':
-        return draft.planet ? null : 'Click a target planet on the map (must be adjacent to one of your drones).';
+      case 'strike':
+        return draft.planet ? null : 'Click any planet to target the assault.';
+      case 'diplomacy':
+        return draft.planet ? null : 'Click any planet to court them. Your drones there add their values.';
+      case 'trade':
+        return draft.planet ? null : 'Click a planet adjacent to your drones.';
       case 'produce':
         return draft.mode === 'levy' || draft.system ? null : 'Click any planet to choose its system, or switch to the levy.';
       case 'deploy':
         return draft.deployMode === 'credits' || draft.placements.length > 0
-          ? null : 'Click your home planet (or a treaty planet) to place each drone, or switch to credits.';
+          ? null : 'Click your home planet (or a controlled planet) to place each drone, or switch to credits.';
       case 'recruit': case 'recruit_free':
         return draft.picks.length > 0 ? null : 'Pick a card from the Market panel (top right).';
       default: return null;
@@ -763,21 +819,19 @@ export default function SpaceGame() {
 
   return (
     <div className="h-screen overflow-hidden relative bg-[#03060d] text-[#dbe4f0]">
-      {/* ── pannable map background ── */}
       <div ref={scrollRef}
         className="absolute inset-0 overflow-auto cursor-grab active:cursor-grabbing"
         onMouseDown={onPanDown} onMouseMove={onPanMove}
         onMouseUp={onPanUp} onMouseLeave={onPanUp}>
         <div style={{ width: MAP_PX, height: MAP_PX }}>
-          <StarMap state={state} draft={draft}
+          <StarMap state={state} draft={draft} mySeat={mySeat}
             activeAction={effectiveAction} tipHandlers={tipHandlers}
-            onPlanetClick={onPlanetClick} onLaneClick={onLaneClick} onDroneClick={onDroneClick} />
+            onPlanetClick={onPlanetClick} onDroneClick={onDroneClick} />
         </div>
       </div>
 
       <TooltipLayer tip={tip} />
 
-      {/* ── top bar ── */}
       <div className="absolute top-0 inset-x-0 z-40 flex items-center justify-between px-4 py-1.5 bg-[#060b16]/85 backdrop-blur border-b border-[#1d2c4c]">
         <div className="flex items-center gap-4 text-sm">
           <Link to="/space" className={'underline ' + T_MUted}>← Lobby</Link>
@@ -804,7 +858,6 @@ export default function SpaceGame() {
         </div>
       )}
 
-      {/* ── right rail: collapsible floating panels ── */}
       <div className="absolute top-12 right-2 z-30 w-72 space-y-2 max-h-[calc(100vh-11rem)] overflow-y-auto pr-0.5">
         <Collapsible title="Captains" open={panels.captains}
           onToggle={() => setPanels((p) => ({ ...p, captains: !p.captains }))}>
@@ -867,11 +920,10 @@ export default function SpaceGame() {
         </Collapsible>
       </div>
 
-      {/* ── bottom-left: your ship ── */}
       <div className={'absolute bottom-2 left-2 z-30 p-2.5 space-y-1.5 ' + PANEL}>
         <div className="flex items-center gap-3">
           <span className={'font-mono text-sm ' + T_GOLD}
-            {...tipHandlers(<div><b className={T_HEAD}>Credits</b><div>Universal currency: treaties, drones, upgrades, market trades. Counts toward Wealth (1 VP per 10, with cargo value).</div></div>)}>
+            {...tipHandlers(<div><b className={T_HEAD}>Credits</b><div>Universal currency: drones, upgrades, market trades. Counts toward Wealth (1 VP per 10, with cargo value).</div></div>)}>
             {you.credits}c
           </span>
           <CargoHold you={you} resourceNames={state.resource_names} tipHandlers={tipHandlers} />
@@ -891,7 +943,6 @@ export default function SpaceGame() {
         )}
       </div>
 
-      {/* ── bottom-center: the hand, overlaid on the map ── */}
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 max-w-[46vw]">
         <div className="flex overflow-x-auto pt-7 pb-1 px-2">
           {you.hand.map((key, i) => (
@@ -902,7 +953,7 @@ export default function SpaceGame() {
                 selected={selectedCard === key}
                 committed={draft.commits.includes(key)}
                 disabled={!myTurn || ended}
-                onCommit={missionType && key !== selectedCard && myTurn && !ended
+                onCommit={commitsAllowed && key !== selectedCard && myTurn && !ended
                   ? () => toggleCommit(key) : undefined}
                 onClick={() => {
                   if (selectedCard === key) {
@@ -922,7 +973,6 @@ export default function SpaceGame() {
         </div>
       </div>
 
-      {/* ── bottom-right: action panel ── */}
       {activeCardDef && (
         <div className={'absolute bottom-2 right-2 z-40 w-96 p-3 text-sm space-y-2 border-[#79c9d6]/50 ' + PANEL}>
           <div className="flex justify-between items-baseline">
@@ -952,28 +1002,35 @@ export default function SpaceGame() {
 
           {missionType && (
             <div className="text-[12px]">
-              Mission strength <b className={T_GOLD}>{missionTotal}</b>
-              {(draft.treatyPlanet || draft.planet) && (() => {
-                const pid = draft.treatyPlanet || draft.planet;
-                const known = you.intel[pid];
-                return (
-                  <> vs {known !== undefined
-                    ? <b className={missionTotal >= known ? T_GOOD : T_BAD}>{known}</b>
-                    : <b className={T_MUted}>?</b>}
-                    {' '}at {map.planets[pid].name}</>
-                );
-              })()}
-              <div className={'text-[10px] ' + T_MUted}>
-                Use the + button on other hand cards to commit them
-                (their matching stat adds; they discard win or lose).
-              </div>
+              {effectiveAction === 'strike' ? 'Assault strength ' :
+               effectiveAction === 'diplomacy' ? 'Diplomatic weight ' : 'Trade leverage '}
+              <b className={T_GOLD}>{missionTotal}</b>
+              {draft.planet && (
+                <> vs {missionNeed !== null
+                  ? <b className={missionTotal >= missionNeed ? T_GOOD : T_BAD}>{missionNeed}</b>
+                  : <b className={T_MUted}>?</b>}
+                  {' '}at {map.planets[draft.planet].name}</>
+              )}
+              {effectiveAction === 'strike' && (
+                <div className={'text-[10px] ' + T_MUted}>
+                  Each committed card (+ button on hand cards) adds +{effectiveCard?.commit_power || 1}.
+                  Committed: {draft.commits.length}. Win = conquer: the planet yields a flat 1 good.
+                </div>
+              )}
+              {effectiveAction === 'diplomacy' && (
+                <div className={'text-[10px] ' + T_MUted}>
+                  Your drones at the target add their values
+                  {draft.planet ? ` (+${droneValuesAt(state.board.drones, mySeat, draft.planet)} here)` : ''}.
+                  Win = ally: the planet yields its full production.
+                </div>
+              )}
             </div>
           )}
 
           {effectiveAction === 'move' && (
             <div className={'text-[11px] ' + T_MUted}>
-              Steps {draft.steps.length}/{moveAllowance} — click one of your drones, then lanes.
-              Click a planet to target a treaty; click again to clear.
+              Steps {draft.steps.length}/{moveAllowance} — click one of your drones, then
+              click neighboring planets to hop it lane by lane.
               {draft.steps.length > 0 && (
                 <button type="button" className={BTN + ' ml-2 text-[10px] py-0.5'}
                   onClick={() => setDraft((dr) => ({ ...dr, steps: [], selectedDrone: null }))}>
@@ -1006,7 +1063,8 @@ export default function SpaceGame() {
               <label className="mr-3">
                 <input type="radio" checked={draft.deployMode === 'place'}
                   onChange={() => setDraft((dr) => ({ ...dr, deployMode: 'place' }))} />
-                {' '}Launch drones ({draft.placements.length} queued, 1 {RESOURCE_ICONS.O} + 1 {RESOURCE_ICONS.B} each)
+                {' '}Launch value-{effectiveCard?.drone_value || 1} drones
+                {' '}({draft.placements.length} queued, 1 {RESOURCE_ICONS.O} + 1 {RESOURCE_ICONS.B} each)
               </label>
               <label>
                 <input type="radio" checked={draft.deployMode === 'credits'}
@@ -1027,11 +1085,11 @@ export default function SpaceGame() {
               <label>
                 <input type="checkbox" checked={draft.buildDrone}
                   onChange={(e) => setDraft((dr) => ({ ...dr, buildDrone: e.target.checked }))} />
-                {' '}Build a drone
+                {' '}Build a value-1 drone
                 {selectedCard === 'maintenance_bay_2' ? ' (free)' : ` (1 ${RESOURCE_ICONS.O} + 1 ${RESOURCE_ICONS.B})`}
                 {draft.buildDrone && (
                   <span className={T_MUted}>
-                    {' '}at {draft.dronePlanet ? map.planets[draft.dronePlanet]?.name : 'home (or click a treaty planet)'}
+                    {' '}at {draft.dronePlanet ? map.planets[draft.dronePlanet]?.name : 'home (or click a controlled planet)'}
                   </span>
                 )}
               </label>
@@ -1069,7 +1127,6 @@ export default function SpaceGame() {
         </div>
       )}
 
-      {/* ── results overlay ── */}
       {ended && <ResultsOverlay state={state} />}
     </div>
   );

@@ -7,10 +7,13 @@
  * (ring 2), one core system (ring 3). Planets are nodes; star-lanes are
  * edges; drones occupy lanes (Concordia colonists-on-routes).
  *
- * Opposition values are per-planet, fixed by ring (SPACE_REDESIGN.md §4:
- * fixed rings, one value per location) and are SECRET — the state endpoint
- * only reveals them to players whose intel covers the planet. This file
- * must never be publicly fetchable as data (it isn't: it's PHP).
+ * Mission model v2: every planet carries TWO secret stats — 'military'
+ * (beat it with a strike card + committed-card power to CONQUER) and
+ * 'political' (beat it with a diplomacy card + your drone values there to
+ * ALLY) — plus a PUBLIC 'production' value. Conquered planets produce a
+ * flat 1 good; allied planets produce their full production value. Stats
+ * are fixed by ring and secret until scouted; this file must never be
+ * publicly fetchable as data (it isn't: it's PHP).
  *
  * Coordinates are for the client's SVG board, viewBox 0 0 1000 1000.
  */
@@ -38,9 +41,15 @@ function sp_map() {
   $midNames   = ['Cinder', 'Vortex', 'Thorne', 'Ashfall', 'Ionis'];
   $innerNames = ['Obsidian', 'Zenith', 'Requiem', 'Kessler', 'Nadir'];
 
-  // Ring opposition values (fixed rings; the a-planet of each system is
-  // the softer target, the b-planet the harder one).
-  $oppByRing = [0 => [2, 3], 1 => [4, 6], 2 => [7, 9], 3 => [10, 12]];
+  // Ring stat table: [military_a, political_a, military_b, political_b].
+  // Political always runs higher than military — allying is the slower,
+  // richer path. Production (public, per allied production event) by ring.
+  $statsByRing = [
+    0 => [2, 3, 2, 4],
+    1 => [4, 5, 5, 7],
+    2 => [7, 8, 8, 10],
+  ];
+  $prodByRing = [0 => 2, 1 => 3, 2 => 4, 3 => 5];
 
   for ($k = 0; $k < 5; $k++) {
     $baseDeg = -90 + 72 * $k;   // seat 0 at top, clockwise
@@ -51,9 +60,11 @@ function sp_map() {
     [$xb, $yb] = $pos(400, $baseDeg + 9);
     $pa = "{$sysId}a"; $pb = "{$sysId}b";
     $planets[$pa] = ['id' => $pa, 'system' => $sysId, 'name' => $homeNames[$k] . ' Prime',
-      'faction' => 'O', 'ring' => 0, 'opposition' => $oppByRing[0][0], 'x' => $xa, 'y' => $ya, 'home_seat' => $k];
+      'faction' => 'O', 'ring' => 0, 'military' => $statsByRing[0][0], 'political' => $statsByRing[0][1],
+      'production' => $prodByRing[0], 'x' => $xa, 'y' => $ya, 'home_seat' => $k];
     $planets[$pb] = ['id' => $pb, 'system' => $sysId, 'name' => $homeNames[$k] . ' II',
-      'faction' => 'B', 'ring' => 0, 'opposition' => $oppByRing[0][1], 'x' => $xb, 'y' => $yb, 'home_seat' => null];
+      'faction' => 'B', 'ring' => 0, 'military' => $statsByRing[0][2], 'political' => $statsByRing[0][3],
+      'production' => $prodByRing[0], 'x' => $xb, 'y' => $yb, 'home_seat' => null];
     $systems[$sysId] = ['id' => $sysId, 'name' => $homeNames[$k] . ' Reach', 'ring' => 0,
       'marker' => 'O', 'planets' => [$pa, $pb]];
     $addLane($pa, $pb);
@@ -65,9 +76,11 @@ function sp_map() {
     $pa = "{$sysId}a"; $pb = "{$sysId}b";
     $bFaction = ($k % 2 === 0) ? 'B' : 'N';
     $planets[$pa] = ['id' => $pa, 'system' => $sysId, 'name' => $midNames[$k] . ' I',
-      'faction' => 'C', 'ring' => 1, 'opposition' => $oppByRing[1][0], 'x' => $xa, 'y' => $ya, 'home_seat' => null];
+      'faction' => 'C', 'ring' => 1, 'military' => $statsByRing[1][0], 'political' => $statsByRing[1][1],
+      'production' => $prodByRing[1], 'x' => $xa, 'y' => $ya, 'home_seat' => null];
     $planets[$pb] = ['id' => $pb, 'system' => $sysId, 'name' => $midNames[$k] . ' II',
-      'faction' => $bFaction, 'ring' => 1, 'opposition' => $oppByRing[1][1], 'x' => $xb, 'y' => $yb, 'home_seat' => null];
+      'faction' => $bFaction, 'ring' => 1, 'military' => $statsByRing[1][2], 'political' => $statsByRing[1][3],
+      'production' => $prodByRing[1], 'x' => $xb, 'y' => $yb, 'home_seat' => null];
     $systems[$sysId] = ['id' => $sysId, 'name' => $midNames[$k] . ' Drift', 'ring' => 1,
       'marker' => 'C', 'planets' => [$pa, $pb]];
     $addLane($pa, $pb);
@@ -79,9 +92,11 @@ function sp_map() {
     $pa = "{$sysId}a"; $pb = "{$sysId}b";
     $bFaction = ($k % 2 === 0) ? 'A' : 'C';
     $planets[$pa] = ['id' => $pa, 'system' => $sysId, 'name' => $innerNames[$k] . ' I',
-      'faction' => 'N', 'ring' => 2, 'opposition' => $oppByRing[2][0], 'x' => $xa, 'y' => $ya, 'home_seat' => null];
+      'faction' => 'N', 'ring' => 2, 'military' => $statsByRing[2][0], 'political' => $statsByRing[2][1],
+      'production' => $prodByRing[2], 'x' => $xa, 'y' => $ya, 'home_seat' => null];
     $planets[$pb] = ['id' => $pb, 'system' => $sysId, 'name' => $innerNames[$k] . ' II',
-      'faction' => $bFaction, 'ring' => 2, 'opposition' => $oppByRing[2][1], 'x' => $xb, 'y' => $yb, 'home_seat' => null];
+      'faction' => $bFaction, 'ring' => 2, 'military' => $statsByRing[2][2], 'political' => $statsByRing[2][3],
+      'production' => $prodByRing[2], 'x' => $xb, 'y' => $yb, 'home_seat' => null];
     $systems[$sysId] = ['id' => $sysId, 'name' => $innerNames[$k] . ' Verge', 'ring' => 2,
       'marker' => 'N', 'planets' => [$pa, $pb]];
     $addLane($pa, $pb);
@@ -89,13 +104,15 @@ function sp_map() {
 
   // ---- Core system (ring 3): the Umbral Core — N, A, A ----
   $coreFactions = ['N', 'A', 'A'];
+  $coreStats = [[10, 11], [10, 12], [11, 13]];   // [military, political] each
   $corePlanets = [];
   for ($i = 0; $i < 3; $i++) {
     [$x, $y] = $pos(60, -90 + 120 * $i);
     $pid = "CORE$i";
-    $opp = $i === 0 ? $oppByRing[3][0] : ($i === 1 ? 11 : $oppByRing[3][1]);
     $planets[$pid] = ['id' => $pid, 'system' => 'CORE', 'name' => 'Umbra ' . ['I', 'II', 'III'][$i],
-      'faction' => $coreFactions[$i], 'ring' => 3, 'opposition' => $opp, 'x' => $x, 'y' => $y, 'home_seat' => null];
+      'faction' => $coreFactions[$i], 'ring' => 3, 'military' => $coreStats[$i][0],
+      'political' => $coreStats[$i][1], 'production' => $prodByRing[3],
+      'x' => $x, 'y' => $y, 'home_seat' => null];
     $corePlanets[] = $pid;
   }
   $systems['CORE'] = ['id' => 'CORE', 'name' => 'The Umbral Core', 'ring' => 3,

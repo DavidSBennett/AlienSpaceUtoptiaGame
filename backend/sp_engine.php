@@ -89,8 +89,51 @@ function sp_load_game($mysqli, $gameId, $forUpdate = false) {
   $row['market_display'] = sp_j($row['market_display'], []);
   $row['market_stack']   = sp_j($row['market_stack'], []);
   $row['board_state']    = sp_j($row['board_state'],
-    ['drones' => [], 'treaties' => [], 'markers' => [], 'meta' => []]);
+    ['drones' => [], 'control' => [], 'markers' => [], 'meta' => []]);
+  sp_normalize_board($row['board_state']);
   return $row;
+}
+
+/**
+ * Normalize board state to the v2 mission model. Migrates v1 games in
+ * place: treaties become allied control, lane-drones dock at a lane
+ * endpoint, and drones gain a value (default 1). Idempotent.
+ */
+function sp_normalize_board(&$board) {
+  if (!isset($board['control'])) $board['control'] = [];
+  if (isset($board['treaties'])) {
+    foreach ($board['treaties'] as $pid => $holders) {
+      foreach ($holders as $seat) {
+        $board['control'][$pid][(string)$seat] = 'allied';
+      }
+    }
+    unset($board['treaties']);
+  }
+  $map = sp_map();
+  foreach ($board['drones'] as $i => $d) {
+    if (($d['type'] ?? 'docked') === 'lane' && isset($map['lanes'][$d['at']])) {
+      $d['at'] = $map['lanes'][$d['at']][0];
+    }
+    unset($d['type']);
+    if (!isset($d['value'])) $d['value'] = 1;
+    $board['drones'][$i] = $d;
+  }
+  if (!isset($board['markers'])) $board['markers'] = [];
+  if (!isset($board['meta'])) $board['meta'] = [];
+}
+
+/** Control kind ('military'|'allied') the seat holds at a planet, or null. */
+function sp_control_of($board, $pid, $seat) {
+  return $board['control'][$pid][(string)$seat] ?? null;
+}
+
+/** Number of planets a seat controls (either kind). */
+function sp_control_count($board, $seat) {
+  $n = 0;
+  foreach ($board['control'] as $holders) {
+    if (isset($holders[(string)$seat])) $n++;
+  }
+  return $n;
 }
 
 function sp_load_players($mysqli, $gameId) {
@@ -237,32 +280,28 @@ function sp_seat_drones($board, $seat) {
   return $out;
 }
 
-/** Planets adjacent to a seat's drones (mission/treaty targets). */
+/** Planets adjacent to a seat's drones: the planets they sit on + neighbors. */
 function sp_adjacent_planets($board, $seat) {
-  $map = sp_map();
   $set = [];
   foreach (sp_seat_drones($board, $seat) as $d) {
-    if ($d['type'] === 'docked') {
-      $set[$d['at']] = true;
-      foreach (sp_lanes_of_planet($d['at']) as $other) $set[$other] = true;
-    } else {
-      $pair = $map['lanes'][$d['at']] ?? null;
-      if ($pair) { $set[$pair[0]] = true; $set[$pair[1]] = true; }
-    }
+    $set[$d['at']] = true;
+    foreach (sp_lanes_of_planet($d['at']) as $other) $set[$other] = true;
   }
   return array_keys($set);
 }
 
-/** Is any drone (any seat) on this lane? */
-function sp_lane_occupied($board, $laneKey, $exceptIndex = -1) {
-  foreach ($board['drones'] as $i => $d) {
-    if ($i === $exceptIndex) continue;
-    if ($d['type'] === 'lane' && $d['at'] === $laneKey) return true;
+/** Sum of a seat's drone values AT a specific planet (diplomacy modifier). */
+function sp_drone_values_at($board, $seat, $pid) {
+  $sum = 0;
+  foreach ($board['drones'] as $d) {
+    if ((int)$d['seat'] === (int)$seat && $d['at'] === $pid) {
+      $sum += (int)($d['value'] ?? 1);
+    }
   }
-  return false;
+  return $sum;
 }
 
-/** Grant intel: every planet adjacent to the seat's drones (+2 lanes with scanners). */
+/** Grant intel: every planet adjacent to the seat's drones (+1 more hop with scanners). */
 function sp_auto_intel(&$player, $board) {
   $near = sp_adjacent_planets($board, (int)$player['seat']);
   $known = array_flip($player['intel']);
@@ -370,15 +409,15 @@ function sp_setup_game(&$game, &$players) {
   $game['market_display'] = array_splice($stack, 0, SP_MARKET_DISPLAY);
   $game['market_stack'] = $stack;
 
-  // Board: markers unflipped; 2 drones docked at each player's home planet.
-  $board = ['drones' => [], 'treaties' => [], 'markers' => [], 'meta' => []];
+  // Board: markers unflipped; 2 value-1 drones at each player's home planet.
+  $board = ['drones' => [], 'control' => [], 'markers' => [], 'meta' => []];
   foreach ($map['systems'] as $sysId => $sys) {
     $board['markers'][$sysId] = ['flipped' => false];
   }
   foreach ($players as $seat => &$p) {
     $home = "H{$seat}a";
-    $board['drones'][] = ['seat' => $seat, 'type' => 'docked', 'at' => $home];
-    $board['drones'][] = ['seat' => $seat, 'type' => 'docked', 'at' => $home];
+    $board['drones'][] = ['seat' => $seat, 'at' => $home, 'value' => 1];
+    $board['drones'][] = ['seat' => $seat, 'at' => $home, 'value' => 1];
     $p['hand'] = sp_starter_keys();
     $p['discard'] = [];
     $p['credits'] = SP_STARTING_CREDITS;
@@ -433,131 +472,109 @@ function sp_exec_move(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   $map = sp_map();
   $board = &$game['board_state'];
   $p = &$players[$seat];
+  $cards = sp_cards();
   $steps = $params['steps'] ?? [];
   if (!is_array($steps)) throw new Exception('steps must be an array');
 
   $mine = sp_seat_drones($board, $seat);
   $myIndices = array_keys($mine);
-  $allowed = count($mine);
+  $allowed = count($mine) + (int)($cards[$asCard]['step_bonus'] ?? 0);
   if (in_array('nav_thrusters', $p['upgrades'], true)) $allowed += 2;
   if (count($steps) > $allowed) throw new Exception("Too many movement steps (max $allowed)");
 
+  // v2 movement: drones sit ON planets and hop planet-to-planet along
+  // lanes. No occupancy limits — drones stack (stacking is diplomacy power).
   foreach ($steps as $s) {
     $di = (int)($s['drone'] ?? -1);
     $to = (string)($s['to'] ?? '');
     if (!in_array($di, $myIndices, true)) throw new Exception('Not your drone');
-    if (!isset($map['lanes'][$to])) throw new Exception('Unknown lane: ' . $to);
-    $d = $board['drones'][$di];
-    $pair = $map['lanes'][$to];
-    if ($d['type'] === 'docked') {
-      if ($d['at'] !== $pair[0] && $d['at'] !== $pair[1]) {
-        throw new Exception('First step must leave the docked planet onto an adjacent lane');
-      }
-    } else {
-      $cur = $map['lanes'][$d['at']];
-      $shared = array_intersect($cur, $pair);
-      if (count($shared) === 0) throw new Exception('Lanes are not connected');
+    if (!isset($map['planets'][$to])) throw new Exception('Unknown planet: ' . $to);
+    $from = $board['drones'][$di]['at'];
+    $laneKey = sp_lane_key($from, $to);
+    if (!isset($map['lanes'][$laneKey])) {
+      throw new Exception('No star-lane connects those planets');
     }
-    $board['drones'][$di] = ['seat' => $seat, 'type' => 'lane', 'at' => $to];
-  }
-  // End-of-movement occupancy: no lane may hold 2 drones.
-  $seen = [];
-  foreach ($board['drones'] as $i => $d) {
-    if ($d['type'] !== 'lane') continue;
-    if (isset($seen[$d['at']])) throw new Exception('A lane may only hold one drone at the end of movement');
-    $seen[$d['at']] = $i;
+    $board['drones'][$di]['at'] = $to;
   }
 
   sp_auto_intel($p, $board);
-  $msg = $p['player_name'] . ' maneuvered drones';
-
-  // Optional treaty attempt (Diplomacy mission).
-  if (!empty($params['treaty']) && is_array($params['treaty'])) {
-    $t = $params['treaty'];
-    $planetId = (string)($t['planet'] ?? '');
-    $commits = $t['commits'] ?? [];
-    $planet = $map['planets'][$planetId] ?? null;
-    if (!$planet) throw new Exception('Unknown planet');
-    if (!in_array($planetId, sp_adjacent_planets($board, $seat), true)) {
-      throw new Exception('No drone adjacent to that planet');
-    }
-    $holders = $board['treaties'][$planetId] ?? [];
-    if (in_array($seat, $holders, true)) throw new Exception('You already hold a treaty there');
-    sp_validate_commits($p, $cardKey, $commits);
-
-    // Affordability first — a mission you can't pay for is an error, not a loss.
-    $nAfter = count($holders) + 1;
-    // Treaty cost mirrors Concordia house costs: Krath (ore) planets are the
-    // cheap build (1 Biomass + 1 credit × treaties-after); everywhere else
-    // 1 Ore + 1 local resource + (value-2) credits × treaties-after.
-    if ($planet['faction'] === 'O') {
-      $resCost = ['B' => 1];
-      $creditCost = 1 * $nAfter;
-    } else {
-      $resCost = ['O' => 1, $planet['faction'] => 1];
-      $creditCost = (SP_PRICES[$planet['faction']] - 2) * $nAfter;
-    }
-    foreach ($resCost as $letter => $n) {
-      if (($p['cargo'][$letter] ?? 0) < $n) throw new Exception('Cannot afford the treaty cost');
-    }
-    if ($p['credits'] < $creditCost) throw new Exception('Cannot afford the treaty cost');
-
-    $total = sp_mission_total('diplomacy', $asCard, $commits);
-    $opp = $planet['opposition'];
-    // Attempting reveals the opposition either way.
-    if (!in_array($planetId, $p['intel'], true)) $p['intel'][] = $planetId;
-
-    // Commits are spent (to discard) win or lose — that's the tempo cost.
-    foreach ($commits as $k) {
-      $pos = array_search($k, $p['hand'], true);
-      array_splice($p['hand'], $pos, 1);
-      $p['discard'][] = $k;
-    }
-
-    if ($total >= $opp) {
-      sp_deduct($p, $resCost, 'the treaty');
-      $p['credits'] -= $creditCost;
-      $board['treaties'][$planetId] = array_merge($holders, [$seat]);
-      $advanced = sp_track_advance($p, 'diplomacy', $planet['ring']);
-      $msg .= ' and signed a treaty at ' . $planet['name']
-            . ($advanced ? ' (Diplomacy +1)' : '');
-      sp_check_treaty_trigger($game, $players, $seat);
-    } else {
-      $msg .= ' but the treaty attempt at ' . $planet['name']
-            . " failed ($total vs $opp)";
-    }
-  }
-  return $msg;
+  return $p['player_name'] . ' maneuvered drones';
 }
 
+/**
+ * CONQUER (v2): play a strike card at ANY planet. Total = the card's
+ * Military stat + commit_power × committed cards (commits are generic
+ * fuel). Win: the planet becomes militarily controlled — it produces a
+ * flat 1 good. Fast, straightforward, weakest production.
+ */
 function sp_exec_strike(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   $map = sp_map();
   $board = &$game['board_state'];
   $p = &$players[$seat];
+  $cards = sp_cards();
   $planetId = (string)($params['planet'] ?? '');
   $commits = $params['commits'] ?? [];
   $planet = $map['planets'][$planetId] ?? null;
   if (!$planet) throw new Exception('Unknown planet');
-  if (!in_array($planetId, sp_adjacent_planets($board, $seat), true)) {
-    throw new Exception('No drone adjacent to that planet');
+  if (sp_control_of($board, $planetId, $seat) !== null) {
+    throw new Exception('You already control that planet');
   }
   sp_validate_commits($p, $cardKey, $commits);
 
-  $total = sp_mission_total('military', $asCard, $commits);
-  $opp = $planet['opposition'];
+  $power = (int)($cards[$asCard]['commit_power'] ?? 1);
+  $total = (int)$cards[$asCard]['stats'][0] + $power * count($commits);
+  $need = (int)$planet['military'];
   if (!in_array($planetId, $p['intel'], true)) $p['intel'][] = $planetId;
   foreach ($commits as $k) {
     $pos = array_search($k, $p['hand'], true);
     array_splice($p['hand'], $pos, 1);
     $p['discard'][] = $k;
   }
-  if ($total >= $opp) {
-    $got = sp_cargo_add($p, $planet['faction'], SP_STRIKE_YIELD);
+  if ($total >= $need) {
+    $board['control'][$planetId][(string)$seat] = 'military';
     $advanced = sp_track_advance($p, 'military', $planet['ring']);
-    return $p['player_name'] . ' raided ' . $planet['name'] . " — seized $got "
-         . SP_RESOURCE_NAMES[$planet['faction']] . ($advanced ? ' (Military +1)' : '');
+    sp_check_control_trigger($game, $players, $seat);
+    return $p['player_name'] . ' conquered ' . $planet['name']
+         . " ($total vs $need)" . ($advanced ? ' (Military +1)' : '');
   }
-  return $p['player_name'] . ' raided ' . $planet['name'] . " and was repelled ($total vs $opp)";
+  return $p['player_name'] . '\'s assault on ' . $planet['name'] . " was repelled ($total vs $need)";
+}
+
+/**
+ * ALLY (v2): play a diplomacy card at ANY planet. Total = the card's
+ * Diplomacy stat + the summed VALUE of your drones at the planet (no card
+ * commits). Win: the planet becomes allied — it produces its full
+ * production value. Slower to set up, strongest production. Also upgrades
+ * your own military control to allied.
+ */
+function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard) {
+  $map = sp_map();
+  $board = &$game['board_state'];
+  $p = &$players[$seat];
+  $cards = sp_cards();
+  $planetId = (string)($params['planet'] ?? '');
+  $planet = $map['planets'][$planetId] ?? null;
+  if (!$planet) throw new Exception('Unknown planet');
+  if (sp_control_of($board, $planetId, $seat) === 'allied') {
+    throw new Exception('That planet is already your ally');
+  }
+
+  $droneBonus = sp_drone_values_at($board, $seat, $planetId);
+  $total = (int)$cards[$asCard]['stats'][1] + $droneBonus;
+  $need = (int)$planet['political'];
+  if (!in_array($planetId, $p['intel'], true)) $p['intel'][] = $planetId;
+
+  if ($total >= $need) {
+    $was = sp_control_of($board, $planetId, $seat);
+    $board['control'][$planetId][(string)$seat] = 'allied';
+    $advanced = sp_track_advance($p, 'diplomacy', $planet['ring']);
+    sp_check_control_trigger($game, $players, $seat);
+    return $p['player_name'] . ($was === 'military' ? ' won over occupied ' : ' allied with ')
+         . $planet['name'] . " ($total vs $need, drones +$droneBonus)"
+         . ($advanced ? ' (Diplomacy +1)' : '');
+  }
+  return $p['player_name'] . '\'s envoys were turned away at ' . $planet['name']
+       . " ($total vs $need, drones +$droneBonus)";
 }
 
 function sp_exec_trade(&$game, &$players, $seat, $cardKey, $params, $asCard) {
@@ -574,8 +591,10 @@ function sp_exec_trade(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   }
   sp_validate_commits($p, $cardKey, $commits);
 
+  // Interim v2: trade still opposed, vs the planet's political stat,
+  // commits add their own Trade stat. Full trade redesign is deferred.
   $total = sp_mission_total('trade', $asCard, $commits);
-  $opp = $planet['opposition'];
+  $opp = (int)$planet['political'];
   if (!in_array($planetId, $p['intel'], true)) $p['intel'][] = $planetId;
   foreach ($commits as $k) {
     $pos = array_search($k, $p['hand'], true);
@@ -651,11 +670,13 @@ function sp_exec_produce(&$game, &$players, $seat, $cardKey, $params) {
   $usedBoon = ($bonusUnits === 2);
   $board['markers'][$sysId]['flipped'] = true;
 
-  // All treaty holders on the system's planets produce, regardless of owner.
+  // Every controlled planet in the system produces for its controller(s):
+  // allied = the planet's full production value; conquered = a flat 1.
   foreach ($sys['planets'] as $pid) {
-    $holders = $board['treaties'][$pid] ?? [];
-    foreach ($holders as $hSeat) {
-      sp_cargo_add($players[$hSeat], $map['planets'][$pid]['faction'], 1);
+    $holders = $board['control'][$pid] ?? [];
+    foreach ($holders as $hSeat => $kind) {
+      $amount = ($kind === 'allied') ? (int)$map['planets'][$pid]['production'] : 1;
+      sp_cargo_add($players[(int)$hSeat], $map['planets'][$pid]['faction'], $amount);
     }
   }
 
@@ -684,22 +705,24 @@ function sp_exec_deploy(&$game, &$players, $seat, $cardKey, $params) {
 
   $placements = $params['placements'] ?? [];
   if (!is_array($placements) || count($placements) === 0) throw new Exception('No placements');
+  $cards = sp_cards();
+  $droneValue = (int)($cards[$cardKey]['drone_value'] ?? 1);
   foreach ($placements as $pl) {
     if ((int)$p['drones_reserve'] <= 0) throw new Exception('No drones in reserve');
     $pid = (string)($pl['planet'] ?? '');
     $planet = $map['planets'][$pid] ?? null;
     if (!$planet) throw new Exception('Unknown planet');
     $isHome = ($planet['home_seat'] !== null && (int)$planet['home_seat'] === $seat);
-    $hasTreaty = in_array($seat, $board['treaties'][$pid] ?? [], true);
-    if (!$isHome && !$hasTreaty) {
-      throw new Exception('Drones launch at your home planet or planets where you hold a treaty');
+    $controlled = sp_control_of($board, $pid, $seat) !== null;
+    if (!$isHome && !$controlled) {
+      throw new Exception('Drones launch at your home planet or planets you control');
     }
     sp_deduct($p, SP_DRONE_COST, 'a drone');
     $p['drones_reserve'] = (int)$p['drones_reserve'] - 1;
-    $board['drones'][] = ['seat' => $seat, 'type' => 'docked', 'at' => $pid];
+    $board['drones'][] = ['seat' => $seat, 'at' => $pid, 'value' => $droneValue];
   }
   sp_auto_intel($p, $board);
-  return $p['player_name'] . ' launched ' . count($placements) . ' drone(s)';
+  return $p['player_name'] . ' launched ' . count($placements) . " value-$droneValue drone(s)";
 }
 
 function sp_market_refill(&$game) {
@@ -745,9 +768,9 @@ function sp_exec_envoy(&$game, &$players, $seat, $cardKey, $asCard) {
   $p = &$players[$seat];
   $faction = sp_cards()[$asCard]['faction'];
   $count = 0;
-  foreach ($board['treaties'] as $pid => $holders) {
+  foreach ($board['control'] as $pid => $holders) {
     if ($map['planets'][$pid]['faction'] !== $faction) continue;
-    foreach ($holders as $h) if ((int)$h === $seat) $count++;
+    if (isset($holders[(string)$seat])) $count++;
   }
   $got = sp_cargo_add($p, $faction, $count);
   return $p['player_name'] . ' activated ' . sp_cards()[$asCard]['name']
@@ -773,11 +796,11 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
     $planet = $map['planets'][$pid] ?? null;
     if (!$planet) throw new Exception('Unknown planet');
     $isHome = ($planet['home_seat'] !== null && (int)$planet['home_seat'] === $seat);
-    $hasTreaty = in_array($seat, $board['treaties'][$pid] ?? [], true);
-    if (!$isHome && !$hasTreaty) throw new Exception('Drones launch at home or treaty planets');
+    $controlled = sp_control_of($board, $pid, $seat) !== null;
+    if (!$isHome && !$controlled) throw new Exception('Drones launch at home or controlled planets');
     if ($asCard !== 'maintenance_bay_2') sp_deduct($p, SP_DRONE_COST, 'a drone');
     $p['drones_reserve'] = (int)$p['drones_reserve'] - 1;
-    $board['drones'][] = ['seat' => $seat, 'type' => 'docked', 'at' => $pid];
+    $board['drones'][] = ['seat' => $seat, 'at' => $pid, 'value' => 1];
     sp_auto_intel($p, $board);
     $msg .= ' and built a drone';
   }
@@ -885,6 +908,7 @@ function sp_dispatch_action(&$game, &$players, $seat, $cardKey, $action, $params
   switch ($action) {
     case 'move':         return sp_exec_move($game, $players, $seat, $cardKey, $params, $asCard);
     case 'strike':       return sp_exec_strike($game, $players, $seat, $cardKey, $params, $asCard);
+    case 'diplomacy':    return sp_exec_diplomacy($game, $players, $seat, $cardKey, $params, $asCard);
     case 'trade':        return sp_exec_trade($game, $players, $seat, $cardKey, $params, $asCard);
     case 'produce':      return sp_exec_produce($game, $players, $seat, $cardKey, $params);
     case 'deploy':       return sp_exec_deploy($game, $players, $seat, $cardKey, $params);
@@ -949,13 +973,9 @@ function sp_active_seats($players) {
   return $out;
 }
 
-function sp_check_treaty_trigger(&$game, &$players, $seat) {
-  $count = 0;
-  foreach ($game['board_state']['treaties'] as $holders) {
-    foreach ($holders as $h) if ((int)$h === $seat) $count++;
-  }
-  if ($count >= SP_TREATY_TRIGGER) {
-    sp_trigger_endgame($game, $players, $seat, 'treaty_network');
+function sp_check_control_trigger(&$game, &$players, $seat) {
+  if (sp_control_count($game['board_state'], $seat) >= SP_TREATY_TRIGGER) {
+    sp_trigger_endgame($game, $players, $seat, 'control_network');
   }
 }
 
@@ -1016,8 +1036,8 @@ function sp_compute_score($game, $players, $seat, $final = true) {
 
   // Multiplicands
   $systemsWithTreaty = [];
-  foreach ($board['treaties'] as $pid => $holders) {
-    if (in_array($seat, $holders, true)) {
+  foreach ($board['control'] as $pid => $holders) {
+    if (isset($holders[(string)$seat])) {
       $systemsWithTreaty[$map['planets'][$pid]['system']] = true;
     }
   }
@@ -1092,21 +1112,32 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'stage' => $c['stage'], 'cost' => $c['cost'],
       'rider_credits' => $c['rider_credits'], 'text' => $c['text'],
       'faction' => $c['faction'] ?? null,
+      'commit_power' => $c['commit_power'] ?? null,
+      'drone_value' => $c['drone_value'] ?? null,
+      'step_bonus' => $c['step_bonus'] ?? null,
+      'kind' => $c['kind'],
     ];
   }
 
-  // Map WITHOUT opposition; your intel carries the revealed values.
+  // Map WITHOUT the secret military/political stats; production is public.
+  // Your intel carries the revealed stat pairs.
   $planets = [];
   foreach ($map['planets'] as $pid => $pl) {
     $planets[$pid] = [
       'id' => $pid, 'system' => $pl['system'], 'name' => $pl['name'],
       'faction' => $pl['faction'], 'ring' => $pl['ring'],
+      'production' => $pl['production'],
       'x' => $pl['x'], 'y' => $pl['y'], 'home_seat' => $pl['home_seat'],
     ];
   }
   $intel = [];
   foreach ($you['intel'] as $pid) {
-    if (isset($map['planets'][$pid])) $intel[$pid] = $map['planets'][$pid]['opposition'];
+    if (isset($map['planets'][$pid])) {
+      $intel[$pid] = [
+        'm' => $map['planets'][$pid]['military'],
+        'p' => $map['planets'][$pid]['political'],
+      ];
+    }
   }
 
   $pubPlayers = [];
