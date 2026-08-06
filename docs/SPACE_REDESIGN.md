@@ -480,3 +480,24 @@ economy only); mission strength = ship stat + card stat.
 - **Removed:** drones, deploy, produce/levy/markers/boon production,
   envoys, planet control, treaty costs, commits, the old fixed upgrade
   catalog. Pre-v3 games are sunset gracefully on next poll.
+
+### v3.1 economy rebalance (2026-08-06, after numerical audit)
+
+- **Crew bargaining (new diplomat mechanic):** when playing a diplomacy
+  card, other crew may be DISCARDED for +1 political each — crew become
+  commodities for political power. Spent win or lose; recovered on the
+  next Regroup. Fixes the diplomat's turn-one lockout (D2 + 1 crew = 3 =
+  easiest home planet) and gives the career its unique resource: its own
+  hand. Pirates and merchants cannot bargain crew.
+- **Contract payout:** 2×production − rep (floor 1) → **3×production −
+  2×rep, floor production** — front-loaded per region with a permanent
+  floor; the mirror of piracy's back-loaded bounty escalation.
+- **Merchant track:** advances only when a trade SELLS ≥1 wanted unit
+  (buying alone is logistics, not rank) — kills the 1-unit wash-buy climb.
+- **Trade margins:** sell markup +2 → **+3**, and negotiating now adds
+  **+1c per unit sold** (was a flat bonus) — negotiating drives capacity
+  AND margin, per the original ship-stat spec.
+- **Engineering scoring:** flat **2 VP per installed module** (the v3
+  deck has no engineering cards — the ship board scores itself).
+- **Solo games strip copy-action crew** from the market (dead cards
+  without opponents).

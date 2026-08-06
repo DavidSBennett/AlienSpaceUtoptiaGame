@@ -50,7 +50,7 @@ const SP_CARGO_CAPACITY   = 12;
 const SP_MARKET_DISPLAY   = 7;
 const SP_UPGRADE_DISPLAY  = 4;
 const SP_TROPHY_VP        = 7;
-const SP_SELL_MARKUP      = 2;    // wanted goods sell at list + this
+const SP_SELL_MARKUP      = 3;    // wanted goods sell at list + this (+ negotiating per unit)
 const SP_TRADE_BASE_CAP   = 2;    // + card Trade stat + ship negotiating
 
 const SP_TRACK_MAX  = 12;
@@ -383,8 +383,19 @@ function sp_apply_payment(&$player, $payment) {
 
 function sp_setup_game(&$game, &$players) {
   // Crew market: shuffle within each stage, concatenate I→V.
+  // Solo games strip copy-action crew (Spy line) — dead cards with no
+  // opponents to intercept.
+  $solo = count($players) === 1;
+  $cards = sp_cards();
   $stack = [];
   foreach (sp_market_stages() as $stage => $keys) {
+    if ($solo) {
+      $filtered = [];
+      foreach ($keys as $k) {
+        if ($cards[$k]['action'] !== 'copy') $filtered[] = $k;
+      }
+      $keys = $filtered;
+    }
     shuffle($keys);
     foreach ($keys as $k) $stack[] = $k;
   }
@@ -483,7 +494,13 @@ function sp_exec_strike(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   return $p['player_name'] . '\'s raid on ' . $planet['name'] . " was repelled ($total vs $need)";
 }
 
-/** DIPLOMATIC CONTRACT — easier and poorer with every success in the region. */
+/**
+ * DIPLOMATIC CONTRACT — easier and poorer with every success in the region.
+ * The diplomat's unique lever: DISCARD other crew members (+1 political
+ * each) — crew become commodities for political power. Discards are spent
+ * win or lose (tempo cost; they return on the next Regroup).
+ * Payout: 3 × production − 2 × rep, floored at production.
+ */
 function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   $map = sp_map();
   $board = &$game['board_state'];
@@ -495,21 +512,42 @@ function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard)
   $region = sp_ship_region($board, $seat);
   if ($planet['system'] !== $region) throw new Exception('Your ship must be in that region to negotiate');
 
+  // Validate discarded crew: in hand, unique, not the played card itself.
+  $commits = is_array($params['commits'] ?? null) ? $params['commits'] : [];
+  $seen = [];
+  foreach ($commits as $k) {
+    if (!is_string($k) || $k === $cardKey || isset($seen[$k])) {
+      throw new Exception('Invalid crew selection');
+    }
+    $seen[$k] = true;
+    if (!in_array($k, $p['hand'], true)) throw new Exception('Crew not in hand: ' . $k);
+  }
+
   $rep = sp_rep_at($p, $region);
   $ship = sp_ship_stats($p);
-  $total = $ship['political'] + (int)$cards[$asCard]['stats'][1];
+  $total = $ship['political'] + (int)$cards[$asCard]['stats'][1] + count($commits);
   $need = max(1, (int)$planet['political'] - $rep);
   sp_reveal_around($p, $planetId);
 
+  // Crew are bargained away win or lose.
+  foreach ($commits as $k) {
+    $pos = array_search($k, $p['hand'], true);
+    array_splice($p['hand'], $pos, 1);
+    $p['discard'][] = $k;
+  }
+  $crewNote = count($commits) > 0 ? (', ' . count($commits) . ' crew bargained') : '';
+
   if ($total >= $need) {
-    $payout = max(1, 2 * (int)$planet['production'] - $rep);
+    $prod = (int)$planet['production'];
+    $payout = max($prod, 3 * $prod - 2 * $rep);
     $p['credits'] += $payout;
     $p['tracks']['rep'][$region] = $rep + 1;
     $suffix = sp_track_advance($game, $players, $seat, 'diplomacy', $planet['ring']);
     return $p['player_name'] . ' resolved a crisis on ' . $planet['name']
-         . " ($total vs $need) — paid $payout credits, rep now " . ($rep + 1) . $suffix;
+         . " ($total vs $need$crewNote) — paid $payout credits, rep now " . ($rep + 1) . $suffix;
   }
-  return $p['player_name'] . '\'s envoys were turned away at ' . $planet['name'] . " ($total vs $need)";
+  return $p['player_name'] . '\'s envoys were turned away at ' . $planet['name']
+       . " ($total vs $need$crewNote)";
 }
 
 /** TRADE — demand-matched, no opposed roll. */
@@ -540,18 +578,21 @@ function sp_exec_trade(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   if ($units === 0) throw new Exception('Trade at least one unit');
   if ($units > $capacity) throw new Exception("Over trade capacity (max $capacity units)");
 
-  $earned = 0; $spent = 0;
-  // Sell: only what this planet WANTS, at list + markup.
+  $earned = 0; $spent = 0; $soldUnits = 0;
+  // Sell: only what this planet WANTS, at list + markup + negotiating/unit.
   foreach ($sell as $letter => $n) {
     $n = (int)$n;
     if ($n <= 0) continue;
     if (!in_array($letter, $planet['wants'], true)) {
+      $wantNames = [];
+      foreach ($planet['wants'] as $w) $wantNames[] = SP_RESOURCE_NAMES[$w];
       throw new Exception($planet['name'] . ' does not want ' . SP_RESOURCE_NAMES[$letter]
-        . ' (wants: ' . implode(', ', array_map(fn($w) => SP_RESOURCE_NAMES[$w], $planet['wants'])) . ')');
+        . ' (wants: ' . implode(', ', $wantNames) . ')');
     }
     if (($p['cargo'][$letter] ?? 0) < $n) throw new Exception('Not enough ' . SP_RESOURCE_NAMES[$letter] . ' to sell');
     $p['cargo'][$letter] -= $n;
-    $earned += $n * (SP_PRICES[$letter] + SP_SELL_MARKUP);
+    $earned += $n * (SP_PRICES[$letter] + SP_SELL_MARKUP + $ship['negotiating']);
+    $soldUnits += $n;
   }
   // Buy: only the planet's own goods, at list, at most its production per visit.
   foreach ($buy as $letter => $n) {
@@ -570,10 +611,13 @@ function sp_exec_trade(&$game, &$players, $seat, $cardKey, $params, $asCard) {
     $spent += $price;
   }
 
-  $rider = (int)$cards[$asCard]['rider_credits'] + $ship['negotiating'];
+  $rider = (int)$cards[$asCard]['rider_credits'];
   $p['credits'] += $earned - $spent + $rider;
   sp_reveal_around($p, $planetId);
-  $suffix = sp_track_advance($game, $players, $seat, 'trade', $planet['ring']);
+  // Merchant rank comes from FULFILLING DEMAND: only a trade that SELLS
+  // wanted goods advances the track (buying alone is just logistics).
+  $suffix = $soldUnits > 0
+    ? sp_track_advance($game, $players, $seat, 'trade', $planet['ring']) : '';
   $net = $earned - $spent + $rider;
   return $p['player_name'] . ' traded at ' . $planet['name']
        . " ($units units, " . ($net >= 0 ? '+' : '') . "$net credits)" . $suffix;
@@ -824,7 +868,9 @@ function sp_compute_score($game, $players, $seat, $final = true) {
   $b['trade_guild']      = $counts['trade_guild'] * (int)$p['tracks']['trade']['step'];
   $b['war_college']      = $counts['war_college'] * (int)$p['tracks']['military']['step'];
   $b['alliances']        = $counts['alliances'] * $visited;
-  $b['engineering']      = $counts['engineering'] * SP_ENGINEERING_VP_PER_UPGRADE * count($p['upgrades']);
+  // Engineering scores the ship itself: flat VP per installed module (the
+  // v3 deck has no engineering-affiliation cards — the board IS the card).
+  $b['engineering']      = SP_ENGINEERING_VP_PER_UPGRADE * count($p['upgrades']);
   $b['trophy']           = ($final && (int)$p['trophy']) ? SP_TROPHY_VP : 0;
 
   return ['total' => array_sum($b), 'breakdown' => $b, 'card_counts' => $counts];

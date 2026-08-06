@@ -58,13 +58,13 @@ function sp_cards() {
     'name' => 'Ambassador', 'action' => 'diplomacy',
     'stats' => [0, 2, 0], 'affiliation' => 'diplomatic_corps',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
-    'text' => 'Take a DIPLOMATIC CONTRACT in your region: ship political + Diplomacy 2 vs its political − your local reputation. Payout = 2 × production − rep, in credits; then your rep there rises.',
+    'text' => 'Take a DIPLOMATIC CONTRACT in your region: ship political + Diplomacy 2 vs its political − your local reputation. You may BARGAIN AWAY other crew from hand: +1 political each (they return on your next Regroup). Payout = 3 × production − 2 × rep, floor production; then your rep there rises.',
   ];
   $c['trader'] = [
     'name' => 'Trader', 'action' => 'trade',
     'stats' => [0, 0, 2], 'affiliation' => 'trade_guild',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
-    'text' => 'TRADE at a planet in your region: sell goods it wants (list + 2 each), buy its own goods at list price. Capacity = 2 + Trade 2 + ship negotiating.',
+    'text' => 'TRADE at a planet in your region: sell goods it wants (list + 3 + negotiating each), buy its own goods at list price. Capacity = 2 + Trade 2 + ship negotiating.',
   ];
   $c['recruiter'] = [
     'name' => 'Recruiter', 'action' => 'recruit',
@@ -86,7 +86,7 @@ function sp_cards() {
   $mk('buccaneer', 'Buccaneer', 'strike', 3, 0, 0, 'war_college', 1, ['O'], 0,
       'RAID in your region: ship military + Military 3 vs military + bounty.');
   $mk('consul', 'Consul', 'diplomacy', 0, 3, 0, 'diplomatic_corps', 1, ['O', 'B'], 0,
-      'Diplomatic contract: ship political + Diplomacy 3 vs political − rep.');
+      'Diplomatic contract: ship political + Diplomacy 3 vs political − rep. Bargain away other crew: +1 each.');
   $mk('caravan_master', 'Caravan Master', 'trade', 0, 0, 3, 'trade_guild', 1, ['B'], 0,
       'Trade in your region; capacity 2 + Trade 3 + negotiating.');
   $mk('wayfinder', 'Wayfinder', 'move', 0, 1, 1, 'alliances', 1, ['O'], 0,
@@ -102,7 +102,7 @@ function sp_cards() {
   $mk('freebooter', 'Freebooter', 'strike', 3, 1, 0, 'war_college', 2, ['C'], 0,
       'RAID in your region: ship military + Military 3 vs military + bounty.');
   $mk('attache', 'Attaché', 'diplomacy', 0, 3, 1, 'diplomatic_corps', 2, ['B', 'C'], 0,
-      'Diplomatic contract: ship political + Diplomacy 3 vs political − rep.');
+      'Diplomatic contract: ship political + Diplomacy 3 vs political − rep. Bargain away other crew: +1 each.');
   $mk('guild_factor', 'Guild Factor', 'trade', 0, 1, 4, 'trade_guild', 2, ['C'], 0,
       'Trade in your region; capacity 2 + Trade 4 + negotiating.');
   $mk('pathfinder', 'Pathfinder', 'move', 1, 1, 0, 'alliances', 2, ['B'], 0,
@@ -116,7 +116,7 @@ function sp_cards() {
 
   // ---------- Stage III (6) ----------
   $mk('legate', 'Legate', 'diplomacy', 0, 4, 0, 'diplomatic_corps', 3, ['N'], 0,
-      'Diplomatic contract: ship political + Diplomacy 4 vs political − rep.');
+      'Diplomatic contract: ship political + Diplomacy 4 vs political − rep. Bargain away other crew: +1 each.');
   $mk('magnate', 'Magnate', 'trade', 0, 0, 5, 'trade_guild', 3, ['N'], 5,
       'Trade in your region (capacity 2 + Trade 5 + negotiating) and pocket 5 credits.');
   $mk('warlord', 'Warlord', 'strike', 4, 1, 0, 'war_college', 3, ['C', 'N'], 0,
@@ -126,13 +126,13 @@ function sp_cards() {
   $mk('guildmaster', 'Guildmaster', 'recruit', 0, 2, 2, 'wealth', 3, ['N'], 0,
       'Hire up to 2 crew from the market.');
   $mk('high_envoy', 'High Envoy', 'diplomacy', 1, 4, 0, 'diplomatic_corps', 3, ['N', 'C'], 0,
-      'Diplomatic contract: ship political + Diplomacy 4 vs political − rep.');
+      'Diplomatic contract: ship political + Diplomacy 4 vs political − rep. Bargain away other crew: +1 each.');
 
   // ---------- Stage IV (6) ----------
   $mk('dread_corsair', 'Dread Corsair', 'strike', 5, 0, 0, 'war_college', 4, ['N', 'A'], 0,
       'RAID in your region: ship military + Military 5 vs military + bounty.');
   $mk('chancellor', 'Chancellor', 'diplomacy', 0, 5, 0, 'diplomatic_corps', 4, ['A'], 0,
-      'Diplomatic contract: ship political + Diplomacy 5 vs political − rep.');
+      'Diplomatic contract: ship political + Diplomacy 5 vs political − rep. Bargain away other crew: +1 each.');
   $mk('trade_prince', 'Trade Prince', 'trade', 0, 1, 5, 'trade_guild', 4, ['A'], 5,
       'Trade in your region (capacity 2 + Trade 5 + negotiating) and pocket 5 credits.');
   $mk('star_pilot', 'Star Pilot', 'move', 1, 1, 1, 'alliances', 4, ['C', 'N'], 0,
@@ -146,7 +146,7 @@ function sp_cards() {
   $mk('pirate_king', 'Pirate King', 'strike', 6, 0, 0, 'war_college', 5, ['A', 'A'], 0,
       'RAID in your region: ship military + Military 6 vs military + bounty.');
   $mk('grand_diplomat', 'Grand Diplomat', 'diplomacy', 0, 6, 0, 'diplomatic_corps', 5, ['A', 'N'], 0,
-      'Diplomatic contract: ship political + Diplomacy 6 vs political − rep.');
+      'Diplomatic contract: ship political + Diplomacy 6 vs political − rep. Bargain away other crew: +1 each.');
   $mk('cartel_boss', 'Cartel Boss', 'trade', 0, 0, 6, 'trade_guild', 5, ['A', 'N'], 5,
       'Trade in your region (capacity 2 + Trade 6 + negotiating) and pocket 5 credits.');
   $mk('admiral', 'Admiral', 'strike', 5, 2, 0, 'war_college', 5, ['A', 'C'], 0,

@@ -40,7 +40,7 @@ const AFFILIATION_SCORING = {
   alliances: 'At game end this card scores VP per region your ship has visited.',
   trade_guild: 'At game end this card scores VP equal to your Merchant track position.',
   war_college: 'At game end this card scores VP equal to your Pirate track position.',
-  engineering: 'At game end this card scores 2 VP per ship module you have installed.',
+  engineering: 'Engineering scores itself: every installed ship module is worth 2 VP at game end.',
 };
 const ACTION_LABELS = {
   reset: 'Regroup', move: 'Fly', strike: 'Raid', diplomacy: 'Contract',
@@ -53,7 +53,7 @@ const MODULE_TYPE_LABELS = {
 
 const emptyDraft = {
   path: [], planet: null, sell: {}, buy: {}, picks: [],
-  upgrades: [], copyTarget: null,
+  upgrades: [], copyTarget: null, commits: [],
 };
 
 const MAP_PX = 1500;
@@ -186,7 +186,7 @@ function PlanetTooltip({ planet, state }) {
           {bounty > 0 ? ` (your bounty here: ${bounty})` : ''}
         </div>
         <div className={rep > 0 ? T_GOOD : T_MUted}>
-          🤝 Contract{known ? `: needs ${Math.max(1, known.p - rep)}` : ''} — pays {Math.max(1, 2 * planet.production - rep)}c
+          🤝 Contract{known ? `: needs ${Math.max(1, known.p - rep)}` : ''} — pays {Math.max(planet.production, 3 * planet.production - 2 * rep)}c
           {rep > 0 ? ` (your rep here: ${rep})` : ''}
         </div>
         <div className={T_MUted}>
@@ -253,7 +253,7 @@ function CargoHold({ you, resourceNames, tipHandlers }) {
 
 // ── small pieces ─────────────────────────────────────────────────────────
 
-function CardChip({ cardKey, cards, onClick, selected, disabled, small, tipHandlers }) {
+function CardChip({ cardKey, cards, onClick, onCommit, committed, selected, disabled, small, tipHandlers }) {
   const c = cards[cardKey];
   if (!c) return null;
   return (
@@ -263,6 +263,7 @@ function CardChip({ cardKey, cards, onClick, selected, disabled, small, tipHandl
         className={
           'w-full text-left rounded-md border px-2 py-1.5 transition-colors shadow-lg ' +
           (selected ? 'border-[#79c9d6] bg-[#123143] ' :
+           committed ? 'border-[#e0b45c] bg-[#2a2338] ' :
            'border-[#2f4b6e] bg-[#0c1424]/95 hover:border-[#8593ad] ') +
           (disabled ? 'opacity-50 cursor-not-allowed ' : '')
         }>
@@ -277,6 +278,18 @@ function CardChip({ cardKey, cards, onClick, selected, disabled, small, tipHandl
         <div className={'text-[10px] ' + T_MUted}>{ACTION_LABELS[c.action]}</div>
         <div className={'text-[9px] ' + T_HEAD}>{AFFILIATION_LABELS[c.affiliation]}</div>
       </button>
+      {onCommit && (
+        <button type="button" onClick={onCommit}
+          className={
+            'absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full text-[10px] leading-none border z-10 ' +
+            (committed
+              ? 'bg-[#e0b45c] text-[#05070f] border-[#f5d28a]'
+              : 'bg-[#122036] text-[#dbe4f0] border-[#2f4b6e] hover:border-[#e0b45c]')
+          }
+          title={committed ? 'Keep this crew member' : 'Bargain away for +1 political'}>
+          {committed ? '\u2713' : '+'}
+        </button>
+      )}
     </div>
   );
 }
@@ -580,9 +593,9 @@ export default function SpaceGame() {
       missionNeed = targetIntel ? targetIntel.m + bounty : null;
       missionReward = `${targetPlanet.production + bounty} ${RESOURCE_ICONS[targetPlanet.faction]}`;
     } else if (effectiveAction === 'diplomacy') {
-      missionTotal = (you.ship?.political || 0) + effectiveCard.stats[1];
+      missionTotal = (you.ship?.political || 0) + effectiveCard.stats[1] + draft.commits.length;
       missionNeed = targetIntel ? Math.max(1, targetIntel.p - rep) : null;
-      missionReward = `${Math.max(1, 2 * targetPlanet.production - rep)} credits`;
+      missionReward = `${Math.max(targetPlanet.production, 3 * targetPlanet.production - 2 * rep)} credits`;
     }
   }
   const tradeCapacity = effectiveAction === 'trade' && effectiveCard
@@ -626,6 +639,16 @@ export default function SpaceGame() {
     });
   }
 
+  function toggleCommit(key) {
+    if (effectiveAction !== 'diplomacy') return;
+    setDraft((dr) => ({
+      ...dr,
+      commits: dr.commits.includes(key)
+        ? dr.commits.filter((k) => k !== key)
+        : [...dr.commits, key],
+    }));
+  }
+
   function togglePick(key) {
     const maxPicks = activeCardDef?.action === 'recruit' ? 2 : 1;
     setDraft((dr) => {
@@ -650,7 +673,7 @@ export default function SpaceGame() {
       switch (effectiveAction) {
         case 'move': return { path: draft.path };
         case 'strike': return { planet: draft.planet };
-        case 'diplomacy': return { planet: draft.planet };
+        case 'diplomacy': return { planet: draft.planet, commits: draft.commits };
         case 'trade': return { planet: draft.planet, sell: draft.sell, buy: draft.buy };
         case 'recruit':
         case 'recruit_free': {
@@ -914,7 +937,10 @@ export default function SpaceGame() {
               style={{ zIndex: selectedCard === key ? 35 : 30 - (i % 10) }}>
               <CardChip cardKey={key} cards={cards} tipHandlers={tipHandlers}
                 selected={selectedCard === key}
+                committed={draft.commits.includes(key)}
                 disabled={!myTurn || ended}
+                onCommit={effectiveAction === 'diplomacy' && key !== selectedCard && myTurn && !ended
+                  ? () => toggleCommit(key) : undefined}
                 onClick={() => {
                   if (selectedCard === key) {
                     resetDraft();
@@ -976,7 +1002,7 @@ export default function SpaceGame() {
               <div className={'text-[10px] ' + T_MUted}>
                 {effectiveAction === 'strike'
                   ? `Ship military ${you.ship?.military ?? 0} + crew ${effectiveCard?.stats[0] ?? 0}. Success raises your bounty here (harder, richer).`
-                  : `Ship political ${you.ship?.political ?? 0} + crew ${effectiveCard?.stats[1] ?? 0}. Success raises your rep here (easier, poorer).`}
+                  : `Ship political ${you.ship?.political ?? 0} + crew ${effectiveCard?.stats[1] ?? 0} + ${draft.commits.length} bargained crew (use + on hand cards; they return on your next Regroup). Success raises your rep here (easier, poorer).`}
               </div>
             </div>
           )}
