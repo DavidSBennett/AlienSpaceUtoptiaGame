@@ -32,7 +32,7 @@ function sp_cards() {
     'name' => 'Maintenance Bay', 'action' => 'reset',
     'stats' => [0, 1, 1], 'affiliation' => 'wealth',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
-    'text' => 'Recover all cards from your discard pile. You may also build a drone (1 Ore + 1 Biomass) and buy ship upgrades.',
+    'text' => 'Recover ALL cards — your whole discard pile plus this card — back into your hand. You may also build a drone (1 Ore + 1 Biomass) and buy ship upgrades.',
   ];
   $c['astrogation_array'] = [
     'name' => 'Astrogation Array', 'action' => 'move',
@@ -108,7 +108,7 @@ function sp_cards() {
   $mk('signal_decoder_2', 'Signal Decoder Mk II', 'copy', 1, 2, 1, 'diplomatic_corps', 2, ['C'], 0,
       'Execute the top card of another player\'s discard pile.');
   $mk('maintenance_bay_2', 'Maintenance Bay Mk II', 'reset', 1, 1, 1, 'wealth', 2, ['B'], 0,
-      'Recover your discard pile; the drone you may build with this reset is free.');
+      'Recover ALL cards (discard pile plus this card) back into your hand; the drone you may build with this reset is free.');
   $mk('mekkari_fabricator', 'Mekkari Fabricator', 'envoy', 1, 0, 2, 'engineering', 2, ['C'], 0,
       'Produce 1 Components for each treaty you hold on Mekkari planets.', 'C');
 

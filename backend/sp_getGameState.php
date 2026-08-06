@@ -14,6 +14,26 @@ if (!$game) mp_error('Game not found', 404);
 $players = sp_load_players($mysqli, $gameId);
 $seat = (int)$me['seat'];
 
+// One-time heal for pre-fix games whose reset cards were stranded in the
+// discard (see sp_heal_stranded_resets). Runs on the poll path so even a
+// player with an empty hand — who can't take any action — gets unstuck.
+if ($game['status'] === 'active' && empty($game['board_state']['meta']['reset_healed'])) {
+  $mysqli->begin_transaction();
+  try {
+    $game = sp_load_game($mysqli, $gameId, true);
+    $players = sp_load_players($mysqli, $gameId);
+    if (sp_heal_stranded_resets($game, $players)) {
+      sp_save_game($mysqli, $game);
+      foreach ($players as $p) sp_save_player($mysqli, $p);
+    }
+    $mysqli->commit();
+    sp_bump($mysqli, $gameId);
+  } catch (Exception $e) {
+    $mysqli->rollback();
+    // Non-fatal: serve state as loaded.
+  }
+}
+
 if ($game['status'] === 'lobby') {
   // Minimal lobby view.
   $pub = [];

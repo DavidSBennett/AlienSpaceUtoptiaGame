@@ -814,6 +814,31 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   return $msg;
 }
 
+/**
+ * One-time rescue for games created before the reset-card fix: reset-action
+ * cards used to be left stranded in the discard (unplayable forever). Move
+ * any discarded reset cards back to their owner's hand, once per game.
+ * Caller must hold the game-row lock and save afterward.
+ */
+function sp_heal_stranded_resets(&$game, &$players) {
+  if (!empty($game['board_state']['meta']['reset_healed'])) return false;
+  $cards = sp_cards();
+  $changed = false;
+  foreach ($players as $seat => &$p) {
+    for ($i = count($p['discard']) - 1; $i >= 0; $i--) {
+      $k = $p['discard'][$i];
+      if (isset($cards[$k]) && $cards[$k]['action'] === 'reset') {
+        array_splice($p['discard'], $i, 1);
+        $p['hand'][] = $k;
+        $changed = true;
+      }
+    }
+  }
+  unset($p);
+  $game['board_state']['meta']['reset_healed'] = true;
+  return true;   // flag set counts as a change worth saving
+}
+
 /** Once every active player has reset once: pay 2/1 credits, once per game. */
 function sp_maybe_pay_intermediate(&$game, &$players) {
   if (!empty($game['board_state']['meta']['intermediate_paid'])) return;
@@ -894,7 +919,10 @@ function sp_play_card(&$game, &$players, $seat, $cardKey, $params, $mysqli) {
     $pos = array_search($cardKey, $p['hand'], true);
     array_splice($p['hand'], $pos, 1);
     $msg = sp_exec_reset($game, $players, $seat, $cardKey, $params, $cardKey);
-    $p['discard'][] = $cardKey;   // reset card alone remains face-up
+    // The reset card returns to hand WITH everything else (Concordia Tribune:
+    // after a Tribune the discard is empty — that's why a Tribune player
+    // "cannot be copied"). Leaving it in the discard would strand it forever.
+    $p['hand'][] = $cardKey;
   } else {
     $msg = sp_dispatch_action($game, $players, $seat, $cardKey, $action, $params, $cardKey);
     // Mission executors already moved commits to discard; now the played card.
