@@ -50,7 +50,7 @@ function sp_cards() {
   ];
   $c['engineer'] = [
     'name' => 'Engineer', 'action' => 'engineer',
-    'stats' => [0, 1, 1], 'affiliation' => 'wealth',
+    'stats' => [0, 1, 1], 'affiliation' => 'engineering',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
     'text' => 'Install any number of ship modules from the upgrade dock, paying their credit costs. (Even track steps also grant free modules.)',
   ];
@@ -117,7 +117,7 @@ function sp_cards() {
       'Execute the top card of another player\'s discard pile.');
   $mk('marauder', 'Marauder', 'strike', 4, 0, 0, 'war_college', 2, ['C', 'N'], 0,
       'RAID in your region: ship military + Military 4 vs military + bounty.');
-  $mk('chief_engineer', 'Chief Engineer', 'engineer', 1, 1, 1, 'wealth', 2, ['C'], 0,
+  $mk('chief_engineer', 'Chief Engineer', 'engineer', 1, 1, 1, 'engineering', 2, ['C'], 0,
       'Install any number of ship modules from the upgrade dock, paying credits.');
   $mk('first_mate', 'First Mate', 'reset', 1, 1, 1, 'wealth', 2, ['N'], 3,
       'Recover ALL cards (discard plus this card) and pocket 3 credits.');
@@ -147,7 +147,7 @@ function sp_cards() {
       'Fly your ship ONE star-lane hop.', ['steps' => 1]);
   $mk('spymaster', 'Spymaster', 'copy', 2, 2, 2, 'diplomatic_corps', 4, ['A'], 0,
       'Execute the top card of another player\'s discard pile.');
-  $mk('master_shipwright', 'Master Shipwright', 'engineer', 1, 1, 2, 'wealth', 4, ['C', 'N'], 0,
+  $mk('master_shipwright', 'Master Shipwright', 'engineer', 1, 1, 2, 'engineering', 4, ['C', 'N'], 0,
       'Install any number of ship modules from the upgrade dock, paying credits.');
   $mk('press_gang', 'Press Gang', 'recruit_free', 1, 1, 2, 'wealth', 4, ['?', '?'], 0,
       'Hire 1 crew member from the market, ignoring its position cost.');

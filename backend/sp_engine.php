@@ -894,9 +894,9 @@ function sp_compute_score($game, $players, $seat, $final = true) {
   $b['trade_guild']      = $counts['trade_guild'] * (int)$p['tracks']['trade']['step'];
   $b['war_college']      = $counts['war_college'] * (int)$p['tracks']['military']['step'];
   $b['alliances']        = $counts['alliances'] * $visited;
-  // Engineering scores the ship itself: flat VP per installed module (the
-  // v3 deck has no engineering-affiliation cards — the board IS the card).
-  $b['engineering']      = SP_ENGINEERING_VP_PER_UPGRADE * count($p['upgrades']);
+  // Engineering (Minerva): each Engineer card scores 2 VP per installed
+  // module. Every starting hand has one Engineer, so modules always score.
+  $b['engineering']      = $counts['engineering'] * SP_ENGINEERING_VP_PER_UPGRADE * count($p['upgrades']);
   $b['trophy']           = ($final && (int)$p['trophy']) ? SP_TROPHY_VP : 0;
 
   return ['total' => array_sum($b), 'breakdown' => $b, 'card_counts' => $counts];

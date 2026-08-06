@@ -40,7 +40,7 @@ const AFFILIATION_SCORING = {
   alliances: 'At game end this card scores VP per region your ship has visited.',
   trade_guild: 'At game end this card scores VP equal to your Merchant track position.',
   war_college: 'At game end this card scores VP equal to your Pirate track position.',
-  engineering: 'Engineering scores itself: every installed ship module is worth 2 VP at game end.',
+  engineering: 'At game end this card scores 2 VP per ship module you have installed.',
 };
 const ACTION_LABELS = {
   reset: 'Regroup', move: 'Fly', strike: 'Raid', diplomacy: 'Contract',
@@ -208,7 +208,7 @@ function ModuleTooltip({ mod }) {
       <div>{mod.text}</div>
       <div className={T_MUted}>
         Cost {mod.cost}c — installed by playing an Engineer · also granted free
-        at even track steps · each module is worth 2 VP at game end.
+        at even track steps · worth 2 VP per Engineer card at game end.
       </div>
     </div>
   );
