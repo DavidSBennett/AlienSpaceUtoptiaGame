@@ -530,6 +530,7 @@ export default function SpaceGame() {
   const [busy, setBusy] = useState(false);
   const [tip, setTip] = useState(null);
   const [panels, setPanels] = useState({ captains: true, market: false, dock: false, log: false });
+  const [handOpen, setHandOpen] = useState(true);
 
   const scrollRef = useRef(null);
   const dragRef = useRef(null);
@@ -969,8 +970,14 @@ export default function SpaceGame() {
       </div>
 
       {/* ── bottom-center: the crew hand ── */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 max-w-[42vw]">
-        <div className="flex overflow-x-auto pt-7 pb-1 px-2">
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 max-w-[60vw] flex flex-col items-center">
+        <button type="button" onClick={() => setHandOpen((o) => !o)}
+          className="px-3 py-0.5 rounded-t border border-[#26365a] bg-[#0a1120]/90 text-[11px] text-[#8593ad] hover:text-[#79c9d6]"
+          title={handOpen ? 'Collapse hand' : 'Expand hand'}>
+          Crew hand ({you.hand.length}) {handOpen ? '\u25be' : '\u25b4'}
+        </button>
+        {handOpen && (
+        <div className="flex overflow-x-auto pt-7 pb-1 px-2 max-w-full">
           {you.hand.map((key, i) => (
             <div key={key}
               className={'shrink-0 transition-transform hover:-translate-y-3 hover:z-40 ' + (i > 0 ? '-ml-14' : '')}
@@ -998,6 +1005,7 @@ export default function SpaceGame() {
             </span>
           )}
         </div>
+        )}
       </div>
 
       {/* ── bottom-right: action panel ── */}
