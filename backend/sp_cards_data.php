@@ -166,11 +166,12 @@ function sp_cards() {
   return $cards;
 }
 
-/** Keys of the starter crew, in display order. Two one-hop move cards;
- *  the Engineer is the module-buying occupation. */
+/** Keys of the starter crew, in display order. One one-hop move card;
+ *  the Engineer is the module-buying occupation. (navigator_b remains in
+ *  the catalog for games dealt before it was removed.) */
 function sp_starter_keys() {
   return [
-    'quartermaster', 'navigator', 'navigator_b', 'corsair',
+    'quartermaster', 'navigator', 'corsair',
     'ambassador', 'trader', 'recruiter', 'engineer',
   ];
 }
@@ -196,36 +197,45 @@ function sp_market_stages() {
 function sp_upgrade_cards() {
   static $u = null;
   if ($u !== null) return $u;
+  // Tiers: bronze +1 (6c) · silver +2 (12c) · GOLD (20c) — no stat bonus,
+  // instead a substantive rules change to the matching action.
   $u = [
     // Weapons (+military)
-    'pulse_laser'    => ['name' => 'Pulse Laser',     'type' => 'weapon',     'bonus' => 1, 'cost' => 6,  'text' => '+1 ship military.'],
-    'autocannon'     => ['name' => 'Autocannon',      'type' => 'weapon',     'bonus' => 1, 'cost' => 6,  'text' => '+1 ship military.'],
-    'flak_array'     => ['name' => 'Flak Array',      'type' => 'weapon',     'bonus' => 1, 'cost' => 6,  'text' => '+1 ship military.'],
-    'ion_battery'    => ['name' => 'Ion Battery',     'type' => 'weapon',     'bonus' => 1, 'cost' => 6,  'text' => '+1 ship military.'],
-    'torpedo_tubes'  => ['name' => 'Torpedo Tubes',   'type' => 'weapon',     'bonus' => 1, 'cost' => 6,  'text' => '+1 ship military.'],
-    'heavy_railgun'  => ['name' => 'Heavy Railgun',   'type' => 'weapon',     'bonus' => 2, 'cost' => 12, 'text' => '+2 ship military.'],
-    'antimatter_lance' => ['name' => 'Antimatter Lance', 'type' => 'weapon',  'bonus' => 2, 'cost' => 12, 'text' => '+2 ship military.'],
+    'pulse_laser'    => ['name' => 'Pulse Laser',     'type' => 'weapon',     'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 ship military.'],
+    'autocannon'     => ['name' => 'Autocannon',      'type' => 'weapon',     'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 ship military.'],
+    'flak_array'     => ['name' => 'Flak Array',      'type' => 'weapon',     'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 ship military.'],
+    'ion_battery'    => ['name' => 'Ion Battery',     'type' => 'weapon',     'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 ship military.'],
+    'torpedo_tubes'  => ['name' => 'Torpedo Tubes',   'type' => 'weapon',     'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 ship military.'],
+    'heavy_railgun'  => ['name' => 'Heavy Railgun',   'type' => 'weapon',     'tier' => 'silver', 'bonus' => 2, 'cost' => 12, 'text' => '+2 ship military.'],
+    'antimatter_lance' => ['name' => 'Antimatter Lance', 'type' => 'weapon',  'tier' => 'silver', 'bonus' => 2, 'cost' => 12, 'text' => '+2 ship military.'],
+    'cloaking_device' => ['name' => 'Cloaking Device', 'type' => 'weapon',    'tier' => 'gold',   'bonus' => 0, 'cost' => 20, 'text' => 'GOLD: your raids IGNORE your bounty when meeting the planet\'s military (loot still grows with bounty).'],
     // Diplomatic modules (+political)
-    'hailing_suite'  => ['name' => 'Hailing Suite',   'type' => 'diplomatic', 'bonus' => 1, 'cost' => 6,  'text' => '+1 ship political.'],
-    'translator_core' => ['name' => 'Translator Core', 'type' => 'diplomatic', 'bonus' => 1, 'cost' => 6, 'text' => '+1 ship political.'],
-    'cultural_archive' => ['name' => 'Cultural Archive', 'type' => 'diplomatic', 'bonus' => 1, 'cost' => 6, 'text' => '+1 ship political.'],
-    'embassy_pod'    => ['name' => 'Embassy Pod',     'type' => 'diplomatic', 'bonus' => 1, 'cost' => 6,  'text' => '+1 ship political.'],
-    'protocol_ai'    => ['name' => 'Protocol AI',     'type' => 'diplomatic', 'bonus' => 1, 'cost' => 6,  'text' => '+1 ship political.'],
-    'grand_stateroom' => ['name' => 'Grand Stateroom', 'type' => 'diplomatic', 'bonus' => 2, 'cost' => 12, 'text' => '+2 ship political.'],
-    'sovereign_seal' => ['name' => 'Sovereign Seal',  'type' => 'diplomatic', 'bonus' => 2, 'cost' => 12, 'text' => '+2 ship political.'],
-    // Trade modules (+negotiating: +capacity and +flat credits per trade)
-    'cargo_scanner'  => ['name' => 'Cargo Scanner',   'type' => 'trade',      'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating (trade capacity and credits).'],
-    'ledger_core'    => ['name' => 'Ledger Core',     'type' => 'trade',      'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
-    'barter_console' => ['name' => 'Barter Console',  'type' => 'trade',      'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
-    'exchange_uplink' => ['name' => 'Exchange Uplink', 'type' => 'trade',     'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
-    'guild_license'  => ['name' => 'Guild License',   'type' => 'trade',      'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
-    'freeport_charter' => ['name' => 'Freeport Charter', 'type' => 'trade',   'bonus' => 2, 'cost' => 12, 'text' => '+2 negotiating.'],
-    'monopoly_writ'  => ['name' => 'Monopoly Writ',   'type' => 'trade',      'bonus' => 2, 'cost' => 12, 'text' => '+2 negotiating.'],
+    'hailing_suite'  => ['name' => 'Hailing Suite',   'type' => 'diplomatic', 'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 ship political.'],
+    'translator_core' => ['name' => 'Translator Core', 'type' => 'diplomatic', 'tier' => 'bronze', 'bonus' => 1, 'cost' => 6, 'text' => '+1 ship political.'],
+    'cultural_archive' => ['name' => 'Cultural Archive', 'type' => 'diplomatic', 'tier' => 'bronze', 'bonus' => 1, 'cost' => 6, 'text' => '+1 ship political.'],
+    'embassy_pod'    => ['name' => 'Embassy Pod',     'type' => 'diplomatic', 'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 ship political.'],
+    'protocol_ai'    => ['name' => 'Protocol AI',     'type' => 'diplomatic', 'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 ship political.'],
+    'grand_stateroom' => ['name' => 'Grand Stateroom', 'type' => 'diplomatic', 'tier' => 'silver', 'bonus' => 2, 'cost' => 12, 'text' => '+2 ship political.'],
+    'sovereign_seal' => ['name' => 'Sovereign Seal',  'type' => 'diplomatic', 'tier' => 'silver', 'bonus' => 2, 'cost' => 12, 'text' => '+2 ship political.'],
+    'twin_consulate' => ['name' => 'Twin Consulate',  'type' => 'diplomatic', 'tier' => 'gold',   'bonus' => 0, 'cost' => 20, 'text' => 'GOLD: one contract action may resolve TWO planets in your region at once, if your total meets their combined requirement.'],
+    // Trade modules (+negotiating)
+    'cargo_scanner'  => ['name' => 'Cargo Scanner',   'type' => 'trade',      'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating (trade capacity and credits per unit).'],
+    'ledger_core'    => ['name' => 'Ledger Core',     'type' => 'trade',      'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
+    'barter_console' => ['name' => 'Barter Console',  'type' => 'trade',      'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
+    'exchange_uplink' => ['name' => 'Exchange Uplink', 'type' => 'trade',     'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
+    'guild_license'  => ['name' => 'Guild License',   'type' => 'trade',      'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
+    'freeport_charter' => ['name' => 'Freeport Charter', 'type' => 'trade',   'tier' => 'silver', 'bonus' => 2, 'cost' => 12, 'text' => '+2 negotiating.'],
+    'monopoly_writ'  => ['name' => 'Monopoly Writ',   'type' => 'trade',      'tier' => 'silver', 'bonus' => 2, 'cost' => 12, 'text' => '+2 negotiating.'],
+    'demand_forge'   => ['name' => 'Demand Forge',    'type' => 'trade',      'tier' => 'gold',   'bonus' => 0, 'cost' => 20, 'text' => 'GOLD: when trading, you may declare ONE resource of your choice a sought-after good at that planet (sell it as if wanted).'],
     // Systems (utility)
-    'cargo_pods_a'   => ['name' => 'Cargo Pods',      'type' => 'system',     'bonus' => 0, 'cost' => 8,  'text' => '+4 cargo capacity.'],
-    'cargo_pods_b'   => ['name' => 'Cargo Pods',      'type' => 'system',     'bonus' => 0, 'cost' => 8,  'text' => '+4 cargo capacity.'],
-    'afterburners_a' => ['name' => 'Afterburners',    'type' => 'system',     'bonus' => 0, 'cost' => 8,  'text' => '+1 step on every move.'],
-    'afterburners_b' => ['name' => 'Afterburners',    'type' => 'system',     'bonus' => 0, 'cost' => 8,  'text' => '+1 step on every move.'],
+    'cargo_pods_a'   => ['name' => 'Cargo Pods',      'type' => 'system',     'tier' => 'bronze', 'bonus' => 0, 'cost' => 8,  'text' => '+4 cargo capacity.'],
+    'cargo_pods_b'   => ['name' => 'Cargo Pods',      'type' => 'system',     'tier' => 'bronze', 'bonus' => 0, 'cost' => 8,  'text' => '+4 cargo capacity.'],
+    'afterburners_a' => ['name' => 'Afterburners',    'type' => 'system',     'tier' => 'bronze', 'bonus' => 0, 'cost' => 8,  'text' => '+1 step on every move.'],
+    'afterburners_b' => ['name' => 'Afterburners',    'type' => 'system',     'tier' => 'bronze', 'bonus' => 0, 'cost' => 8,  'text' => '+1 step on every move.'],
+    'crews_quarters_a' => ['name' => 'Crew\'s Quarters', 'type' => 'system',  'tier' => 'silver', 'bonus' => 0, 'cost' => 8,  'text' => '+2 crew roster capacity (hire more crew).'],
+    'crews_quarters_b' => ['name' => 'Crew\'s Quarters', 'type' => 'system',  'tier' => 'silver', 'bonus' => 0, 'cost' => 8,  'text' => '+2 crew roster capacity.'],
+    'wormhole_drive' => ['name' => 'Wormhole Drive',  'type' => 'system',     'tier' => 'gold',   'bonus' => 0, 'cost' => 20, 'text' => 'GOLD: your move actions may JUMP to any planet on the map.'],
+    'pocket_dimension' => ['name' => 'Pocket Dimension', 'type' => 'system',  'tier' => 'gold',   'bonus' => 0, 'cost' => 20, 'text' => 'GOLD: unlimited crew roster capacity.'],
   ];
   return $u;
 }

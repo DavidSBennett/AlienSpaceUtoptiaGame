@@ -50,10 +50,11 @@ const ACTION_LABELS = {
 const MODULE_TYPE_LABELS = {
   weapon: 'Weapon', diplomatic: 'Diplomatic module', trade: 'Trade module', system: 'System',
 };
+const TIER_COLORS = { bronze: '#cd8a4c', silver: '#c3ccd6', gold: '#e5c14c' };
 
 const emptyDraft = {
-  path: [], planet: null, sell: {}, buy: {}, picks: [],
-  upgrades: [], copyTarget: null, commits: [],
+  path: [], planet: null, planet2: null, jump: null, forge: '',
+  sell: {}, buy: {}, picks: [], upgrades: [], copyTarget: null, commits: [],
 };
 
 const MAP_PX = 1500;
@@ -204,7 +205,12 @@ function ModuleTooltip({ mod }) {
   return (
     <div className="space-y-1">
       <b className={T_HEAD + ' text-[12px]'}>{mod.name}</b>
-      <div className={T_MUted}>{MODULE_TYPE_LABELS[mod.type]}</div>
+      <div>
+        <span style={{ color: TIER_COLORS[mod.tier] || '#8593ad' }}>
+          {(mod.tier || 'bronze').toUpperCase()}
+        </span>
+        <span className={T_MUted}> · {MODULE_TYPE_LABELS[mod.type]}</span>
+      </div>
       <div>{mod.text}</div>
       <div className={T_MUted}>
         Cost {mod.cost}c — installed by playing an Engineer · occupies 1 cargo
@@ -320,7 +326,7 @@ function TrackBar({ label, trackKey, step, tipHandlers }) {
   const cells = [];
   for (let i = 1; i <= 12; i++) {
     const gate = i === 5 || i === 9;
-    const reward = i % 2 === 0;
+    const reward = gate;
     cells.push(
       <span key={i}
         className={
@@ -335,7 +341,7 @@ function TrackBar({ label, trackKey, step, tipHandlers }) {
     <div className="space-y-1">
       <b className={T_HEAD + ' text-[12px]'}>{label} track — step {step}/12</b>
       <div>+1 per won {label.toLowerCase()} action.</div>
-      <div className={T_GOLD}>Every EVEN step grants a free {moduleType} from the upgrade stack.</div>
+      <div className={T_GOLD}>Breaking each gate (reaching steps 5 and 9) grants a free {moduleType} from the upgrade stack.</div>
       <div>Gates (red rings): step 4→5 needs a medium-ring win; step 8→9 a core-ring win.</div>
       <div className={T_MUted}>Step 12 triggers the endgame. Matching cards score VP × this number.</div>
     </div>
@@ -601,6 +607,10 @@ export default function SpaceGame() {
   const mySeat = you.seat;
   const myTurn = game.status === 'active' && game.current_seat === mySeat;
   const activeCardDef = selectedCard ? cards[selectedCard] : null;
+  const myUp = you?.upgrades || [];
+  const hasTwin = myUp.includes('twin_consulate');
+  const hasWormhole = myUp.includes('wormhole_drive');
+  const hasForge = myUp.includes('demand_forge');
 
   const copyTargetPlayer = draft.copyTarget !== null
     ? state.players.find((p) => p.seat === draft.copyTarget) : null;
@@ -611,8 +621,9 @@ export default function SpaceGame() {
   const effectiveCardKey = activeCardDef?.action === 'copy' ? copiedKey : selectedCard;
   const effectiveCard = effectiveCardKey ? cards[effectiveCardKey] : null;
 
-  const shipPreviewAt = effectiveAction === 'move' && draft.path.length > 0
-    ? draft.path[draft.path.length - 1] : you.ship_at;
+  const shipPreviewAt = effectiveAction === 'move'
+    ? (draft.jump || (draft.path.length > 0 ? draft.path[draft.path.length - 1] : you.ship_at))
+    : you.ship_at;
   const moveAllowance = (effectiveCard?.steps || 3) + (you.ship?.speed_bonus || 0);
 
   // Region math for mission previews.
@@ -631,6 +642,13 @@ export default function SpaceGame() {
       missionTotal = (you.ship?.political || 0) + effectiveCard.stats[1] + draft.commits.length;
       missionNeed = targetIntel ? Math.max(1, targetIntel.p - rep) : null;
       missionReward = `${Math.max(targetPlanet.production, 3 * targetPlanet.production - 2 * rep)}c + 1 ${RESOURCE_ICONS[targetPlanet.faction]}`;
+      if (draft.planet2) {
+        const p2 = map.planets[draft.planet2];
+        const i2 = you.intel[draft.planet2];
+        missionNeed = targetIntel && i2
+          ? Math.max(1, targetIntel.p - rep) + Math.max(1, i2.p - rep) : null;
+        missionReward += ` + ${Math.max(p2.production, 3 * p2.production - 2 * rep)}c (twin)`;
+      }
     }
   }
   const tradeCapacity = effectiveAction === 'trade' && effectiveCard
@@ -660,6 +678,10 @@ export default function SpaceGame() {
   function onPlanetClick(pid) {
     if (movedRef.current || !effectiveAction) return;
     if (effectiveAction === 'move') {
+      if (hasWormhole) {
+        setDraft((dr) => ({ ...dr, jump: dr.jump === pid ? null : pid, path: [] }));
+        return;
+      }
       const from = draft.path.length > 0 ? draft.path[draft.path.length - 1] : you.ship_at;
       if (!connected(map, from, pid)) return;
       if (draft.path.length >= moveAllowance) return;
@@ -667,8 +689,14 @@ export default function SpaceGame() {
       return;
     }
     setDraft((dr) => {
-      if (effectiveAction === 'strike' || effectiveAction === 'diplomacy' || effectiveAction === 'trade') {
+      if (effectiveAction === 'strike' || effectiveAction === 'trade') {
         return { ...dr, planet: dr.planet === pid ? null : pid };
+      }
+      if (effectiveAction === 'diplomacy') {
+        if (dr.planet === pid) return { ...dr, planet: dr.planet2, planet2: null };
+        if (dr.planet2 === pid) return { ...dr, planet2: null };
+        if (dr.planet && hasTwin) return { ...dr, planet2: pid };
+        return { ...dr, planet: pid };
       }
       return dr;
     });
@@ -706,10 +734,15 @@ export default function SpaceGame() {
     const a = activeCardDef.action;
     const inner = () => {
       switch (effectiveAction) {
-        case 'move': return { path: draft.path };
+        case 'move': return draft.jump ? { jump: draft.jump } : { path: draft.path };
         case 'strike': return { planet: draft.planet };
-        case 'diplomacy': return { planet: draft.planet, commits: draft.commits };
-        case 'trade': return { planet: draft.planet, sell: draft.sell, buy: draft.buy };
+        case 'diplomacy': return {
+          planet: draft.planet, planet2: draft.planet2 || undefined, commits: draft.commits,
+        };
+        case 'trade': return {
+          planet: draft.planet, sell: draft.sell, buy: draft.buy,
+          forge: draft.forge || undefined,
+        };
         case 'recruit':
         case 'recruit_free': {
           const free = effectiveAction === 'recruit_free';
@@ -761,7 +794,10 @@ export default function SpaceGame() {
     if (activeCardDef.action === 'copy' && draft.copyTarget === null) return 'Choose whose last action to intercept.';
     switch (effectiveAction) {
       case 'move':
-        return draft.path.length > 0 ? null : 'Click neighboring planets to plot your flight path.';
+        if (draft.path.length > 0 || draft.jump) return null;
+        return hasWormhole
+          ? 'Click ANY planet to set your wormhole jump.'
+          : 'Click neighboring planets to plot your flight path.';
       case 'strike':
         return draft.planet ? (map.planets[draft.planet].system === region ? null : 'That planet is outside your region — fly there first.')
           : 'Click a highlighted planet in your region to raid.';
@@ -778,8 +814,14 @@ export default function SpaceGame() {
           + Object.values(draft.buy).reduce((a, b) => a + (b || 0), 0);
         return units > 0 ? null : 'Set at least one unit to buy or sell.';
       }
-      case 'recruit': case 'recruit_free':
-        return draft.picks.length > 0 ? null : 'Pick a card from the Crew market panel (top right).';
+      case 'recruit': case 'recruit_free': {
+        if (draft.picks.length === 0) return 'Pick a card from the Crew market panel (top right).';
+        const roster = you.hand.length + you.discard.length;
+        if (you.crew_capacity < 999 && roster + draft.picks.length > you.crew_capacity) {
+          return `Crew quarters full (${you.crew_capacity} max) — Crew's Quarters modules add +2 each.`;
+        }
+        return null;
+      }
       case 'engineer':
         return draft.upgrades.length > 0 ? null : 'Pick modules from the Upgrade dock panel (top right).';
       default: return null;
@@ -896,9 +938,10 @@ export default function SpaceGame() {
                   {...tipHandlers(<ModuleTooltip mod={mod} />)}
                   className={
                     'w-full text-left rounded border px-2 py-1 text-[11px] ' +
-                    (chosen ? 'border-[#79c9d6] bg-[#123143] ' : 'border-[#2f4b6e] bg-[#0c1424] ') +
+                    (chosen ? 'border-[#79c9d6] bg-[#123143] ' : 'bg-[#0c1424] ') +
                     (!docking ? 'opacity-70 ' : '')
-                  }>
+                  }
+                  style={!chosen ? { borderColor: (TIER_COLORS[mod.tier] || '#2f4b6e') + '99' } : undefined}>
                   <div className="flex justify-between">
                     <span className="font-semibold">{mod.name}</span>
                     <span className={'font-mono ' + T_GOLD}>{mod.cost}c</span>
@@ -1044,22 +1087,24 @@ export default function SpaceGame() {
                 <> vs {missionNeed !== null
                   ? <b className={missionTotal >= missionNeed ? T_GOOD : T_BAD}>{missionNeed}</b>
                   : <b className={T_MUted}>?</b>}
-                  {' '}at {targetPlanet.name}
+                  {' '}at {targetPlanet.name}{draft.planet2 ? <> + {map.planets[draft.planet2]?.name}</> : null}
                   {missionReward && <span className={T_MUted}> · reward {missionReward}</span>}
                 </>
               )}
               <div className={'text-[10px] ' + T_MUted}>
                 {effectiveAction === 'strike'
                   ? `Ship military ${you.ship?.military ?? 0} + crew ${effectiveCard?.stats[0] ?? 0}. Success raises your bounty here (harder, richer).`
-                  : `Ship political ${you.ship?.political ?? 0} + crew ${effectiveCard?.stats[1] ?? 0} + ${draft.commits.length} bargained crew (use + on hand cards; they return on your next Regroup). Success raises your rep here (easier, poorer).`}
+                  : `Ship political ${you.ship?.political ?? 0} + crew ${effectiveCard?.stats[1] ?? 0} + ${draft.commits.length} bargained crew (use + on hand cards; they return on your next Regroup).${hasTwin ? ' Twin Consulate: click a second planet to resolve both at once.' : ''} Success raises your rep here (easier, poorer).`}
               </div>
             </div>
           )}
 
           {effectiveAction === 'move' && (
             <div className={'text-[11px] ' + T_MUted}>
-              Path {draft.path.length}/{moveAllowance} hops — click neighboring planets
-              from your ship (green rings show legal hops).
+              {hasWormhole
+                ? <>Wormhole Drive: click ANY planet to jump{draft.jump ? <> — target: <b>{map.planets[draft.jump]?.name}</b></> : null}.</>
+                : <>Path {draft.path.length}/{moveAllowance} hops — click neighboring planets
+              from your ship (green rings show legal hops).</>}
               {draft.path.length > 0 && (
                 <>
                   {' '}Route: {draft.path.map((pid) => map.planets[pid]?.name).join(' → ')}
@@ -1075,7 +1120,7 @@ export default function SpaceGame() {
           {effectiveAction === 'trade' && (
             <TradeControls draft={draft} setDraft={setDraft} you={you}
               prices={state.prices} markup={state.sell_markup}
-              capacity={tradeCapacity} planet={targetPlanet} />
+              capacity={tradeCapacity} planet={targetPlanet} hasForge={hasForge} />
           )}
 
           {docking && (
@@ -1130,6 +1175,11 @@ function ShipStatTally({ you, catalog }) {
     { icon: '🚀', label: 'Speed', value: s.speed_bonus ?? 0, cls: T_GOOD,
       src: (s.speed_bonus ?? 0) > 0 ? 'afterburners' : 'no afterburners yet',
       note: 'extra hops per flight' },
+    { icon: '👥', label: 'Crew', flat: true, cls: T_HEAD,
+      value: `${(you.hand?.length || 0) + (you.discard?.length || 0)}/${you.crew_capacity >= 999 ? '∞' : you.crew_capacity}`,
+      src: you.crew_capacity >= 999 ? 'pocket dimension' :
+        you.crew_capacity > 9 ? `base 9 + quarters` : 'base 9',
+      note: 'roster limit for hiring' },
   ];
   return (
     <div className="text-[11px] leading-tight">
@@ -1145,7 +1195,7 @@ function ShipStatTally({ you, catalog }) {
   );
 }
 
-function TradeControls({ draft, setDraft, you, prices, markup, capacity, planet }) {
+function TradeControls({ draft, setDraft, you, prices, markup, capacity, planet, hasForge }) {
   function setSide(side, letter, qty) {
     setDraft((dr) => ({ ...dr, [side]: { ...dr[side], [letter]: Math.max(0, qty) } }));
   }
@@ -1157,10 +1207,23 @@ function TradeControls({ draft, setDraft, you, prices, markup, capacity, planet 
         Capacity {units}/{capacity} units
         {planet && <> · {planet.name} wants {planet.wants.map((w) => RESOURCE_ICONS[w]).join(' ')} (+{markup}c over list)</>}
       </div>
+      {hasForge && (
+        <div>
+          Forge demand ({draft.forge ? RESOURCE_ICONS[draft.forge] : 'none'}):
+          {RESOURCE_LETTERS.map((l) => (
+            <button key={l} type="button"
+              onClick={() => setDraft((dr) => ({ ...dr, forge: dr.forge === l ? '' : l }))}
+              className={'ml-1 px-1 rounded border text-[11px] ' +
+                (draft.forge === l ? 'border-[#e5c14c] bg-[#2a2338]' : 'border-[#2f4b6e] bg-[#0c1424]')}>
+              {RESOURCE_ICONS[l]}
+            </button>
+          ))}
+        </div>
+      )}
       <div>
         Sell:
         {RESOURCE_LETTERS.map((l) => {
-          const wanted = planet ? planet.wants.includes(l) : false;
+          const wanted = planet ? (planet.wants.includes(l) || draft.forge === l) : false;
           return (
             <span key={l} className={'ml-2 ' + (wanted ? '' : 'opacity-40')}>
               <span>{RESOURCE_ICONS[l]}</span>

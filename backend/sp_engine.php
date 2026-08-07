@@ -63,10 +63,28 @@ const SP_POSITION_COST = [[], [], ['?'], ['?'], ['?', '?'], ['?', '?'], ['?', '?
 
 const SP_ENGINEERING_VP_PER_UPGRADE = 2;
 
-// Track key → module type granted at even steps.
+// Track key → module type granted when a gate step is reached.
 const SP_TRACK_MODULE_TYPE = [
   'military' => 'weapon', 'diplomacy' => 'diplomatic', 'trade' => 'trade',
 ];
+// Free modules arrive when you BREAK a gate (steps 5 and 9).
+const SP_FREE_MODULE_STEPS = [5, 9];
+// Crew roster (hand + discard) capacity; raised by Crew's Quarters,
+// unlimited with the Pocket Dimension.
+const SP_BASE_CREW_CAP = 9;
+
+function sp_crew_capacity($p) {
+  if (in_array('pocket_dimension', $p['upgrades'], true)) return 999;
+  $cap = SP_BASE_CREW_CAP;
+  foreach ($p['upgrades'] as $k) {
+    if (strpos($k, 'crews_quarters') === 0) $cap += 2;
+  }
+  return $cap;
+}
+
+function sp_roster_size($p) {
+  return count($p['hand']) + count($p['discard']);
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // State load / save
@@ -328,9 +346,9 @@ function sp_track_advance(&$game, &$players, $seat, $trackKey, $planetRing) {
   $label = ['military' => 'Pirate', 'diplomacy' => 'Diplomat', 'trade' => 'Merchant'][$trackKey];
   $suffix = " ($label +1)";
 
-  // Even steps: free module of the matching type, drawn from the stack.
+  // Gate steps (5 and 9): free module of the matching type from the stack.
   // Needs a free hull slot — a stuffed hold forfeits the freebie.
-  if ($nextStep % 2 === 0) {
+  if (in_array($nextStep, SP_FREE_MODULE_STEPS, true)) {
     if (sp_cargo_free($p) < 1) {
       $suffix .= ' — free module forfeited (no hull space!)';
     } else {
@@ -453,6 +471,19 @@ function sp_exec_move(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   $board = &$game['board_state'];
   $p = &$players[$seat];
   $cards = sp_cards();
+  // GOLD Wormhole Drive: a move action may jump anywhere on the map.
+  $jump = (string)($params['jump'] ?? '');
+  if ($jump !== '') {
+    if (!in_array('wormhole_drive', $p['upgrades'], true)) {
+      throw new Exception('Jumping needs the Wormhole Drive (gold module)');
+    }
+    if (!isset($map['planets'][$jump])) throw new Exception('Unknown planet: ' . $jump);
+    $board['ships'][(string)$seat] = $jump;
+    sp_reveal_around($p, $jump);
+    sp_visit($p, $map['planets'][$jump]['system']);
+    return $p['player_name'] . ' jumped through the wormhole to ' . $map['planets'][$jump]['name'];
+  }
+
   $path = $params['path'] ?? [];
   if (!is_array($path) || count($path) === 0) throw new Exception('No flight path given');
 
@@ -490,7 +521,10 @@ function sp_exec_strike(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   $bounty = sp_bounty_at($p, $region);
   $ship = sp_ship_stats($p);
   $total = $ship['military'] + (int)$cards[$asCard]['stats'][0];
-  $need = (int)$planet['military'] + $bounty;
+  // GOLD Cloaking Device: raids ignore your bounty for the check (loot
+  // still scales with it — infamy pays, anonymously).
+  $cloaked = in_array('cloaking_device', $p['upgrades'], true);
+  $need = (int)$planet['military'] + ($cloaked ? 0 : $bounty);
   sp_reveal_around($p, $planetId);
 
   if ($total >= $need) {
@@ -541,15 +575,34 @@ function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard)
     }
   }
 
-  if (in_array($planetId, $p['tracks']['contracted'], true)) {
-    throw new Exception('You already resolved ' . $planet['name']
-      . '\'s crisis — each planet negotiates only once. Fly on.');
+  // Target list: one planet, or TWO with the gold Twin Consulate.
+  $targets = [$planet];
+  $planet2Id = (string)($params['planet2'] ?? '');
+  if ($planet2Id !== '') {
+    if (!in_array('twin_consulate', $p['upgrades'], true)) {
+      throw new Exception('A second target needs the Twin Consulate (gold module)');
+    }
+    $planet2 = $map['planets'][$planet2Id] ?? null;
+    if (!$planet2) throw new Exception('Unknown second planet');
+    if ($planet2Id === $planetId) throw new Exception('Pick two different planets');
+    if ($planet2['system'] !== $region) throw new Exception('Both planets must be in your region');
+    $targets[] = $planet2;
   }
+  foreach ($targets as $t) {
+    if (in_array($t['id'], $p['tracks']['contracted'], true)) {
+      throw new Exception('You already resolved ' . $t['name']
+        . '\'s crisis — each planet negotiates only once. Fly on.');
+    }
+  }
+
   $rep = sp_rep_at($p, $region);
   $ship = sp_ship_stats($p);
   $total = $ship['political'] + (int)$cards[$asCard]['stats'][1] + count($commits);
-  $need = max(1, (int)$planet['political'] - $rep);
-  sp_reveal_around($p, $planetId);
+  $need = 0;
+  foreach ($targets as $t) {
+    $need += max(1, (int)$t['political'] - $rep);
+    sp_reveal_around($p, $t['id']);
+  }
 
   // Crew are bargained away win or lose.
   foreach ($commits as $k) {
@@ -560,21 +613,30 @@ function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard)
   $crewNote = count($commits) > 0 ? (', ' . count($commits) . ' crew bargained') : '';
 
   if ($total >= $need) {
-    $prod = (int)$planet['production'];
-    $payout = max($prod, 3 * $prod - 2 * $rep);
-    $p['credits'] += $payout;
-    // Payment in kind: a grateful planet also hands over 1 of its own good
-    // (cargo permitting) — the diplomat's trickle of hiring currency.
-    $inKind = sp_cargo_add($p, $planet['faction'], 1);
-    $p['tracks']['rep'][$region] = $rep + 1;
-    $p['tracks']['contracted'][] = $planetId;
-    $suffix = sp_track_advance($game, $players, $seat, 'diplomacy', $planet['ring']);
-    return $p['player_name'] . ' resolved a crisis on ' . $planet['name']
-         . " ($total vs $need$crewNote) — paid $payout credits"
-         . ($inKind > 0 ? ' + 1 ' . SP_RESOURCE_NAMES[$planet['faction']] : '')
-         . ', rep now ' . ($rep + 1) . $suffix;
+    $paidTotal = 0; $inKindNotes = []; $suffix = ''; $names = [];
+    foreach ($targets as $t) {
+      $prod = (int)$t['production'];
+      $payout = max($prod, 3 * $prod - 2 * $rep);
+      $p['credits'] += $payout;
+      $paidTotal += $payout;
+      // Payment in kind: a grateful planet also hands over 1 of its own
+      // good (cargo permitting) — the diplomat's trickle of hiring currency.
+      if (sp_cargo_add($p, $t['faction'], 1) > 0) {
+        $inKindNotes[] = '1 ' . SP_RESOURCE_NAMES[$t['faction']];
+      }
+      $p['tracks']['contracted'][] = $t['id'];
+      $names[] = $t['name'];
+      $suffix .= sp_track_advance($game, $players, $seat, 'diplomacy', $t['ring']);
+    }
+    $p['tracks']['rep'][$region] = $rep + count($targets);
+    return $p['player_name'] . ' resolved ' . (count($targets) > 1 ? 'crises' : 'a crisis')
+         . ' on ' . implode(' and ', $names)
+         . " ($total vs $need$crewNote) — paid $paidTotal credits"
+         . (count($inKindNotes) ? ' + ' . implode(' + ', $inKindNotes) : '')
+         . ', rep now ' . ($rep + count($targets)) . $suffix;
   }
-  return $p['player_name'] . '\'s envoys were turned away at ' . $planet['name']
+  return $p['player_name'] . '\'s envoys were turned away'
+       . (count($targets) > 1 ? ' (twin contract)' : ' at ' . $planet['name'])
        . " ($total vs $need$crewNote)";
 }
 
@@ -606,12 +668,22 @@ function sp_exec_trade(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   if ($units === 0) throw new Exception('Trade at least one unit');
   if ($units > $capacity) throw new Exception("Over trade capacity (max $capacity units)");
 
+  // GOLD Demand Forge: declare one resource sought-after at this planet.
+  $forge = (string)($params['forge'] ?? '');
+  if ($forge !== '') {
+    if (!in_array('demand_forge', $p['upgrades'], true)) {
+      throw new Exception('Forging demand needs the Demand Forge (gold module)');
+    }
+    if (!in_array($forge, SP_RESOURCES, true)) throw new Exception('Bad forged resource');
+  }
+
   $earned = 0; $spent = 0; $soldUnits = 0;
-  // Sell: only what this planet WANTS, at list + markup + negotiating/unit.
+  // Sell: what this planet WANTS (or your forged good), at list + markup
+  // + negotiating per unit.
   foreach ($sell as $letter => $n) {
     $n = (int)$n;
     if ($n <= 0) continue;
-    if (!in_array($letter, $planet['wants'], true)) {
+    if (!in_array($letter, $planet['wants'], true) && $letter !== $forge) {
       $wantNames = [];
       foreach ($planet['wants'] as $w) $wantNames[] = SP_RESOURCE_NAMES[$w];
       throw new Exception($planet['name'] . ' does not want ' . SP_RESOURCE_NAMES[$letter]
@@ -664,6 +736,12 @@ function sp_exec_recruit(&$game, &$players, $seat, $cardKey, $params, $freeMode)
   if (!is_array($picks) || count($picks) === 0) throw new Exception('No cards picked');
   $maxPicks = $freeMode ? 1 : 2;
   if (count($picks) > $maxPicks) throw new Exception("At most $maxPicks card(s)");
+
+  // Crew roster capacity: hand + discard, capped by quarters (9 base).
+  $cap = sp_crew_capacity($p);
+  if (sp_roster_size($p) + count($picks) > $cap) {
+    throw new Exception("Crew quarters full ($cap max) — install Crew's Quarters or a Pocket Dimension to hire more");
+  }
 
   $names = [];
   foreach ($picks as $pick) {
@@ -1010,6 +1088,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'upgrades' => $p['upgrades'],
       'ship' => $ship,
       'ship_at' => $board['ships'][(string)$seat] ?? null,
+      'crew_capacity' => sp_crew_capacity($p),
       'hand_count' => count($p['hand']),
       'discard_count' => count($p['discard']),
       'discard_top' => count($p['discard']) ? $p['discard'][count($p['discard']) - 1] : null,
@@ -1085,6 +1164,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'contracted' => $you['tracks']['contracted'],
       'upgrades' => $you['upgrades'],
       'ship' => sp_ship_stats($you),
+      'crew_capacity' => sp_crew_capacity($you),
       'ship_at' => $yourShipAt, 'region' => $yourRegion,
       'intel' => $intel,
       'first_reset_done' => (int)$you['first_reset_done'],
