@@ -19,6 +19,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Lint PHP (parse check every backend file)
+        run: |
+          for f in backend/*.php; do
+            php -l "$f" > /dev/null || { echo "PARSE ERROR in $f"; php -l "$f"; exit 1; }
+          done
+          echo "All backend PHP files parse cleanly."
+
       - name: Install & build frontend
         working-directory: frontend
         run: |
