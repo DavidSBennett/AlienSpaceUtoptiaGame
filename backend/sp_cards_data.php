@@ -70,7 +70,7 @@ function sp_cards() {
     'name' => 'Trader', 'action' => 'trade',
     'stats' => [0, 0, 2], 'affiliation' => 'trade_guild',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
-    'text' => 'TRADE at a planet in your region: sell goods it wants (list + 3 each), buy its own goods at list price. Capacity = 3 + Trade 2.',
+    'text' => 'TRADE at a planet in your region: sell goods it wants (list + 6 each: +3 markup, +3 demand bonus), buy its own goods at list price. Capacity = 3 + Trade 2.',
   ];
   $c['recruiter'] = [
     'name' => 'Recruiter', 'action' => 'recruit',

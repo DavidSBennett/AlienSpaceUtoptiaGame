@@ -50,7 +50,8 @@ const SP_CARGO_CAPACITY   = 12;
 const SP_MARKET_DISPLAY   = 7;
 const SP_UPGRADE_DISPLAY  = 4;
 const SP_TROPHY_VP        = 7;
-const SP_SELL_MARKUP      = 3;    // wanted goods sell at list + this (+ negotiating per unit)
+const SP_SELL_MARKUP      = 3;    // wanted goods sell at list + this
+const SP_DEMAND_BONUS     = 3;    // merchant bonus per unit sold that's in demand
 const SP_TRADE_BASE_CAP   = 3;    // + card Trade stat + ship negotiating
 // Diplomat pacing: each planet's crisis can be resolved only ONCE per
 // player (no rep cap) — track mastery means twelve solved planets.
@@ -697,7 +698,8 @@ function sp_exec_trade(&$game, &$players, $seat, $cardKey, $params, $asCard) {
     }
     if (($p['cargo'][$letter] ?? 0) < $n) throw new Exception('Not enough ' . SP_RESOURCE_NAMES[$letter] . ' to sell');
     $p['cargo'][$letter] -= $n;
-    $earned += $n * (SP_PRICES[$letter] + SP_SELL_MARKUP);
+    // In-demand sales: markup + the merchant's demand bonus per unit.
+    $earned += $n * (SP_PRICES[$letter] + SP_SELL_MARKUP + SP_DEMAND_BONUS);
     $soldUnits += $n;
   }
   // Buy: only the planet's own goods, at list, at most its production per visit.
@@ -1143,7 +1145,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'stack_count' => count($board['upgrade_stack'] ?? []),
     ],
     'prices' => SP_PRICES,
-    'sell_markup' => SP_SELL_MARKUP,
+    'sell_markup' => SP_SELL_MARKUP + SP_DEMAND_BONUS,
     'trade_base_cap' => SP_TRADE_BASE_CAP,
     'resource_names' => SP_RESOURCE_NAMES,
     'faction_names' => SP_FACTION_NAMES,
