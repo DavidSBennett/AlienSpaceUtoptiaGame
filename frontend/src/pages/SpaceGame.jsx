@@ -537,6 +537,7 @@ export default function SpaceGame() {
   const [tip, setTip] = useState(null);
   const [panels, setPanels] = useState({ captains: true, market: false, dock: false, log: false });
   const [handOpen, setHandOpen] = useState(true);
+  const [shipOpen, setShipOpen] = useState(true);
 
   const scrollRef = useRef(null);
   const dragRef = useRef(null);
@@ -652,7 +653,7 @@ export default function SpaceGame() {
     }
   }
   const tradeCapacity = effectiveAction === 'trade' && effectiveCard
-    ? state.trade_base_cap + effectiveCard.stats[2] + (you.ship?.negotiating || 0) : 0;
+    ? state.trade_base_cap + effectiveCard.stats[2] : 0;
 
   const picking = effectiveAction === 'recruit' || effectiveAction === 'recruit_free';
   const docking = effectiveAction === 'engineer';
@@ -891,7 +892,7 @@ export default function SpaceGame() {
                 <span>hand {p.hand_count}</span>
               </div>
               <div className={'text-[10px] ' + T_MUted}>
-                ⚔{p.ship?.military ?? 0} 🤝{p.ship?.political ?? 0} 💰{p.ship?.negotiating ?? 0}
+                ⚔{p.ship?.military ?? 0} 🤝{p.ship?.political ?? 0}
                 {' · '}P{p.tracks.military.step} D{p.tracks.diplomacy.step} M{p.tracks.trade.step}
                 {' · '}at {map.planets[p.ship_at]?.name || '?'}
                 {p.discard_top && <> · last: {cards[p.discard_top]?.name}</>}
@@ -968,8 +969,19 @@ export default function SpaceGame() {
         </Collapsible>
       </div>
 
-      {/* ── bottom-left: THE SHIP (player board) ── */}
-      <div className={'absolute bottom-2 left-2 z-30 p-2.5 space-y-1.5 ' + PANEL}>
+      {/* ── top-left: THE SHIP (player board), collapsible leftward ── */}
+      <div className="absolute top-12 left-2 z-30">
+        {!shipOpen && (
+          <button type="button" onClick={() => setShipOpen(true)}
+            className={'px-2.5 py-1.5 text-sm ' + PANEL} title="Expand ship panel">
+            🚀 ▸
+          </button>
+        )}
+        {shipOpen && (
+        <div className={'p-2.5 pr-6 space-y-1.5 relative ' + PANEL}>
+        <button type="button" onClick={() => setShipOpen(false)}
+          className="absolute top-1.5 right-1.5 text-[12px] text-[#8593ad] hover:text-[#79c9d6]"
+          title="Collapse ship panel">◂</button>
         <div className="flex items-center gap-3 text-sm">
           <span className={'font-semibold ' + T_HEAD}
             {...tipHandlers(
@@ -977,12 +989,11 @@ export default function SpaceGame() {
                 <b className={T_HEAD + ' text-[12px]'}>Your ship</b>
                 <div>⚔ Military {you.ship?.military ?? 0} — added to every raid.</div>
                 <div>🤝 Political {you.ship?.political ?? 0} — added to every contract.</div>
-                <div>💰 Negotiating {you.ship?.negotiating ?? 0} — trade capacity and bonus credits.</div>
                 <div className={T_MUted}>Docked at {map.planets[you.ship_at]?.name} — {map.systems[region]?.name}.
                   Local bounty {bounty}, local rep {rep}.</div>
               </div>
             )}>
-            ⚔{you.ship?.military ?? 0} 🤝{you.ship?.political ?? 0} 💰{you.ship?.negotiating ?? 0}
+            ⚔{you.ship?.military ?? 0} 🤝{you.ship?.political ?? 0}
           </span>
           <span className={'font-mono ' + T_GOLD}>{you.credits}c</span>
           <CargoHold you={you} resourceNames={state.resource_names} tipHandlers={tipHandlers} />
@@ -1009,6 +1020,8 @@ export default function SpaceGame() {
               </span>
             ))}
           </div>
+        )}
+        </div>
         )}
       </div>
 
@@ -1166,9 +1179,6 @@ function ShipStatTally({ you, catalog }) {
     { icon: '🤝', label: 'Diplomacy', value: s.political ?? 0, cls: T_HEAD,
       src: counts.diplomatic ? `${counts.diplomatic} module${counts.diplomatic > 1 ? 's' : ''}` : 'no modules yet',
       note: 'added to every contract' },
-    { icon: '💰', label: 'Negotiating', value: s.negotiating ?? 0, cls: T_GOOD,
-      src: counts.trade ? `${counts.trade} module${counts.trade > 1 ? 's' : ''}` : 'no modules yet',
-      note: 'trade capacity + bonus credits' },
     { icon: '📦', label: 'Cargo', value: you.cargo_capacity, cls: T_GOLD, flat: true,
       src: (s.cargo_bonus ?? 0) > 0 ? `base 12 + ${s.cargo_bonus} pods` : 'base 12',
       note: 'hold spaces' },

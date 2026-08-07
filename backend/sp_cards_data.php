@@ -70,7 +70,7 @@ function sp_cards() {
     'name' => 'Trader', 'action' => 'trade',
     'stats' => [0, 0, 2], 'affiliation' => 'trade_guild',
     'kind' => 'starter', 'stage' => null, 'cost' => [], 'rider_credits' => 0,
-    'text' => 'TRADE at a planet in your region: sell goods it wants (list + 3 + negotiating each), buy its own goods at list price. Capacity = 3 + Trade 2 + ship negotiating.',
+    'text' => 'TRADE at a planet in your region: sell goods it wants (list + 3 each), buy its own goods at list price. Capacity = 3 + Trade 2.',
   ];
   $c['recruiter'] = [
     'name' => 'Recruiter', 'action' => 'recruit',
@@ -94,11 +94,11 @@ function sp_cards() {
   $mk('consul', 'Consul', 'diplomacy', 0, 3, 0, 'diplomatic_corps', 1, ['O', 'B'], 0,
       'Diplomatic contract: ship political + Diplomacy 3 vs political − rep. Bargain away other crew: +1 each.');
   $mk('caravan_master', 'Caravan Master', 'trade', 0, 0, 3, 'trade_guild', 1, ['B'], 0,
-      'Trade in your region; capacity 3 + Trade 3 + negotiating.');
+      'Trade in your region; capacity 3 + Trade 3.');
   $mk('wayfinder', 'Wayfinder', 'move', 0, 1, 1, 'alliances', 1, ['O'], 0,
       'Fly your ship ONE star-lane hop.', ['steps' => 1]);
   $mk('purser', 'Purser', 'trade', 0, 0, 2, 'wealth', 1, ['B'], 3,
-      'Trade in your region (capacity 3 + Trade 2 + negotiating) and pocket 3 credits.');
+      'Trade in your region (capacity 3 + Trade 2) and pocket 3 credits.');
   $mk('spy', 'Spy', 'copy', 1, 1, 1, 'diplomatic_corps', 1, ['C'], 0,
       'Execute the action of the top card of another player\'s discard pile (not a reset or copy card).');
   $mk('bosun', 'Bosun', 'reset', 1, 1, 1, 'wealth', 1, ['B'], 2,
@@ -110,7 +110,7 @@ function sp_cards() {
   $mk('attache', 'Attaché', 'diplomacy', 0, 3, 1, 'diplomatic_corps', 2, ['B', 'C'], 0,
       'Diplomatic contract: ship political + Diplomacy 3 vs political − rep. Bargain away other crew: +1 each.');
   $mk('guild_factor', 'Guild Factor', 'trade', 0, 1, 4, 'trade_guild', 2, ['C'], 0,
-      'Trade in your region; capacity 3 + Trade 4 + negotiating.');
+      'Trade in your region; capacity 3 + Trade 4.');
   $mk('pathfinder', 'Pathfinder', 'move', 1, 1, 0, 'alliances', 2, ['B'], 0,
       'Fly your ship ONE star-lane hop.', ['steps' => 1]);
   $mk('infiltrator', 'Infiltrator', 'copy', 1, 2, 1, 'diplomatic_corps', 2, ['C'], 0,
@@ -126,7 +126,7 @@ function sp_cards() {
   $mk('legate', 'Legate', 'diplomacy', 0, 4, 0, 'diplomatic_corps', 3, ['N'], 0,
       'Diplomatic contract: ship political + Diplomacy 4 vs political − rep. Bargain away other crew: +1 each.');
   $mk('magnate', 'Magnate', 'trade', 0, 0, 5, 'trade_guild', 3, ['N'], 5,
-      'Trade in your region (capacity 3 + Trade 5 + negotiating) and pocket 5 credits.');
+      'Trade in your region (capacity 3 + Trade 5) and pocket 5 credits.');
   $mk('warlord', 'Warlord', 'strike', 4, 1, 0, 'war_college', 3, ['C', 'N'], 0,
       'RAID in your region: ship military + Military 4 vs military + bounty.');
   $mk('voidrunner', 'Voidrunner', 'move', 1, 0, 1, 'alliances', 3, ['N'], 0,
@@ -142,7 +142,7 @@ function sp_cards() {
   $mk('chancellor', 'Chancellor', 'diplomacy', 0, 5, 0, 'diplomatic_corps', 4, ['A'], 0,
       'Diplomatic contract: ship political + Diplomacy 5 vs political − rep. Bargain away other crew: +1 each.');
   $mk('trade_prince', 'Trade Prince', 'trade', 0, 1, 5, 'trade_guild', 4, ['A'], 5,
-      'Trade in your region (capacity 3 + Trade 5 + negotiating) and pocket 5 credits.');
+      'Trade in your region (capacity 3 + Trade 5) and pocket 5 credits.');
   $mk('star_pilot', 'Star Pilot', 'move', 1, 1, 1, 'alliances', 4, ['C', 'N'], 0,
       'Fly your ship ONE star-lane hop.', ['steps' => 1]);
   $mk('spymaster', 'Spymaster', 'copy', 2, 2, 2, 'diplomatic_corps', 4, ['A'], 0,
@@ -158,7 +158,7 @@ function sp_cards() {
   $mk('grand_diplomat', 'Grand Diplomat', 'diplomacy', 0, 6, 0, 'diplomatic_corps', 5, ['A', 'N'], 0,
       'Diplomatic contract: ship political + Diplomacy 6 vs political − rep. Bargain away other crew: +1 each.');
   $mk('cartel_boss', 'Cartel Boss', 'trade', 0, 0, 6, 'trade_guild', 5, ['A', 'N'], 5,
-      'Trade in your region (capacity 3 + Trade 6 + negotiating) and pocket 5 credits.');
+      'Trade in your region (capacity 3 + Trade 6) and pocket 5 credits.');
   $mk('admiral', 'Admiral', 'strike', 5, 2, 0, 'war_college', 5, ['A', 'C'], 0,
       'RAID in your region: ship military + Military 5 vs military + bounty.');
 
@@ -218,18 +218,18 @@ function sp_upgrade_cards() {
     'grand_stateroom' => ['name' => 'Grand Stateroom', 'type' => 'diplomatic', 'tier' => 'silver', 'bonus' => 2, 'cost' => 12, 'text' => '+2 ship political.'],
     'sovereign_seal' => ['name' => 'Sovereign Seal',  'type' => 'diplomatic', 'tier' => 'silver', 'bonus' => 2, 'cost' => 12, 'text' => '+2 ship political.'],
     'twin_consulate' => ['name' => 'Twin Consulate',  'type' => 'diplomatic', 'tier' => 'gold',   'bonus' => 0, 'cost' => 20, 'text' => 'GOLD: one contract action may resolve TWO planets in your region at once, if your total meets their combined requirement.'],
-    // Trade modules (+negotiating)
-    'cargo_scanner'  => ['name' => 'Cargo Scanner',   'type' => 'trade',      'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating (trade capacity and credits per unit).'],
-    'ledger_core'    => ['name' => 'Ledger Core',     'type' => 'trade',      'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
-    'barter_console' => ['name' => 'Barter Console',  'type' => 'trade',      'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
-    'exchange_uplink' => ['name' => 'Exchange Uplink', 'type' => 'trade',     'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
-    'guild_license'  => ['name' => 'Guild License',   'type' => 'trade',      'tier' => 'bronze', 'bonus' => 1, 'cost' => 6,  'text' => '+1 negotiating.'],
-    'freeport_charter' => ['name' => 'Freeport Charter', 'type' => 'trade',   'tier' => 'silver', 'bonus' => 2, 'cost' => 12, 'text' => '+2 negotiating.'],
-    'monopoly_writ'  => ['name' => 'Monopoly Writ',   'type' => 'trade',      'tier' => 'silver', 'bonus' => 2, 'cost' => 12, 'text' => '+2 negotiating.'],
+    // Trade modules (storage — the merchant line hauls more)
+    'cargo_scanner'  => ['name' => 'Cargo Racks',     'type' => 'trade',      'tier' => 'bronze', 'bonus' => 0, 'cargo' => 2, 'cost' => 6,  'text' => '+2 cargo capacity.'],
+    'ledger_core'    => ['name' => 'Stowage Bay',     'type' => 'trade',      'tier' => 'bronze', 'bonus' => 0, 'cargo' => 2, 'cost' => 6,  'text' => '+2 cargo capacity.'],
+    'barter_console' => ['name' => 'Container Rig',   'type' => 'trade',      'tier' => 'bronze', 'bonus' => 0, 'cargo' => 2, 'cost' => 6,  'text' => '+2 cargo capacity.'],
+    'exchange_uplink' => ['name' => 'Hold Extension', 'type' => 'trade',      'tier' => 'bronze', 'bonus' => 0, 'cargo' => 2, 'cost' => 6,  'text' => '+2 cargo capacity.'],
+    'guild_license'  => ['name' => 'Cargo Loft',      'type' => 'trade',      'tier' => 'bronze', 'bonus' => 0, 'cargo' => 2, 'cost' => 6,  'text' => '+2 cargo capacity.'],
+    'freeport_charter' => ['name' => 'Freight Vault', 'type' => 'trade',      'tier' => 'silver', 'bonus' => 0, 'cargo' => 4, 'cost' => 12, 'text' => '+4 cargo capacity.'],
+    'monopoly_writ'  => ['name' => 'Bulk Hold',       'type' => 'trade',      'tier' => 'silver', 'bonus' => 0, 'cargo' => 4, 'cost' => 12, 'text' => '+4 cargo capacity.'],
     'demand_forge'   => ['name' => 'Demand Forge',    'type' => 'trade',      'tier' => 'gold',   'bonus' => 0, 'cost' => 20, 'text' => 'GOLD: when trading, you may declare ONE resource of your choice a sought-after good at that planet (sell it as if wanted).'],
     // Systems (utility)
-    'cargo_pods_a'   => ['name' => 'Cargo Pods',      'type' => 'system',     'tier' => 'bronze', 'bonus' => 0, 'cost' => 8,  'text' => '+4 cargo capacity.'],
-    'cargo_pods_b'   => ['name' => 'Cargo Pods',      'type' => 'system',     'tier' => 'bronze', 'bonus' => 0, 'cost' => 8,  'text' => '+4 cargo capacity.'],
+    'cargo_pods_a'   => ['name' => 'Cargo Pods',      'type' => 'system',     'tier' => 'bronze', 'bonus' => 0, 'cargo' => 4, 'cost' => 8,  'text' => '+4 cargo capacity.'],
+    'cargo_pods_b'   => ['name' => 'Cargo Pods',      'type' => 'system',     'tier' => 'bronze', 'bonus' => 0, 'cargo' => 4, 'cost' => 8,  'text' => '+4 cargo capacity.'],
     'afterburners_a' => ['name' => 'Afterburners',    'type' => 'system',     'tier' => 'bronze', 'bonus' => 0, 'cost' => 8,  'text' => '+1 step on every move.'],
     'afterburners_b' => ['name' => 'Afterburners',    'type' => 'system',     'tier' => 'bronze', 'bonus' => 0, 'cost' => 8,  'text' => '+1 step on every move.'],
     'crews_quarters_a' => ['name' => 'Crew\'s Quarters', 'type' => 'system',  'tier' => 'silver', 'bonus' => 0, 'cost' => 8,  'text' => '+2 crew roster capacity (hire more crew).'],

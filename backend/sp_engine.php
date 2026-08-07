@@ -244,7 +244,8 @@ function sp_authenticate($mysqli, $tokenOverride = null) {
 // Ship, cargo, region helpers
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Derived ship stats from installed modules. */
+/** Derived ship stats from installed modules. (No trade stat — trade
+ *  modules grant STORAGE via their 'cargo' field instead.) */
 function sp_ship_stats($player) {
   $u = sp_upgrade_cards();
   $s = ['military' => 0, 'political' => 0, 'negotiating' => 0,
@@ -252,13 +253,10 @@ function sp_ship_stats($player) {
   foreach ($player['upgrades'] as $key) {
     $mod = $u[$key] ?? null;
     if (!$mod) continue;
-    if ($mod['type'] === 'weapon')     $s['military']    += $mod['bonus'];
-    if ($mod['type'] === 'diplomatic') $s['political']   += $mod['bonus'];
-    if ($mod['type'] === 'trade')      $s['negotiating'] += $mod['bonus'];
-    if ($mod['type'] === 'system') {
-      if ($mod['name'] === 'Cargo Pods')   $s['cargo_bonus'] += 4;
-      if ($mod['name'] === 'Afterburners') $s['speed_bonus'] += 1;
-    }
+    if ($mod['type'] === 'weapon')     $s['military']  += $mod['bonus'];
+    if ($mod['type'] === 'diplomatic') $s['political'] += $mod['bonus'];
+    if (!empty($mod['cargo']))         $s['cargo_bonus'] += (int)$mod['cargo'];
+    if ($mod['name'] === 'Afterburners') $s['speed_bonus'] += 1;
   }
   return $s;
 }
@@ -316,8 +314,8 @@ function sp_install_module(&$player, $key) {
   $mod = sp_upgrade_cards()[$key] ?? null;
   if (!$mod) throw new Exception('Unknown module');
   $player['upgrades'][] = $key;
-  if ($mod['type'] === 'system' && $mod['name'] === 'Cargo Pods') {
-    $player['cargo_capacity'] = (int)$player['cargo_capacity'] + 4;
+  if (!empty($mod['cargo'])) {
+    $player['cargo_capacity'] = (int)$player['cargo_capacity'] + (int)$mod['cargo'];
   }
   return $mod['name'];
 }
@@ -430,9 +428,18 @@ function sp_setup_game(&$game, &$players) {
   $game['market_display'] = array_splice($stack, 0, SP_MARKET_DISPLAY);
   $game['market_stack'] = $stack;
 
-  // Upgrade dock: full shuffled module deck, 4 on display.
-  $upgradeStack = array_keys(sp_upgrade_cards());
-  shuffle($upgradeStack);
+  // Upgrade dock: tier-ordered deck — bronze first, then silver, then
+  // gold — shuffled within each tier. Golds surface late.
+  $byTier = ['bronze' => [], 'silver' => [], 'gold' => []];
+  foreach (sp_upgrade_cards() as $ukey => $mod) {
+    $byTier[$mod['tier'] ?? 'bronze'][] = $ukey;
+  }
+  $upgradeStack = [];
+  foreach (['bronze', 'silver', 'gold'] as $tier) {
+    $tierKeys = $byTier[$tier];
+    shuffle($tierKeys);
+    foreach ($tierKeys as $uk) $upgradeStack[] = $uk;
+  }
   $board = ['ships' => [], 'upgrade_display' => [], 'upgrade_stack' => $upgradeStack, 'meta' => []];
 
   foreach ($players as $seat => &$p) {
@@ -652,8 +659,7 @@ function sp_exec_trade(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   $region = sp_ship_region($board, $seat);
   if ($planet['system'] !== $region) throw new Exception('Your ship must be in that region to trade');
 
-  $ship = sp_ship_stats($p);
-  $capacity = SP_TRADE_BASE_CAP + (int)$cards[$asCard]['stats'][2] + $ship['negotiating'];
+  $capacity = SP_TRADE_BASE_CAP + (int)$cards[$asCard]['stats'][2];
   $sell = is_array($params['sell'] ?? null) ? $params['sell'] : [];
   $buy  = is_array($params['buy'] ?? null) ? $params['buy'] : [];
 
@@ -691,7 +697,7 @@ function sp_exec_trade(&$game, &$players, $seat, $cardKey, $params, $asCard) {
     }
     if (($p['cargo'][$letter] ?? 0) < $n) throw new Exception('Not enough ' . SP_RESOURCE_NAMES[$letter] . ' to sell');
     $p['cargo'][$letter] -= $n;
-    $earned += $n * (SP_PRICES[$letter] + SP_SELL_MARKUP + $ship['negotiating']);
+    $earned += $n * (SP_PRICES[$letter] + SP_SELL_MARKUP);
     $soldUnits += $n;
   }
   // Buy: only the planet's own goods, at list, at most its production per visit.
