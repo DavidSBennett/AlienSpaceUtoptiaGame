@@ -649,17 +649,16 @@ export default function SpaceGame() {
       </div>
 
       {/* bottom-center: the hand */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 max-w-[52vw] flex flex-col items-center">
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 max-w-[62vw] flex flex-col items-center">
         <button type="button" onClick={() => setHandOpen((o) => !o)}
           className="px-3 py-0.5 rounded-t border border-[#26365a] bg-[#0a1120]/90 text-[11px] text-[#8593ad] hover:text-[#79c9d6]">
           Research team ({you.hand.length}) {handOpen ? '▾' : '▴'}
         </button>
         {handOpen && (
-        <div className="flex overflow-x-auto pt-7 pb-1 px-2 max-w-full">
-          {you.hand.map((key, i) => (
+        <div className="flex gap-1.5 overflow-x-auto pt-3 pb-1 px-2 max-w-full">
+          {you.hand.map((key) => (
             <div key={key}
-              className={'shrink-0 transition-transform hover:-translate-y-3 hover:z-40 ' + (i > 0 ? '-ml-14' : '')}
-              style={{ zIndex: selectedCard === key ? 35 : 30 - (i % 10) }}>
+              className="shrink-0 transition-transform hover:-translate-y-1">
               <CardChip cardKey={key} cards={cards} tipHandlers={tipHandlers}
                 selected={selectedCard === key}
                 committed={draft.commits.includes(key)}
