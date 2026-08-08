@@ -365,6 +365,98 @@ function sp_missions() {
       ],
     ],
   ];
+
+  // ── Keywords: thematic tags that boons key off. ──
+  $keywords = [
+    'm_silent_reef' => ['ritual', 'extinction'],
+    'm_marrow_moths' => ['migration', 'industry'],
+    'm_glass_rain' => ['ritual', 'memory'],
+    'm_drifting_dead' => ['ritual', 'memory'],
+    'm_lightless_choir' => ['faith', 'industry'],
+    'm_salt_bloom' => ['faith', 'industry'],
+    'm_tide_locked' => ['migration', 'symbiosis'],
+    'm_iron_pilgrims' => ['faith', 'ritual'],
+    'm_binding_suns' => ['faith', 'extinction', 'symbiosis'],
+    'm_borrowed_sky' => ['ritual', 'industry'],
+    'm_debt_of_names' => ['memory', 'extinction'],
+    'm_hollow_herd' => ['industry', 'symbiosis'],
+    'm_two_rivers' => ['war', 'ritual'],
+    'm_starving_signal' => ['faith', 'war'],
+    'm_glasswing' => ['migration', 'memory'],
+    'm_court_echoes' => ['memory', 'war'],
+    'm_worldheart' => ['faith', 'industry'],
+    'm_last_migration' => ['migration', 'extinction'],
+    'm_ascension_engine' => ['faith', 'memory'],
+    'm_seed_of_ruin' => ['war', 'symbiosis'],
+    'f_reef_bloom' => ['ritual', 'industry'],
+    'f_moth_collapse' => ['extinction', 'industry'],
+    'f_cultivar_spread' => ['symbiosis', 'migration'],
+    'f_hollow_song' => ['ritual', 'memory'],
+    'f_sundered_kin' => ['symbiosis', 'memory'],
+    'f_witness_light' => ['faith', 'migration'],
+    'f_grey_garden' => ['faith', 'symbiosis'],
+    'f_gate_seed' => ['migration', 'faith'],
+  ];
+  foreach ($keywords as $k => $kws) {
+    if (isset($m[$k])) $m[$k]['keywords'] = $kws;
+  }
+
+  // ── Boons: the tempting engine on the back of every chaotic choice. ──
+  // Solutions with chaos ≥ 1 carry a boon the solver claims permanently;
+  // chaos ≥ 3 carries a MAJOR one. Order solutions carry none — stability
+  // is the Council's reward, not yours.
+  foreach ($m as $mkey => &$mm) {
+    foreach ($mm['solutions'] as $disc => &$sol) {
+      $chaos = (int)$sol['chaos'];
+      if ($chaos < 1) continue;
+      $kw = $mm['keywords'][0] ?? 'ritual';
+      $slot = abs(crc32($mkey . $disc)) % 3;
+      if ($chaos >= 3) {
+        if ($slot === 0) {
+          $sol['boon'] = ['type' => 'affinity', 'power' => 2, 'keyword' => $kw,
+            'name' => 'Renowned Expertise: ' . ucfirst($kw),
+            'text' => '+2 on every mission tagged "' . $kw . '".'];
+        } elseif ($slot === 1) {
+          if ($disc === 'geo') {
+            $sol['boon'] = ['type' => 'fleet', 'name' => 'Fleet Charter',
+              'text' => 'Equipment charters cost 1 credit per +1 (instead of 2).'];
+          } elseif ($disc === 'anthro') {
+            $sol['boon'] = ['type' => 'faculty', 'name' => 'Star Faculty',
+              'text' => 'Consulted colleagues add +2 each (instead of +1).'];
+          } else {
+            $sol['boon'] = ['type' => 'panspermia', 'name' => 'Panspermia Library',
+              'text' => '+1 on every Exobiology attempt.'];
+          }
+        } else {
+          $sol['boon'] = ['type' => 'income', 'power' => 2, 'name' => 'Endowment',
+            'text' => '+2 credits every time you solve a mission.'];
+        }
+      } else {
+        if ($slot === 0) {
+          $sol['boon'] = ['type' => 'affinity', 'power' => 1, 'keyword' => $kw,
+            'name' => 'Field Dossier: ' . ucfirst($kw),
+            'text' => '+1 on every mission tagged "' . $kw . '".'];
+        } elseif ($slot === 1) {
+          if ($disc === 'geo') {
+            $sol['boon'] = ['type' => 'income', 'power' => 1, 'name' => 'Salvage Rights',
+              'text' => '+1 credit every time you solve a mission.'];
+          } elseif ($disc === 'anthro') {
+            $sol['boon'] = ['type' => 'purist', 'name' => 'Methodological Purity',
+              'text' => '+3 when every consulted colleague is an anthropologist (at least one).'];
+          } else {
+            $sol['boon'] = ['type' => 'incubators', 'name' => 'Rapid Incubators',
+              'text' => 'Your cultures mature +2 per failed trial.'];
+          }
+        } else {
+          $sol['boon'] = ['type' => 'hire_discount', 'power' => 1, 'name' => 'Recruiting Ties',
+            'text' => 'Hiring researchers costs 1 credit less.'];
+        }
+      }
+    }
+    unset($sol);
+  }
+  unset($mm);
+
   return $m;
 }
 

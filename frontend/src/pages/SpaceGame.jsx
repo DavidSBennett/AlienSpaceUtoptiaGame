@@ -127,6 +127,12 @@ function SolutionTooltip({ mission, discKey, sol }) {
         {sol.chaos < 0 && <b className={T_GOOD}>order {Math.abs(sol.chaos)}</b>}
         {sol.chaos === 0 && <span className={T_MUted}>no unrest</span>}
       </div>
+      {sol.boon && (
+        <div className="border-t border-[#26365a] pt-1">
+          <b className={T_GOLD}>★ Boon: {sol.boon.name}</b>
+          <div className={T_MUted}>{sol.boon.text}</div>
+        </div>
+      )}
       {sol.has_follow && <div className={T_GOLD}>⛓ This choice will have consequences…</div>}
     </div>
   );
@@ -187,7 +193,12 @@ function MissionCard({ m, activeDisc, targeted, onClick, tipHandlers }) {
           {m.chained ? '⛓ ' : ''}{tier.label}
         </span>
       </div>
-      <div className={'text-[10px] mb-1 ' + T_MUted}>{m.culture}</div>
+      <div className={'text-[10px] mb-1 ' + T_MUted}>
+        {m.culture}
+        {(m.keywords || []).map((kw) => (
+          <span key={kw} className="ml-1.5 px-1 rounded bg-[#12203a] text-[#8fb2d0]">{kw}</span>
+        ))}
+      </div>
       <div className="text-[11px] leading-snug mb-2">{m.problem}</div>
       <div className="space-y-0.5">
         {['geo', 'anthro', 'bio'].map((dk) => {
@@ -211,6 +222,7 @@ function MissionCard({ m, activeDisc, targeted, onClick, tipHandlers }) {
               {dk === 'bio' && m.your_cultures > 0 && (
                 <span className={T_GOOD}>🧪+{m.your_cultures}</span>
               )}
+              {sol.boon && <span className={T_GOLD} title={sol.boon.name}>★</span>}
               {sol.has_follow && <span className={T_GOLD}>⛓</span>}
             </div>
           );
@@ -391,13 +403,30 @@ export default function SpaceGame() {
     ? state.docket.find((m) => m.key === draft.mission) : null;
   const targetSolution = targetMission && activeDisc ? targetMission.solutions[activeDisc] : null;
 
+  const myBoons = you.boons || [];
+  const boonCount = (type) => myBoons.filter((b) => b.type === type).length;
+  const charterRate = Math.max(1, state.geo_credits_per_point - boonCount('fleet'));
+
   const statIdx = effectiveAction === 'survey' ? 0 : effectiveAction === 'ethnography' ? 1 : 2;
   let solveTotal = null;
   if (effectiveCard && activeDisc) {
     solveTotal = effectiveCard.stats[statIdx];
-    if (activeDisc === 'geo') solveTotal += Math.floor(draft.charter / state.geo_credits_per_point);
-    if (activeDisc === 'anthro') solveTotal += draft.commits.length;
-    if (activeDisc === 'bio') solveTotal += (targetMission?.your_cultures || 0);
+    if (activeDisc === 'geo') solveTotal += Math.floor(draft.charter / charterRate);
+    if (activeDisc === 'anthro') {
+      solveTotal += draft.commits.length * (1 + boonCount('faculty'));
+      if (boonCount('purist') > 0 && draft.commits.length > 0
+          && draft.commits.every((k) => cards[k].action === 'ethnography')) {
+        solveTotal += 3;
+      }
+    }
+    if (activeDisc === 'bio') {
+      solveTotal += (targetMission?.your_cultures || 0) + boonCount('panspermia');
+    }
+    for (const b of myBoons) {
+      if (b.type === 'affinity' && (targetMission?.keywords || []).includes(b.keyword)) {
+        solveTotal += b.power;
+      }
+    }
   }
 
   const picking = effectiveAction === 'recruit' || effectiveAction === 'recruit_free';
@@ -483,8 +512,9 @@ export default function SpaceGame() {
       }
       const cost = draft.picks.reduce((sum, key) => {
         const pos = state.market.display.indexOf(key);
-        return sum + cards[key].cost_credits
-          + (effectiveAction === 'recruit' ? (state.position_costs[pos] || 0) : 0);
+        return sum + Math.max(0, cards[key].cost_credits
+          + (effectiveAction === 'recruit' ? (state.position_costs[pos] || 0) : 0)
+          - boonCount('hire_discount'));
       }, 0);
       if (cost > you.credits) return `Not enough credits (${cost}c needed).`;
       return null;
@@ -573,6 +603,7 @@ export default function SpaceGame() {
               <div className={'text-[10px] ' + T_MUted}>
                 ⛏{p.tracks.military.step} 📜{p.tracks.diplomacy.step} 🧬{p.tracks.trade.step}
                 {' · '}solved {p.solves.geo + p.solves.anthro + p.solves.bio}
+                {p.boon_count > 0 && <> · ★{p.boon_count}</>}
                 {' · '}team {p.roster}/{state.crew_cap}
                 {p.discard_top && <> · last: {cards[p.discard_top]?.name}</>}
                 {p.conceded ? ' · withdrew' : ''}
@@ -643,6 +674,19 @@ export default function SpaceGame() {
             {...tipHandlers(<div><b className={T_HEAD}>Team roster</b><div>Hand + published work, max {state.crew_cap}. Hiring needs open slots.</div></div>)}>
             team {you.roster}/{state.crew_cap}
           </span>
+          {myBoons.length > 0 && (
+            <span className={'text-[11px] ' + T_GOLD}
+              {...tipHandlers(
+                <div className="space-y-1">
+                  <b className={T_GOLD + ' text-[12px]'}>Your boons</b>
+                  {myBoons.map((b, i) => (
+                    <div key={i}><b>{b.name}</b> — <span className={T_MUted}>{b.text}</span></div>
+                  ))}
+                </div>
+              )}>
+              ★ {myBoons.length} boon{myBoons.length > 1 ? 's' : ''}
+            </span>
+          )}
           {state.docket.some((m) => m.your_cultures > 0) && (
             <span className={'text-[11px] ' + T_GOOD}
               {...tipHandlers(<div><b className={T_GOOD}>Matured cultures</b><div>Failed Exobiology trials permanently add +1 on that mission. Active: {state.docket.filter((m) => m.your_cultures > 0).map((m) => `${m.title} +${m.your_cultures}`).join(', ')}.</div></div>)}>
@@ -729,6 +773,11 @@ export default function SpaceGame() {
                       {targetSolution.chaos !== 0 && (targetSolution.chaos > 0
                         ? `, chaos +${targetSolution.chaos}` : `, order ${-targetSolution.chaos}`)}
                     </span>
+                    {targetSolution.boon && (
+                      <div className={'text-[10px] ' + T_GOLD}>
+                        ★ Claims boon: {targetSolution.boon.name} — {targetSolution.boon.text}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -736,12 +785,12 @@ export default function SpaceGame() {
                 <div className="flex items-center gap-2 text-[11px]">
                   Charter equipment:
                   <button type="button" className={BTN + ' px-2 py-0 text-[11px]'}
-                    onClick={() => setDraft((dr) => ({ ...dr, charter: Math.max(0, dr.charter - state.geo_credits_per_point) }))}>−</button>
-                  <span className="font-mono">{draft.charter}c (+{Math.floor(draft.charter / state.geo_credits_per_point)})</span>
+                    onClick={() => setDraft((dr) => ({ ...dr, charter: Math.max(0, dr.charter - charterRate) }))}>−</button>
+                  <span className="font-mono">{draft.charter}c (+{Math.floor(draft.charter / charterRate)})</span>
                   <button type="button" className={BTN + ' px-2 py-0 text-[11px]'}
                     onClick={() => setDraft((dr) => ({
                       ...dr,
-                      charter: Math.min(you.credits - (you.credits % state.geo_credits_per_point === 0 ? 0 : you.credits % state.geo_credits_per_point), dr.charter + state.geo_credits_per_point),
+                      charter: dr.charter + charterRate <= you.credits ? dr.charter + charterRate : dr.charter,
                     }))}>+</button>
                   <span className={T_MUted}>(spent win or lose)</span>
                 </div>

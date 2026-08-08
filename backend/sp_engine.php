@@ -114,6 +114,7 @@ function sp_load_players($mysqli, $gameId) {
     foreach (['military', 'diplomacy', 'trade'] as $t) {
       if (!isset($row['tracks'][$t])) $row['tracks'][$t] = ['step' => 0];
     }
+    if (!isset($row['tracks']['boons'])) $row['tracks']['boons'] = [];
     $row['intel']    = sp_j($row['intel'], []);
     $row['upgrades'] = sp_j($row['upgrades'], []);
     $players[(int)$row['seat']] = $row;
@@ -241,6 +242,17 @@ function sp_solve_count($board, $seat, $discipline) {
   return $n;
 }
 
+function sp_player_boons($p) {
+  return $p['tracks']['boons'] ?? [];
+}
+
+/** Count boons of a type (many stack). */
+function sp_boon_count($p, $type) {
+  $nb = 0;
+  foreach (sp_player_boons($p) as $bn) if (($bn['type'] ?? '') === $type) $nb++;
+  return $nb;
+}
+
 function sp_discipline_of_action($action) {
   foreach (SP_DISCIPLINES as $key => $def) {
     if ($def[0] === $action) return $key;
@@ -299,6 +311,7 @@ function sp_setup_game(&$game, &$players) {
     $p['drones_reserve'] = 0;
     $p['tracks'] = [
       'military' => ['step' => 0], 'diplomacy' => ['step' => 0], 'trade' => ['step' => 0],
+      'boons' => [],
     ];
     $p['intel'] = [];
     $p['upgrades'] = [];
@@ -368,16 +381,18 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
   $spentNote = '';
 
   // Discipline levers.
+  $charterRate = max(1, SP_GEO_CREDITS_PER_POINT - sp_boon_count($p, 'fleet'));
+  $commits = [];
   if ($discipline === 'geo') {
     $spend = (int)($params['charter_credits'] ?? 0);
     if ($spend < 0) throw new Exception('Bad charter amount');
     if ($spend > 0) {
-      if ($spend % SP_GEO_CREDITS_PER_POINT !== 0) {
-        throw new Exception('Equipment charters cost ' . SP_GEO_CREDITS_PER_POINT . ' credits per +1');
+      if ($spend % $charterRate !== 0) {
+        throw new Exception('Equipment charters cost ' . $charterRate . ' credit(s) per +1');
       }
       if ($p['credits'] < $spend) throw new Exception('Not enough credits to charter equipment');
       $p['credits'] -= $spend;   // spent win or lose — the rig was rented
-      $boost = intdiv($spend, SP_GEO_CREDITS_PER_POINT);
+      $boost = intdiv($spend, $charterRate);
       $total += $boost;
       $spentNote = ", {$spend}c chartered";
     }
@@ -399,8 +414,16 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
       array_splice($p['hand'], $cpos, 1);
       $p['discard'][] = $k;
     }
-    $total += count($commits);
+    $perColleague = 1 + sp_boon_count($p, 'faculty');
+    $total += count($commits) * $perColleague;
     if (count($commits) > 0) $spentNote = ', ' . count($commits) . ' colleagues consulted';
+    if (sp_boon_count($p, 'purist') > 0 && count($commits) > 0) {
+      $allAnthro = true;
+      foreach ($commits as $k) {
+        if (($cards[$k]['action'] ?? '') !== 'ethnography') { $allAnthro = false; break; }
+      }
+      if ($allAnthro) { $total += 3; $spentNote .= ' (pure methodology +3)'; }
+    }
   } else { // bio
     // Cultures: every prior bio attempt on THIS mission matured your lab
     // cultures — a permanent +1 each, for you, on this crisis.
@@ -409,12 +432,26 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
     if ($cult > 0) $spentNote = ", +$cult cultures";
   }
 
+  // Boon bonuses: keyword affinity + Panspermia Library.
+  foreach (sp_player_boons($p) as $bn) {
+    if (($bn['type'] ?? '') === 'affinity'
+        && in_array($bn['keyword'] ?? '', $mission['keywords'] ?? [], true)) {
+      $total += (int)$bn['power'];
+      $spentNote .= ', +' . (int)$bn['power'] . ' ' . $bn['keyword'] . ' expertise';
+    }
+    if (($bn['type'] ?? '') === 'panspermia' && $discipline === 'bio') {
+      $total += 1;
+      $spentNote .= ', +1 panspermia';
+    }
+  }
+
   $chaosMod = sp_chaos_mod($board['chaos']);
   $need = max(1, (int)$solution['difficulty'] + $chaosMod);
 
   if ($total < $need) {
     if ($discipline === 'bio') {
-      $grown = (int)($board['cultures'][$missionKey][(string)$seat] ?? 0) + 1;
+      $growth = 1 + sp_boon_count($p, 'incubators');
+      $grown = (int)($board['cultures'][$missionKey][(string)$seat] ?? 0) + $growth;
       $board['cultures'][$missionKey][(string)$seat] = $grown;
       return $p['player_name'] . '\'s Exobiology trial on "' . $mission['title']
            . "\" fell short ($total vs $need$spentNote) — but the cultures matured: +$grown there from now on";
@@ -428,6 +465,16 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
   array_splice($board['docket'], $pos, 1);
   unset($board['cultures'][$missionKey]);
   $p['credits'] += (int)$solution['credits'];
+  foreach (sp_player_boons($p) as $bn) {
+    if (($bn['type'] ?? '') === 'income') $p['credits'] += (int)$bn['power'];
+  }
+  $boonNote = '';
+  if (!empty($solution['boon'])) {
+    $claimed = $solution['boon'];
+    $claimed['source'] = $missionKey;
+    $p['tracks']['boons'][] = $claimed;
+    $boonNote = ' — BOON claimed: ' . $claimed['name'];
+  }
   $board['chaos'] = max(SP_CHAOS_MIN, min(SP_CHAOS_MAX, (int)$board['chaos'] + (int)$solution['chaos']));
   $board['solved'][] = [
     'mission' => $missionKey, 'title' => $mission['title'], 'culture' => $mission['culture'],
@@ -464,7 +511,7 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
 
   return $p['player_name'] . ' resolved "' . $mission['title'] . '" the '
        . SP_DISCIPLINES[$discipline][3] . " way ($total vs $need$spentNote) — +"
-       . (int)$solution['credits'] . 'c' . $chaosNote . $suffix . $followNote;
+       . (int)$solution['credits'] . 'c' . $chaosNote . $boonNote . $suffix . $followNote;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -496,6 +543,7 @@ function sp_exec_recruit(&$game, &$players, $seat, $cardKey, $params, $freeMode)
     if ($pos === false) throw new Exception('Researcher not in the market display');
     $cost = (int)$cards[$key]['cost_credits'];
     if (!$freeMode) $cost += (int)(SP_POSITION_COST[$pos] ?? 0);
+    $cost = max(0, $cost - sp_boon_count($p, 'hire_discount'));
     if ($p['credits'] < $cost) throw new Exception('Not enough credits for ' . $cards[$key]['name'] . " ({$cost}c)");
     $p['credits'] -= $cost;
     array_splice($game['market_display'], $pos, 1);
@@ -773,11 +821,13 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
         'chaos' => (int)$sol['chaos'], 'credits' => (int)$sol['credits'],
         'has_follow' => !empty($sol['follow']),
         'text' => $sol['text'],
+        'boon' => $sol['boon'] ?? null,
       ];
     }
     $docket[] = [
       'key' => $mk, 'title' => $mm['title'], 'culture' => $mm['culture'],
       'tier' => $mm['tier'], 'problem' => $mm['problem'],
+      'keywords' => $mm['keywords'] ?? [],
       'chained' => !empty($mm['chained']), 'solutions' => $sols,
       'your_cultures' => (int)($board['cultures'][$mk][(string)$yourSeat] ?? 0),
     ];
@@ -801,6 +851,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'hand_count' => count($p['hand']),
       'discard_count' => count($p['discard']),
       'discard_top' => count($p['discard']) ? $p['discard'][count($p['discard']) - 1] : null,
+      'boon_count' => count(sp_player_boons($p)),
       'roster' => sp_roster_size($p),
       'first_reset_done' => (int)$p['first_reset_done'],
       'trophy' => (int)$p['trophy'], 'conceded' => (int)$p['conceded'],
@@ -858,6 +909,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
         'trade' => $you['tracks']['trade'],
       ],
       'bio_solves' => sp_solve_count($board, $yourSeat, 'bio'),
+      'boons' => sp_player_boons($you),
       'roster' => sp_roster_size($you),
       'first_reset_done' => (int)$you['first_reset_done'],
       'intermediate_score' => $you['intermediate_score'] !== null ? (int)$you['intermediate_score'] : null,
