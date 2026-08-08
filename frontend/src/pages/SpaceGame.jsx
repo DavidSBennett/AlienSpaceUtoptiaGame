@@ -1,16 +1,17 @@
-import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useSpaceGame } from '../hooks/useSpaceGame.js';
 import { spPlayCard, spConcede } from '../api/space.js';
 import { loadSpSession } from '../api/spSession.js';
 
 /**
- * SpaceGame — the playable board, v3 ("one ship, many occupations").
+ * SpaceGame — v4: THE ICC (Interstellar Cultural Council).
  *
- * Hand cards are crew occupations; the player pilots one ship whose stats
- * come from installed upgrade modules. Raids build bounty (harder+richer),
- * diplomatic contracts build reputation (easier+poorer), trading is
- * demand-matched with no opposed roll. Server-authoritative throughout.
+ * No map, no resources, no modules. A shared MISSION DOCKET of cultural
+ * crises sits center stage; each mission offers three competing solutions
+ * (Xenogeology / Xenoanthropology / Exobiology). The first solve writes
+ * that culture's story permanently, moves the shared chaos/order track,
+ * and may chain follow-up missions. Server-authoritative throughout.
  */
 
 const PANEL = 'rounded-lg border border-[#26365a] bg-[#0a1120]/90 backdrop-blur-sm';
@@ -23,84 +24,41 @@ const T_BAD = 'text-[#e58787]';
 const T_GOOD = 'text-[#7fd8a0]';
 
 const SEAT_COLORS = ['#f0c14b', '#6fce93', '#e06666', '#7f9df0', '#b8cf7a'];
-const FACTION_COLORS = {
-  O: '#a08468', B: '#5fae5f', C: '#6f96b8', N: '#d8b04c', A: '#a878d8',
+
+const DISCIPLINES = {
+  survey:      { key: 'geo',    label: 'Xenogeology',      icon: '⛏', color: '#e58787', track: 'military' },
+  ethnography: { key: 'anthro', label: 'Xenoanthropology', icon: '📜', color: '#79c9d6', track: 'diplomacy' },
+  biology:     { key: 'bio',    label: 'Exobiology',       icon: '🧬', color: '#7fd8a0', track: 'trade' },
 };
-const RESOURCE_ICONS = { O: '🪨', B: '🌿', C: '⚙️', N: '🍯', A: '🔮' };
-const RESOURCE_LETTERS = ['O', 'B', 'C', 'N', 'A'];
-const RING_LABELS = ['Home ring (easy)', 'Frontier ring (easy)', 'Verge ring (medium)', 'Core (hard)'];
+const DISC_BY_KEY = {
+  geo:    DISCIPLINES.survey,
+  anthro: DISCIPLINES.ethnography,
+  bio:    DISCIPLINES.biology,
+};
+const TIER_STYLE = {
+  minor:    { label: 'MINOR',    color: '#7fd8a0' },
+  major:    { label: 'MAJOR',    color: '#e0b45c' },
+  critical: { label: 'CRITICAL', color: '#e58787' },
+};
 
 const AFFILIATION_LABELS = {
-  wealth: 'Wealth', diplomatic_corps: 'Diplomatic Corps', alliances: 'Explorers Guild',
-  trade_guild: 'Merchant Guild', war_college: 'Pirate Code', engineering: 'Engineering',
+  wealth: 'Foundation', diplomatic_corps: 'Xenoanthropology Circle',
+  trade_guild: 'Exobiology Institute', war_college: 'Xenogeology Guild',
+  trophy: 'Trophy', collapse: 'ICC Collapse',
 };
 const AFFILIATION_SCORING = {
-  wealth: 'Wealth scores once for everyone: 1 VP per 10 credits of cash + cargo value at game end.',
-  diplomatic_corps: 'At game end this card scores VP equal to your Diplomat track position.',
-  alliances: 'At game end this card scores VP per region your ship has visited.',
-  trade_guild: 'At game end this card scores VP equal to your Merchant track position.',
-  war_college: 'At game end this card scores VP equal to your Pirate track position.',
-  engineering: 'At game end this card scores 2 VP per ship module you have installed.',
+  wealth: 'Scores once for everyone: 1 VP per 10 credits at game end.',
+  diplomatic_corps: 'At game end this card scores VP equal to your Xenoanthropology track.',
+  trade_guild: 'At game end this card scores VP equal to your Exobiology track.',
+  war_college: 'At game end this card scores VP equal to your Xenogeology track.',
 };
 const ACTION_LABELS = {
-  reset: 'Regroup', move: 'Fly', strike: 'Raid', diplomacy: 'Contract',
-  trade: 'Trade', recruit: 'Hire (2)', recruit_free: 'Hire (1, free position)',
-  copy: 'Intercept', engineer: 'Install modules',
-};
-const MODULE_TYPE_LABELS = {
-  weapon: 'Weapon', diplomatic: 'Diplomatic module', trade: 'Trade module', system: 'System',
-};
-const TIER_COLORS = { bronze: '#cd8a4c', silver: '#c3ccd6', gold: '#e5c14c' };
-
-const emptyDraft = {
-  path: [], planet: null, planet2: null, jump: null, forge: '',
-  sell: {}, buy: {}, picks: [], upgrades: [], copyTarget: null, commits: [],
+  reset: 'Regroup', survey: 'Geo solution', ethnography: 'Anthro solution',
+  biology: 'Bio solution', recruit: 'Hire (2)', recruit_free: 'Hire (1, free position)',
+  copy: 'Peer review',
 };
 
-const MAP_PX = 1500;
-
-// ── helpers ──────────────────────────────────────────────────────────────
-
-function neighborsOf(map, pid) {
-  const out = [];
-  for (const [, pair] of Object.entries(map.lanes)) {
-    if (pair[0] === pid) out.push(pair[1]);
-    else if (pair[1] === pid) out.push(pair[0]);
-  }
-  return out;
-}
-
-function connected(map, a, b) {
-  const key = a < b ? `${a}~${b}` : `${b}~${a}`;
-  return !!map.lanes[key];
-}
-
-function autoPayment(cost, cargo) {
-  const pay = {};
-  const left = { ...cargo };
-  for (const c of cost) {
-    if (c === '?') continue;
-    if (!left[c]) return null;
-    left[c] -= 1;
-    pay[c] = (pay[c] || 0) + 1;
-  }
-  const wilds = cost.filter((c) => c === '?').length;
-  for (let i = 0; i < wilds; i++) {
-    let best = null;
-    for (const l of RESOURCE_LETTERS) {
-      if ((left[l] || 0) > 0 && (best === null || left[l] > left[best])) best = l;
-    }
-    if (best === null) return null;
-    left[best] -= 1;
-    pay[best] = (pay[best] || 0) + 1;
-  }
-  return pay;
-}
-
-function costIcons(cost) {
-  if (!cost || cost.length === 0) return 'free';
-  return cost.map((c) => (c === '?' ? '❓' : RESOURCE_ICONS[c])).join(' ');
-}
+const emptyDraft = { mission: null, commits: [], charter: 0, picks: [], copyTarget: null };
 
 // ── tooltips ─────────────────────────────────────────────────────────────
 
@@ -109,9 +67,9 @@ function TooltipLayer({ tip }) {
   const pad = 14;
   const style = {
     position: 'fixed', zIndex: 60, pointerEvents: 'none',
-    left: Math.min(tip.x + pad, window.innerWidth - 340),
+    left: Math.min(tip.x + pad, window.innerWidth - 360),
     top: Math.min(tip.y + pad, window.innerHeight - 300),
-    maxWidth: 320,
+    maxWidth: 340,
   };
   return (
     <div style={style}
@@ -124,146 +82,138 @@ function TooltipLayer({ tip }) {
 function CardTooltip({ cardKey, cards }) {
   const c = cards[cardKey];
   if (!c) return null;
+  const disc = DISCIPLINES[c.action];
   return (
     <div className="space-y-1">
       <div className="flex justify-between gap-3">
         <b className={T_HEAD + ' text-[12px]'}>{c.name}</b>
-        <span className={T_MUted}>{c.stage ? `Market stage ${['I', 'II', 'III', 'IV', 'V'][c.stage - 1]}` : 'Starting crew'}</span>
+        <span className={T_MUted}>{c.stage ? `Market stage ${['I', 'II', 'III', 'IV', 'V'][c.stage - 1]}` : 'Founding team'}</span>
       </div>
       <div className={T_MUted}>{ACTION_LABELS[c.action]}</div>
       <div>
-        <span className={T_BAD}>Military {c.stats[0]}</span>{' · '}
-        <span className={T_GOLD}>Diplomacy {c.stats[1]}</span>{' · '}
-        <span className={T_GOOD}>Trade {c.stats[2]}</span>
+        <span className={T_BAD}>⛏ {c.stats[0]}</span>{' · '}
+        <span className={T_HEAD}>📜 {c.stats[1]}</span>{' · '}
+        <span className={T_GOOD}>🧬 {c.stats[2]}</span>
       </div>
       <div>{c.text}</div>
-      {c.steps != null && <div className={T_GOOD}>Flight range: {c.steps} hops.</div>}
-      {c.rider_credits > 0 && <div className={T_GOLD}>Pockets {c.rider_credits} bonus credits.</div>}
-      {c.kind !== 'starter' && c.cost?.length > 0 && (
-        <div>Hiring cost: {costIcons(c.cost)} <span className={T_MUted}>(+ market-position cost)</span></div>
+      {disc && <div style={{ color: disc.color }}>Solves missions the {disc.label} way.</div>}
+      {c.rider_credits > 0 && <div className={T_GOLD}>Pockets {c.rider_credits} credits.</div>}
+      {c.kind !== 'starter' && (
+        <div>Hiring cost: {c.cost_credits}c <span className={T_MUted}>(+ position surcharge)</span></div>
       )}
       <div className="border-t border-[#26365a] pt-1">
         <b className={T_GOLD}>{AFFILIATION_LABELS[c.affiliation]}.</b>{' '}
-        {AFFILIATION_SCORING[c.affiliation]}
+        {AFFILIATION_SCORING[c.affiliation] || ''}
       </div>
     </div>
   );
 }
 
-function PlanetTooltip({ planet, state }) {
-  const known = state.you.intel[planet.id];
-  const region = planet.system;
-  const bounty = state.you.bounty?.[region] || 0;
-  const rep = state.you.rep?.[region] || 0;
-  const inRegion = state.you.region === region;
+function SolutionTooltip({ mission, discKey, sol }) {
+  const d = DISC_BY_KEY[discKey];
   return (
     <div className="space-y-1">
-      <div className="flex justify-between gap-3">
-        <b className={T_HEAD + ' text-[12px]'}>{planet.name}</b>
-        <span className={T_MUted}>{state.map.systems[planet.system]?.name}</span>
-      </div>
+      <b style={{ color: d.color }} className="text-[12px]">{d.icon} The {d.label} way</b>
+      <div className={T_MUted}>"{mission.title}" — {mission.culture}</div>
+      <div className="italic">{sol.text}</div>
       <div>
-        <span style={{ color: FACTION_COLORS[planet.faction] }}>
-          {state.faction_names[planet.faction]}
-        </span>
-        {' — sells '}{RESOURCE_ICONS[planet.faction]} at {state.prices[planet.faction]}c
-        {' · wants '}{planet.wants.map((w) => RESOURCE_ICONS[w]).join(' ')}
-        {' at +'}{state.sell_markup}c
+        Difficulty <b className={T_GOLD}>{sol.difficulty}</b>
+        {sol.difficulty !== sol.base_difficulty && (
+          <span className={T_MUted}> (base {sol.base_difficulty}, chaos-adjusted)</span>
+        )}
+        {' · '}pays <b className={T_GOLD}>{sol.credits}c</b>
+        {' · '}
+        {sol.chaos > 0 && <b className={T_BAD}>chaos +{sol.chaos}</b>}
+        {sol.chaos < 0 && <b className={T_GOOD}>order {Math.abs(sol.chaos)}</b>}
+        {sol.chaos === 0 && <span className={T_MUted}>no unrest</span>}
       </div>
-      <div>{RING_LABELS[planet.ring] || `Ring ${planet.ring}`} · production {planet.production}</div>
-      <div>
-        <span className={T_BAD}>Military: {known ? known.m : '?'}</span>{' · '}
-        <span className={T_HEAD}>Political: {known ? known.p : '?'}</span>
-        {!known && <span className={T_MUted}> — fly nearby to scout</span>}
-      </div>
-      {planet.home_seat !== null && planet.home_seat !== undefined && (
-        <div style={{ color: SEAT_COLORS[planet.home_seat] }}>
-          Home port of {state.players.find((pl) => pl.seat === planet.home_seat)?.name || `seat ${planet.home_seat + 1}`}
-        </div>
-      )}
-      <div className="border-t border-[#26365a] pt-1 space-y-0.5">
-        <div className={bounty > 0 ? T_BAD : T_MUted}>
-          ⚔ Raid{known ? `: needs ${known.m + bounty}` : ''} — loot {planet.production + bounty} {RESOURCE_ICONS[planet.faction]} + {planet.production + bounty}c
-          {bounty > 0 ? ` (your bounty here: ${bounty})` : ''}
-        </div>
-        <div className={rep > 0 ? T_GOOD : T_MUted}>
-          🤝 {state.you.contracted?.includes(planet.id)
-            ? 'Crisis already resolved — each planet negotiates only once.'
-            : <>Contract{known ? `: needs ${Math.max(1, known.p - rep)}` : ''} — pays {Math.max(planet.production, 3 * planet.production - 2 * rep)}c + 1 {RESOURCE_ICONS[planet.faction]}
-              {rep > 0 ? ` (your rep here: ${rep})` : ''}</>}
-        </div>
-        <div className={T_MUted}>
-          💰 Trade: sell its wants, buy up to {planet.production} of its goods.
-        </div>
-        {!inRegion && <div className={T_GOLD}>Your ship must be in this region to act here.</div>}
-      </div>
+      {sol.has_follow && <div className={T_GOLD}>⛓ This choice will have consequences…</div>}
     </div>
   );
 }
 
-function ModuleTooltip({ mod }) {
-  return (
-    <div className="space-y-1">
-      <b className={T_HEAD + ' text-[12px]'}>{mod.name}</b>
-      <div>
-        <span style={{ color: TIER_COLORS[mod.tier] || '#8593ad' }}>
-          {(mod.tier || 'bronze').toUpperCase()}
-        </span>
-        <span className={T_MUted}> · {MODULE_TYPE_LABELS[mod.type]}</span>
-      </div>
-      <div>{mod.text}</div>
-      <div className={T_MUted}>
-        Cost {mod.cost}c — installed by playing an Engineer · occupies 1 cargo
-        slot · also granted free at even track steps (forfeited if the hold is
-        full) · worth 2 VP per Engineer card at game end.
-      </div>
-    </div>
-  );
-}
+// ── chaos track ──────────────────────────────────────────────────────────
 
-// ── cargo hold ───────────────────────────────────────────────────────────
-
-function CargoHold({ you, resourceNames, tipHandlers }) {
-  const slots = [];
-  for (let i = 0; i < (you.upgrades || []).length; i++) slots.push({ kind: 'mod' });
-  for (const l of RESOURCE_LETTERS) {
-    for (let i = 0; i < (you.cargo[l] || 0); i++) slots.push({ kind: 'res', letter: l });
+function ChaosBar({ chaos, mod, tipHandlers }) {
+  const cells = [];
+  for (let v = -10; v <= 10; v++) {
+    const active = v === chaos;
+    let bg = '#1a2740';
+    if (v < 0) bg = active ? '#2f7d54' : '#12301f';
+    if (v > 0) bg = active ? '#a83232' : '#301616';
+    if (v === 0) bg = active ? '#8593ad' : '#1a2740';
+    cells.push(
+      <span key={v}
+        className={'inline-block h-3 mr-px rounded-sm ' + (active ? 'w-4 ring-1 ring-[#f0f4fa]' : 'w-2.5')}
+        style={{ backgroundColor: bg }} />
+    );
   }
-  const used = slots.length;
-  while (slots.length < you.cargo_capacity) slots.push({ kind: 'empty' });
-
   return (
-    <div
+    <div className="flex items-center gap-2 text-[11px]"
       {...tipHandlers(
         <div className="space-y-1">
-          <b className={T_HEAD + ' text-[12px]'}>Cargo hold — {used}/{you.cargo_capacity} spaces</b>
-          {(you.upgrades || []).length > 0 && (
-            <div>\ud83d\udd29 Installed modules × {(you.upgrades || []).length} (each occupies a slot)</div>
-          )}
-          {RESOURCE_LETTERS.filter((l) => you.cargo[l] > 0).map((l) => (
-            <div key={l}>{RESOURCE_ICONS[l]} {resourceNames[l]} × {you.cargo[l]}</div>
-          ))}
-          <div className={T_MUted}>
-            A full hold refuses new loot AND new modules — even free track modules
-            are forfeited without a slot. Cargo value counts toward Wealth at game
-            end. Cargo Pods add +4 spaces (net +3 after their own slot).
+          <b className={T_HEAD + ' text-[12px]'}>The ICC — chaos {chaos > 0 ? `+${chaos}` : chaos}</b>
+          <div>Every solution nudges this shared track: reckless interventions add CHAOS, respectful ones restore ORDER.</div>
+          <div className={mod !== 0 ? T_GOLD : T_MUted}>
+            Current effect: all mission difficulties {mod > 0 ? `+${mod}` : mod < 0 ? mod : '±0'} (1 per 3 chaos).
           </div>
+          <div className={T_BAD}>At +10 the ICC COLLAPSES: the game ends at once and every player loses 10 VP.</div>
         </div>
-      )}
-      className="inline-flex flex-wrap gap-0.5 align-middle rounded border border-[#26365a] bg-[#0d1526]/90 p-1 max-w-[13.5rem]">
-      {slots.map((s, i) => (
-        <span key={i}
-          className={
-            'inline-flex items-center justify-center w-6 h-6 rounded-sm text-[13px] ' +
-            (s.kind === 'empty' ? 'border border-dashed border-[#26365a] ' :
-             s.kind === 'mod' ? 'border border-[#79c9d6]/60 bg-[#12303a]/70 ' :
-             'border border-[#3a4f7d] ')
-          }
-          style={s.kind === 'res' ? { backgroundColor: FACTION_COLORS[s.letter] + '2e' } : undefined}>
-          {s.kind === 'res' ? RESOURCE_ICONS[s.letter] : s.kind === 'mod' ? '\ud83d\udd29' : ''}
-        </span>
-      ))}
+      )}>
+      <span className={T_GOOD}>ORDER</span>
+      <span>{cells}</span>
+      <span className={T_BAD}>COLLAPSE</span>
+      <span className={'font-mono ' + (chaos >= 7 ? T_BAD : chaos <= -4 ? T_GOOD : T_MUted)}>
+        {chaos > 0 ? `+${chaos}` : chaos}{mod !== 0 ? ` (diff ${mod > 0 ? '+' : ''}${mod})` : ''}
+      </span>
     </div>
+  );
+}
+
+// ── mission card ─────────────────────────────────────────────────────────
+
+function MissionCard({ m, activeDisc, targeted, onClick, tipHandlers }) {
+  const tier = TIER_STYLE[m.tier] || TIER_STYLE.minor;
+  return (
+    <button type="button" onClick={onClick}
+      className={
+        'text-left rounded-lg border p-3 w-full transition-colors ' +
+        (targeted ? 'border-[#79c9d6] bg-[#0f1e33]/95 ' :
+         'border-[#26365a] bg-[#0a1120]/90 hover:border-[#8593ad] ')
+      }>
+      <div className="flex justify-between items-baseline gap-2">
+        <b className={'text-[13px] ' + T_HEAD}>{m.title}</b>
+        <span className="text-[10px] font-mono" style={{ color: tier.color }}>
+          {m.chained ? '⛓ ' : ''}{tier.label}
+        </span>
+      </div>
+      <div className={'text-[10px] mb-1 ' + T_MUted}>{m.culture}</div>
+      <div className="text-[11px] leading-snug mb-2">{m.problem}</div>
+      <div className="space-y-0.5">
+        {['geo', 'anthro', 'bio'].map((dk) => {
+          const sol = m.solutions[dk];
+          if (!sol) return null;
+          const d = DISC_BY_KEY[dk];
+          const isActive = activeDisc === dk;
+          const handlers = tipHandlers(<SolutionTooltip mission={m} discKey={dk} sol={sol} />);
+          return (
+            <div key={dk} {...handlers}
+              className={
+                'flex items-center gap-2 text-[11px] rounded px-1.5 py-0.5 ' +
+                (isActive ? 'bg-[#12303a] ring-1 ring-[#79c9d6]/60' : '')
+              }>
+              <span style={{ color: d.color }} className="w-4">{d.icon}</span>
+              <span className="font-mono w-8">vs {sol.difficulty}</span>
+              <span className={'font-mono w-9 ' + T_GOLD}>+{sol.credits}c</span>
+              <span className={'font-mono w-14 ' + (sol.chaos > 0 ? T_BAD : sol.chaos < 0 ? T_GOOD : T_MUted)}>
+                {sol.chaos > 0 ? `chaos +${sol.chaos}` : sol.chaos < 0 ? `order ${-sol.chaos}` : '—'}
+              </span>
+              {sol.has_follow && <span className={T_GOLD}>⛓</span>}
+            </div>
+          );
+        })}
+      </div>
+    </button>
   );
 }
 
@@ -272,6 +222,7 @@ function CargoHold({ you, resourceNames, tipHandlers }) {
 function CardChip({ cardKey, cards, onClick, onCommit, committed, selected, disabled, small, tipHandlers }) {
   const c = cards[cardKey];
   if (!c) return null;
+  const disc = DISCIPLINES[c.action];
   return (
     <div className={'relative ' + (small ? 'w-36' : 'w-40')}
       {...tipHandlers(<CardTooltip cardKey={cardKey} cards={cards} />)}>
@@ -287,12 +238,15 @@ function CardChip({ cardKey, cards, onClick, onCommit, committed, selected, disa
           <span className="font-semibold text-[11px] leading-tight">{c.name}</span>
           <span className="text-[10px] font-mono whitespace-nowrap">
             <span className={T_BAD}>{c.stats[0]}</span>/
-            <span className={T_GOLD}>{c.stats[1]}</span>/
+            <span className={T_HEAD}>{c.stats[1]}</span>/
             <span className={T_GOOD}>{c.stats[2]}</span>
           </span>
         </div>
-        <div className={'text-[10px] ' + T_MUted}>{ACTION_LABELS[c.action]}</div>
-        <div className={'text-[9px] ' + T_HEAD}>{AFFILIATION_LABELS[c.affiliation]}</div>
+        <div className={'text-[10px] ' + (disc ? '' : T_MUted)}
+          style={disc ? { color: disc.color } : undefined}>
+          {disc ? `${disc.icon} ${disc.label}` : ACTION_LABELS[c.action]}
+        </div>
+        <div className={'text-[9px] ' + T_GOLD}>{AFFILIATION_LABELS[c.affiliation]}</div>
       </button>
       {onCommit && (
         <button type="button" onClick={onCommit}
@@ -302,53 +256,38 @@ function CardChip({ cardKey, cards, onClick, onCommit, committed, selected, disa
               ? 'bg-[#e0b45c] text-[#05070f] border-[#f5d28a]'
               : 'bg-[#122036] text-[#dbe4f0] border-[#2f4b6e] hover:border-[#e0b45c]')
           }
-          title={committed ? 'Keep this crew member' : 'Bargain away for +1 political'}>
-          {committed ? '\u2713' : '+'}
+          title={committed ? 'Keep this colleague' : 'Consult (+1 anthropology; returns on Regroup)'}>
+          {committed ? '✓' : '+'}
         </button>
       )}
     </div>
   );
 }
 
-function MiniCargo({ cargo }) {
-  return (
-    <span className="font-mono text-[11px]">
-      {RESOURCE_LETTERS.map((l) => (
-        (cargo?.[l] || 0) > 0 && (
-          <span key={l} className="mr-1.5">{RESOURCE_ICONS[l]}{cargo[l]}</span>
-        )
-      ))}
-    </span>
-  );
-}
-
-function TrackBar({ label, trackKey, step, tipHandlers }) {
+function TrackBar({ label, color, step, tipHandlers }) {
   const cells = [];
   for (let i = 1; i <= 12; i++) {
     const gate = i === 5 || i === 9;
-    const reward = gate;
     cells.push(
       <span key={i}
         className={
           'inline-block w-2.5 h-2.5 mr-0.5 rounded-sm ' +
-          (i <= step ? 'bg-[#e0b45c] ' : reward ? 'bg-[#223354] ' : 'bg-[#1a2740] ') +
+          (i <= step ? 'bg-[#e0b45c] ' : 'bg-[#1a2740] ') +
           (gate ? 'ring-1 ring-[#e58787] ' : '')
         } />
     );
   }
-  const moduleType = { military: 'weapon', diplomacy: 'diplomatic module', trade: 'trade module' }[trackKey];
   const handlers = tipHandlers ? tipHandlers(
     <div className="space-y-1">
-      <b className={T_HEAD + ' text-[12px]'}>{label} track — step {step}/12</b>
-      <div>+1 per won {label.toLowerCase()} action.</div>
-      <div className={T_GOLD}>Breaking each gate (reaching steps 5 and 9) grants a free {moduleType} from the upgrade stack.</div>
-      <div>Gates (red rings): step 4→5 needs a medium-ring win; step 8→9 a core-ring win.</div>
-      <div className={T_MUted}>Step 12 triggers the endgame. Matching cards score VP × this number.</div>
+      <b style={{ color }} className="text-[12px]">{label} — step {step}/12</b>
+      <div>+1 per mission solved your way.</div>
+      <div>Gates (red rings): step 5 needs a MAJOR solve, step 9 a CRITICAL solve. Breaking them grants research grants (+10c / +15c).</div>
+      <div className={T_MUted}>Step 12 triggers the endgame (+7 VP trophy). Matching cards score VP × this number.</div>
     </div>
   ) : {};
   return (
     <div className="flex items-center gap-2 text-[11px]" {...handlers}>
-      <span className={'w-16 ' + T_MUted}>{label}</span>
+      <span className="w-24 truncate" style={{ color }}>{label}</span>
       <span>{cells}</span>
       <span className={'font-mono ' + T_MUted}>{step}/12</span>
     </div>
@@ -368,161 +307,6 @@ function Collapsible({ title, badge, open, onToggle, children }) {
   );
 }
 
-// ── the star map ─────────────────────────────────────────────────────────
-
-function starPoints(n) {
-  const pts = [];
-  for (let i = 0; i < n; i++) {
-    const x = ((i * 137.508) % 997) * (1000 / 997);
-    const y = ((i * 79.138 + 211) % 991) * (1000 / 991);
-    const r = 0.4 + ((i * 7) % 10) / 12;
-    const o = 0.25 + ((i * 13) % 10) / 18;
-    pts.push({ x, y, r, o });
-  }
-  return pts;
-}
-const STARS = starPoints(170);
-
-function StarMap({ state, draft, activeAction, mySeat, shipPreviewAt, onPlanetClick, tipHandlers }) {
-  const map = state.map;
-  const ships = state.board.ships || {};
-  const intel = state.you.intel || {};
-  const myRegion = state.you.region;
-
-  const shipsAt = {};
-  for (const [seatStr, pid] of Object.entries(ships)) {
-    const at = Number(seatStr) === mySeat && shipPreviewAt ? shipPreviewAt : pid;
-    (shipsAt[at] = shipsAt[at] || []).push(Number(seatStr));
-  }
-
-  // Legal next hops while flying.
-  const hopTargets = new Set();
-  if (activeAction === 'move' && shipPreviewAt) {
-    for (const n of neighborsOf(map, shipPreviewAt)) hopTargets.add(n);
-  }
-  const missionLocal = activeAction === 'strike' || activeAction === 'diplomacy' || activeAction === 'trade';
-
-  return (
-    <svg viewBox="0 0 1000 1000" className="w-full h-full select-none block">
-      <defs>
-        <radialGradient id="spaceBg" cx="50%" cy="50%" r="75%">
-          <stop offset="0%" stopColor="#0b1226" />
-          <stop offset="55%" stopColor="#070d1c" />
-          <stop offset="100%" stopColor="#03060d" />
-        </radialGradient>
-        <radialGradient id="nebulaA" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#5b3f8f" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="#5b3f8f" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="nebulaB" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#1f6a72" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#1f6a72" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <rect x="0" y="0" width="1000" height="1000" fill="url(#spaceBg)" />
-      <ellipse cx="310" cy="260" rx="330" ry="220" fill="url(#nebulaA)" />
-      <ellipse cx="720" cy="700" rx="360" ry="240" fill="url(#nebulaB)" />
-      {STARS.map((s, i) => (
-        <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#cfe2f4" opacity={s.o} />
-      ))}
-
-      {Object.entries(map.lanes).map(([key, [a, b]]) => {
-        const pa = map.planets[a]; const pb = map.planets[b];
-        if (!pa || !pb) return null;
-        return (
-          <line key={key} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y}
-            stroke="#33507a" strokeWidth={1.6} strokeDasharray="6 5" opacity={0.85} />
-        );
-      })}
-
-      {Object.values(map.planets).map((p) => {
-        const known = intel[p.id];
-        const isDraftTarget = draft.planet === p.id;
-        const isHopTarget = hopTargets.has(p.id);
-        const inMyRegion = p.system === myRegion;
-        const dimForMission = missionLocal && !inMyRegion;
-        const isHome = p.home_seat !== null && p.home_seat !== undefined;
-        const handlers = tipHandlers(<PlanetTooltip planet={p} state={state} />);
-        return (
-          <g key={p.id} onClick={() => onPlanetClick(p.id)} style={{ cursor: 'pointer' }}
-            opacity={dimForMission ? 0.45 : 1}
-            onMouseEnter={handlers.onMouseEnter} onMouseMove={handlers.onMouseMove}
-            onMouseLeave={handlers.onMouseLeave}>
-            {isHome && (
-              <circle cx={p.x} cy={p.y} r={24} fill="none"
-                stroke={SEAT_COLORS[p.home_seat]} strokeWidth={2} opacity={0.85} />
-            )}
-            {missionLocal && inMyRegion && (
-              <circle cx={p.x} cy={p.y} r={21} fill="none"
-                stroke="#79c9d6" strokeWidth={1.5} strokeDasharray="3 3" opacity={0.7} />
-            )}
-            {isHopTarget && (
-              <circle cx={p.x} cy={p.y} r={20} fill="none"
-                stroke="#7fd8a0" strokeWidth={2} strokeDasharray="4 3" />
-            )}
-            <circle cx={p.x} cy={p.y} r={16.5} fill={FACTION_COLORS[p.faction]} opacity={0.25} />
-            <circle cx={p.x} cy={p.y} r={13} fill={FACTION_COLORS[p.faction]}
-              stroke={isDraftTarget ? '#79c9d6' : '#0a1120'} strokeWidth={isDraftTarget ? 3.5 : 1.5} />
-            <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize={11}
-              fill="#f0f4fa" fontFamily="monospace" pointerEvents="none">{p.production}</text>
-            <text x={p.x} y={p.y + 30} textAnchor="middle" fontSize={10.5} fill="#9db0cc"
-              pointerEvents="none">
-              {p.name}
-            </text>
-            {/* trade circles: LEFT = goods it wants (buys), RIGHT = good it sells */}
-            <g pointerEvents="none">
-              {p.wants.map((w, wi) => (
-                <g key={w}>
-                  <circle cx={p.x - 23 + wi * 15} cy={p.y + 43} r={8}
-                    fill="#101a2e" stroke={FACTION_COLORS[w]} strokeWidth={1.3} />
-                  <text x={p.x - 23 + wi * 15} y={p.y + 46.5} textAnchor="middle"
-                    fontSize={9}>{RESOURCE_ICONS[w]}</text>
-                </g>
-              ))}
-              <circle cx={p.x + 16} cy={p.y + 43} r={8}
-                fill={FACTION_COLORS[p.faction] + '55'} stroke={FACTION_COLORS[p.faction]} strokeWidth={1.3} />
-              <text x={p.x + 16} y={p.y + 46.5} textAnchor="middle"
-                fontSize={9}>{RESOURCE_ICONS[p.faction]}</text>
-              <text x={p.x - 15.5} y={p.y + 57} textAnchor="middle" fontSize={7.5}
-                fill="#6c7d9c">wants</text>
-              <text x={p.x + 16} y={p.y + 57} textAnchor="middle" fontSize={7.5}
-                fill="#6c7d9c">sells</text>
-            </g>
-            <g pointerEvents="none">
-              <circle cx={p.x - 14} cy={p.y - 12} r={8}
-                fill={known ? '#301616' : '#101a2e'}
-                stroke={known ? '#e58787' : '#33507a'} strokeWidth={1} />
-              <text x={p.x - 14} y={p.y - 8.5} textAnchor="middle" fontSize={9.5}
-                fill={known ? '#e58787' : '#8593ad'} fontFamily="monospace">
-                {known ? known.m : '?'}
-              </text>
-              <circle cx={p.x + 14} cy={p.y - 12} r={8}
-                fill={known ? '#122c33' : '#101a2e'}
-                stroke={known ? '#79c9d6' : '#33507a'} strokeWidth={1} />
-              <text x={p.x + 14} y={p.y - 8.5} textAnchor="middle" fontSize={9.5}
-                fill={known ? '#79c9d6' : '#8593ad'} fontFamily="monospace">
-                {known ? known.p : '?'}
-              </text>
-            </g>
-            {/* ships */}
-            {(shipsAt[p.id] || []).map((seat, i) => (
-              <g key={seat} pointerEvents="none">
-                <polygon
-                  points={`${p.x - 26 + i * 14},${p.y - 22} ${p.x - 20 + i * 14},${p.y - 15} ${p.x - 26 + i * 14},${p.y - 8} ${p.x - 32 + i * 14},${p.y - 15}`}
-                  fill={SEAT_COLORS[seat]} stroke="#03060d" strokeWidth={1.2} />
-                {seat === mySeat && (
-                  <circle cx={p.x - 26 + i * 14} cy={p.y - 15} r={10} fill="none"
-                    stroke="#79c9d6" strokeWidth={1.5} strokeDasharray="3 2" />
-                )}
-              </g>
-            ))}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
 // ── main page ────────────────────────────────────────────────────────────
 
 export default function SpaceGame() {
@@ -535,14 +319,8 @@ export default function SpaceGame() {
   const [actionError, setActionError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [tip, setTip] = useState(null);
-  const [panels, setPanels] = useState({ captains: true, market: false, dock: false, log: false });
+  const [panels, setPanels] = useState({ council: true, market: false, story: true, log: false });
   const [handOpen, setHandOpen] = useState(true);
-  const [shipOpen, setShipOpen] = useState(true);
-
-  const scrollRef = useRef(null);
-  const dragRef = useRef(null);
-  const movedRef = useRef(false);
-  const centeredRef = useRef(false);
 
   const tipHandlers = useCallback((node) => ({
     onMouseEnter: (e) => setTip({ x: e.clientX, y: e.clientY, node }),
@@ -556,37 +334,24 @@ export default function SpaceGame() {
     setActionError(null);
   }, []);
 
-  // The Historians app sets :root { zoom: 0.9 }; under zoom, h-screen
-  // (100vh) renders ~10% short and leaves a blank strip at the bottom.
-  // This page owns its own layout, so opt out of the zoom while mounted.
+  // Opt out of the Historians' :root zoom while mounted.
   useEffect(() => {
     const prev = document.documentElement.style.zoom;
     document.documentElement.style.zoom = '1';
     return () => { document.documentElement.style.zoom = prev; };
   }, []);
 
-  useEffect(() => {
-    if (centeredRef.current || !state?.map || !scrollRef.current) return;
-    const home = state.map.planets[`H${state.you.seat}a`];
-    if (!home) return;
-    const el = scrollRef.current;
-    const scale = MAP_PX / 1000;
-    el.scrollLeft = home.x * scale - el.clientWidth / 2;
-    el.scrollTop = home.y * scale - el.clientHeight / 2;
-    centeredRef.current = true;
-  }, [state]);
-
   if (!session) {
     return (
       <Shell>
         <p>No session for this game on this device. Open it from the
-          {' '}<Link className="underline" to="/space">Space lobby</Link> to adopt it.</p>
+          {' '}<Link className="underline" to="/space">ICC lobby</Link> to adopt it.</p>
       </Shell>
     );
   }
-  if (isLoading && !state) return <Shell><p>Contacting the sector…</p></Shell>;
+  if (isLoading && !state) return <Shell><p>Convening the Council…</p></Shell>;
   if (error && !state) return <Shell><p className={T_BAD}>{error}</p></Shell>;
-  if (state?.message && !state.map) {
+  if (state?.message && !state.docket) {
     return (
       <Shell>
         <p>{state.message}</p>
@@ -594,7 +359,7 @@ export default function SpaceGame() {
       </Shell>
     );
   }
-  if (!state || !state.map) {
+  if (!state || !state.docket) {
     return (
       <Shell>
         <p>The game hasn't started yet.
@@ -603,15 +368,11 @@ export default function SpaceGame() {
     );
   }
 
-  const { game, cards, map } = state;
+  const { game, cards } = state;
   const you = state.you;
   const mySeat = you.seat;
   const myTurn = game.status === 'active' && game.current_seat === mySeat;
   const activeCardDef = selectedCard ? cards[selectedCard] : null;
-  const myUp = you?.upgrades || [];
-  const hasTwin = myUp.includes('twin_consulate');
-  const hasWormhole = myUp.includes('wormhole_drive');
-  const hasForge = myUp.includes('demand_forge');
 
   const copyTargetPlayer = draft.copyTarget !== null
     ? state.players.find((p) => p.seat === draft.copyTarget) : null;
@@ -621,90 +382,31 @@ export default function SpaceGame() {
     : activeCardDef?.action;
   const effectiveCardKey = activeCardDef?.action === 'copy' ? copiedKey : selectedCard;
   const effectiveCard = effectiveCardKey ? cards[effectiveCardKey] : null;
+  const activeDiscMeta = effectiveAction ? DISCIPLINES[effectiveAction] : null;
+  const activeDisc = activeDiscMeta?.key || null;
 
-  const shipPreviewAt = effectiveAction === 'move'
-    ? (draft.jump || (draft.path.length > 0 ? draft.path[draft.path.length - 1] : you.ship_at))
-    : you.ship_at;
-  const moveAllowance = (effectiveCard?.steps || 3) + (you.ship?.speed_bonus || 0);
+  const targetMission = draft.mission
+    ? state.docket.find((m) => m.key === draft.mission) : null;
+  const targetSolution = targetMission && activeDisc ? targetMission.solutions[activeDisc] : null;
 
-  // Region math for mission previews.
-  const region = you.region;
-  const bounty = you.bounty?.[region] || 0;
-  const rep = you.rep?.[region] || 0;
-  const targetPlanet = draft.planet ? map.planets[draft.planet] : null;
-  const targetIntel = draft.planet ? you.intel[draft.planet] : null;
-  let missionTotal = null; let missionNeed = null; let missionReward = null;
-  if (effectiveCard && targetPlanet) {
-    if (effectiveAction === 'strike') {
-      missionTotal = (you.ship?.military || 0) + effectiveCard.stats[0];
-      missionNeed = targetIntel ? targetIntel.m + bounty : null;
-      missionReward = `${targetPlanet.production + bounty} ${RESOURCE_ICONS[targetPlanet.faction]} + ${targetPlanet.production + bounty}c`;
-    } else if (effectiveAction === 'diplomacy') {
-      missionTotal = (you.ship?.political || 0) + effectiveCard.stats[1] + draft.commits.length;
-      missionNeed = targetIntel ? Math.max(1, targetIntel.p - rep) : null;
-      missionReward = `${Math.max(targetPlanet.production, 3 * targetPlanet.production - 2 * rep)}c + 1 ${RESOURCE_ICONS[targetPlanet.faction]}`;
-      if (draft.planet2) {
-        const p2 = map.planets[draft.planet2];
-        const i2 = you.intel[draft.planet2];
-        missionNeed = targetIntel && i2
-          ? Math.max(1, targetIntel.p - rep) + Math.max(1, i2.p - rep) : null;
-        missionReward += ` + ${Math.max(p2.production, 3 * p2.production - 2 * rep)}c (twin)`;
-      }
-    }
+  const statIdx = effectiveAction === 'survey' ? 0 : effectiveAction === 'ethnography' ? 1 : 2;
+  let solveTotal = null;
+  if (effectiveCard && activeDisc) {
+    solveTotal = effectiveCard.stats[statIdx];
+    if (activeDisc === 'geo') solveTotal += Math.floor(draft.charter / state.geo_credits_per_point);
+    if (activeDisc === 'anthro') solveTotal += draft.commits.length;
+    if (activeDisc === 'bio') solveTotal += Math.min(state.bio_notes_max, you.bio_solves);
   }
-  const tradeCapacity = effectiveAction === 'trade' && effectiveCard
-    ? state.trade_base_cap + effectiveCard.stats[2] : 0;
 
   const picking = effectiveAction === 'recruit' || effectiveAction === 'recruit_free';
-  const docking = effectiveAction === 'engineer';
 
-  function onPanDown(e) {
-    if (e.button !== 0) return;
-    movedRef.current = false;
-    dragRef.current = {
-      x: e.clientX, y: e.clientY,
-      sl: scrollRef.current.scrollLeft, st: scrollRef.current.scrollTop,
-    };
-  }
-  function onPanMove(e) {
-    const d = dragRef.current;
-    if (!d) return;
-    const dx = e.clientX - d.x; const dy = e.clientY - d.y;
-    if (Math.abs(dx) + Math.abs(dy) > 5) movedRef.current = true;
-    scrollRef.current.scrollLeft = d.sl - dx;
-    scrollRef.current.scrollTop = d.st - dy;
-  }
-  function onPanUp() { dragRef.current = null; }
-
-  function onPlanetClick(pid) {
-    if (movedRef.current || !effectiveAction) return;
-    if (effectiveAction === 'move') {
-      if (hasWormhole) {
-        setDraft((dr) => ({ ...dr, jump: dr.jump === pid ? null : pid, path: [] }));
-        return;
-      }
-      const from = draft.path.length > 0 ? draft.path[draft.path.length - 1] : you.ship_at;
-      if (!connected(map, from, pid)) return;
-      if (draft.path.length >= moveAllowance) return;
-      setDraft((dr) => ({ ...dr, path: [...dr.path, pid] }));
-      return;
-    }
-    setDraft((dr) => {
-      if (effectiveAction === 'strike' || effectiveAction === 'trade') {
-        return { ...dr, planet: dr.planet === pid ? null : pid };
-      }
-      if (effectiveAction === 'diplomacy') {
-        if (dr.planet === pid) return { ...dr, planet: dr.planet2, planet2: null };
-        if (dr.planet2 === pid) return { ...dr, planet2: null };
-        if (dr.planet && hasTwin) return { ...dr, planet2: pid };
-        return { ...dr, planet: pid };
-      }
-      return dr;
-    });
+  function onMissionClick(key) {
+    if (!activeDisc) return;
+    setDraft((dr) => ({ ...dr, mission: dr.mission === key ? null : key }));
   }
 
   function toggleCommit(key) {
-    if (effectiveAction !== 'diplomacy') return;
+    if (activeDisc !== 'anthro') return;
     setDraft((dr) => ({
       ...dr,
       commits: dr.commits.includes(key)
@@ -722,43 +424,16 @@ export default function SpaceGame() {
     });
   }
 
-  function toggleModule(key) {
-    setDraft((dr) => ({
-      ...dr,
-      upgrades: dr.upgrades.includes(key)
-        ? dr.upgrades.filter((k) => k !== key)
-        : [...dr.upgrades, key],
-    }));
-  }
-
   function buildParams() {
     const a = activeCardDef.action;
     const inner = () => {
-      switch (effectiveAction) {
-        case 'move': return draft.jump ? { jump: draft.jump } : { path: draft.path };
-        case 'strike': return { planet: draft.planet };
-        case 'diplomacy': return {
-          planet: draft.planet, planet2: draft.planet2 || undefined, commits: draft.commits,
-        };
-        case 'trade': return {
-          planet: draft.planet, sell: draft.sell, buy: draft.buy,
-          forge: draft.forge || undefined,
-        };
-        case 'recruit':
-        case 'recruit_free': {
-          const free = effectiveAction === 'recruit_free';
-          const picks = draft.picks.map((key) => {
-            const pos = state.market.display.indexOf(key);
-            const cost = free ? cards[key].cost
-              : [...cards[key].cost, ...(state.position_costs[pos] || [])];
-            return { card: key, payment: autoPayment(cost, you.cargo) || {} };
-          });
-          return { picks };
-        }
-        case 'engineer': return { upgrades: draft.upgrades };
-        case 'reset': return {};
-        default: return {};
+      if (effectiveAction === 'survey') return { mission: draft.mission, charter_credits: draft.charter };
+      if (effectiveAction === 'ethnography') return { mission: draft.mission, commits: draft.commits };
+      if (effectiveAction === 'biology') return { mission: draft.mission };
+      if (effectiveAction === 'recruit' || effectiveAction === 'recruit_free') {
+        return { picks: draft.picks.map((key) => ({ card: key })) };
       }
+      return {};
     };
     if (a === 'copy') return { target_seat: draft.copyTarget, params: inner() };
     return inner();
@@ -780,7 +455,7 @@ export default function SpaceGame() {
 
   async function handleConcede() {
     // eslint-disable-next-line no-alert
-    if (!window.confirm('Withdraw from this game?')) return;
+    if (!window.confirm('Withdraw your team from the Council?')) return;
     try {
       await spConcede(session.player_token);
       await refresh();
@@ -792,66 +467,44 @@ export default function SpaceGame() {
   const blockReason = (() => {
     if (!activeCardDef) return null;
     if (!myTurn) return game.status === 'ended' ? 'The game has ended.' : 'Not your turn yet.';
-    if (activeCardDef.action === 'copy' && draft.copyTarget === null) return 'Choose whose last action to intercept.';
-    switch (effectiveAction) {
-      case 'move':
-        if (draft.path.length > 0 || draft.jump) return null;
-        return hasWormhole
-          ? 'Click ANY planet to set your wormhole jump.'
-          : 'Click neighboring planets to plot your flight path.';
-      case 'strike':
-        return draft.planet ? (map.planets[draft.planet].system === region ? null : 'That planet is outside your region — fly there first.')
-          : 'Click a highlighted planet in your region to raid.';
-      case 'diplomacy': {
-        if (!draft.planet) return 'Click a highlighted planet in your region.';
-        if (map.planets[draft.planet].system !== region) return 'That planet is outside your region — fly there first.';
-        if (you.contracted?.includes(draft.planet)) return 'Already resolved — each planet negotiates only once.';
-        return null;
-      }
-      case 'trade': {
-        if (!draft.planet) return 'Click a highlighted planet in your region to trade with.';
-        if (map.planets[draft.planet].system !== region) return 'That planet is outside your region — fly there first.';
-        const units = Object.values(draft.sell).reduce((a, b) => a + (b || 0), 0)
-          + Object.values(draft.buy).reduce((a, b) => a + (b || 0), 0);
-        return units > 0 ? null : 'Set at least one unit to buy or sell.';
-      }
-      case 'recruit': case 'recruit_free': {
-        if (draft.picks.length === 0) return 'Pick a card from the Crew market panel (top right).';
-        const roster = you.hand.length + you.discard.length;
-        if (you.crew_capacity < 999 && roster + draft.picks.length > you.crew_capacity) {
-          return `Crew quarters full (${you.crew_capacity} max) — Crew's Quarters modules add +2 each.`;
-        }
-        return null;
-      }
-      case 'engineer':
-        return draft.upgrades.length > 0 ? null : 'Pick modules from the Upgrade dock panel (top right).';
-      default: return null;
+    if (activeCardDef.action === 'copy' && draft.copyTarget === null) return 'Choose whose last action to peer-review.';
+    if (activeDisc) {
+      if (!draft.mission) return 'Click a mission on the docket to target it.';
+      if (!targetSolution) return 'That mission has no solution for this discipline.';
+      if (activeDisc === 'geo' && draft.charter > you.credits) return 'Charter exceeds your credits.';
+      return null;
     }
+    if (picking) {
+      if (draft.picks.length === 0) return 'Pick a researcher from the Market panel.';
+      if (you.roster + draft.picks.length > state.crew_cap) {
+        return `Team roster full (${state.crew_cap} max).`;
+      }
+      const cost = draft.picks.reduce((sum, key) => {
+        const pos = state.market.display.indexOf(key);
+        return sum + cards[key].cost_credits
+          + (effectiveAction === 'recruit' ? (state.position_costs[pos] || 0) : 0);
+      }, 0);
+      if (cost > you.credits) return `Not enough credits (${cost}c needed).`;
+      return null;
+    }
+    return null;
   })();
   const confirmReady = activeCardDef && !blockReason;
 
   const ended = game.status === 'ended';
+  const collapsed = game.endgame_trigger === 'chaos_collapse';
 
   return (
-    <div className="h-screen overflow-hidden relative bg-[#03060d] text-[#dbe4f0]">
-      <div ref={scrollRef}
-        className="absolute inset-0 overflow-auto cursor-grab active:cursor-grabbing"
-        onMouseDown={onPanDown} onMouseMove={onPanMove}
-        onMouseUp={onPanUp} onMouseLeave={onPanUp}>
-        <div style={{ width: MAP_PX, height: MAP_PX }}>
-          <StarMap state={state} draft={draft} mySeat={mySeat}
-            activeAction={effectiveAction} shipPreviewAt={shipPreviewAt}
-            tipHandlers={tipHandlers} onPlanetClick={onPlanetClick} />
-        </div>
-      </div>
-
+    <div className="h-screen overflow-hidden relative text-[#dbe4f0]"
+      style={{ background: 'radial-gradient(ellipse at 30% 20%, #0b1226 0%, #070d1c 50%, #03060d 100%)' }}>
       <TooltipLayer tip={tip} />
 
+      {/* top bar */}
       <div className="absolute top-0 inset-x-0 z-40 flex items-center justify-between px-4 py-1.5 bg-[#060b16]/85 backdrop-blur border-b border-[#1d2c4c]">
         <div className="flex items-center gap-4 text-sm">
           <Link to="/space" className={'underline ' + T_MUted}>← Lobby</Link>
-          <span className={'font-semibold ' + T_HEAD}>Sector Umbra</span>
-          <span className={T_MUted}>game #{game.game_id} · turn {game.turn_number}</span>
+          <span className={'font-semibold ' + T_HEAD}>THE ICC</span>
+          <span className={T_MUted}>session #{game.game_id} · turn {game.turn_number}</span>
           {game.endgame_trigger && !ended && (
             <span className={T_BAD}>Final turns! ({game.final_turns_remaining} remaining)</span>
           )}
@@ -873,28 +526,47 @@ export default function SpaceGame() {
         </div>
       )}
 
+      {/* chaos bar */}
+      <div className="absolute top-11 left-1/2 -translate-x-1/2 z-30 px-4 py-1.5 rounded-b-lg border border-t-0 border-[#26365a] bg-[#0a1120]/90">
+        <ChaosBar chaos={state.chaos} mod={state.chaos_mod} tipHandlers={tipHandlers} />
+      </div>
+
+      {/* THE DOCKET */}
+      <div className="absolute top-24 bottom-40 left-2 right-[19rem] z-10 overflow-y-auto pr-1">
+        <div className={'text-[11px] mb-1 ' + T_MUted}>
+          Mission docket · {state.mission_stack_count} crises pending
+          {activeDisc && <span style={{ color: activeDiscMeta.color }}> — click a mission to target your {activeDiscMeta.label} solution</span>}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-4xl">
+          {state.docket.map((m) => (
+            <MissionCard key={m.key} m={m}
+              activeDisc={activeDisc} targeted={draft.mission === m.key}
+              onClick={() => onMissionClick(m.key)} tipHandlers={tipHandlers} />
+          ))}
+          {state.docket.length === 0 && (
+            <div className={'p-4 text-sm ' + T_MUted}>The docket is clear. Every story has been written.</div>
+          )}
+        </div>
+      </div>
+
+      {/* right rail */}
       <div className="absolute top-12 right-2 z-30 w-72 space-y-2 max-h-[calc(100vh-11rem)] overflow-y-auto pr-0.5">
-        <Collapsible title="Captains" open={panels.captains}
-          onToggle={() => setPanels((p) => ({ ...p, captains: !p.captains }))}>
+        <Collapsible title="The Council" open={panels.council}
+          onToggle={() => setPanels((p) => ({ ...p, council: !p.council }))}>
           {state.players.map((p) => (
             <div key={p.seat}
               className={'rounded border px-2 py-1.5 mb-1.5 text-sm ' +
                 (game.current_seat === p.seat && !ended ? 'border-[#e0b45c]/70' : 'border-[#1d2c4c]')}>
               <div className="flex justify-between">
                 <span style={{ color: SEAT_COLORS[p.seat] }} className="font-semibold">
-                  {p.name}{p.is_you ? ' (you)' : ''}
-                  {p.trophy ? ' 🏆' : ''}
+                  {p.name}{p.is_you ? ' (you)' : ''}{p.trophy ? ' 🏆' : ''}
                 </span>
                 <span className="font-mono">{p.credits}c</span>
               </div>
-              <div className={'flex justify-between text-[11px] ' + T_MUted}>
-                <MiniCargo cargo={p.cargo} />
-                <span>hand {p.hand_count}</span>
-              </div>
               <div className={'text-[10px] ' + T_MUted}>
-                ⚔{p.ship?.military ?? 0} 🤝{p.ship?.political ?? 0}
-                {' · '}P{p.tracks.military.step} D{p.tracks.diplomacy.step} M{p.tracks.trade.step}
-                {' · '}at {map.planets[p.ship_at]?.name || '?'}
+                ⛏{p.tracks.military.step} 📜{p.tracks.diplomacy.step} 🧬{p.tracks.trade.step}
+                {' · '}solved {p.solves.geo + p.solves.anthro + p.solves.bio}
+                {' · '}team {p.roster}/{state.crew_cap}
                 {p.discard_top && <> · last: {cards[p.discard_top]?.name}</>}
                 {p.conceded ? ' · withdrew' : ''}
                 {ended && p.final_score !== null && <> · <b>{p.final_score} VP</b></>}
@@ -903,12 +575,12 @@ export default function SpaceGame() {
           ))}
         </Collapsible>
 
-        <Collapsible title="Crew market" badge={`${state.market.stack_count} in stock`}
+        <Collapsible title="Researcher market" badge={`${state.market.stack_count} in stock`}
           open={panels.market || picking}
           onToggle={() => setPanels((p) => ({ ...p, market: !p.market }))}>
           <div className="flex flex-wrap gap-1.5">
             {state.market.display.map((key, pos) => {
-              const posCost = state.position_costs[pos] || [];
+              const surcharge = state.position_costs[pos] || 0;
               return (
                 <div key={key}>
                   <CardChip cardKey={key} cards={cards} small tipHandlers={tipHandlers}
@@ -916,8 +588,7 @@ export default function SpaceGame() {
                     disabled={!picking || !myTurn}
                     onClick={() => togglePick(key)} />
                   <div className={'text-[9px] pl-1 ' + T_MUted}>
-                    {costIcons(cards[key].cost)}
-                    {posCost.length > 0 && <> + position {costIcons(posCost)}</>}
+                    {cards[key].cost_credits}c{surcharge > 0 ? ` + ${surcharge}c position` : ''}
                   </div>
                 </div>
               );
@@ -925,41 +596,26 @@ export default function SpaceGame() {
           </div>
         </Collapsible>
 
-        <Collapsible title="Upgrade dock" badge={`${state.upgrade_dock.stack_count} in stack`}
-          open={panels.dock || docking}
-          onToggle={() => setPanels((p) => ({ ...p, dock: !p.dock }))}>
-          <div className="space-y-1">
-            {state.upgrade_dock.display.map((key) => {
-              const mod = state.upgrades_catalog[key];
-              const chosen = draft.upgrades.includes(key);
+        <Collapsible title="The story so far" badge={`${state.story.length} resolved`}
+          open={panels.story}
+          onToggle={() => setPanels((p) => ({ ...p, story: !p.story }))}>
+          <ul className="space-y-1.5 text-[11px] max-h-64 overflow-y-auto">
+            {[...state.story].reverse().map((s2, i) => {
+              const d = DISC_BY_KEY[s2.discipline];
+              const solver = state.players.find((p) => p.seat === s2.seat);
               return (
-                <button key={key} type="button"
-                  disabled={!docking || !myTurn}
-                  onClick={() => toggleModule(key)}
-                  {...tipHandlers(<ModuleTooltip mod={mod} />)}
-                  className={
-                    'w-full text-left rounded border px-2 py-1 text-[11px] ' +
-                    (chosen ? 'border-[#79c9d6] bg-[#123143] ' : 'bg-[#0c1424] ') +
-                    (!docking ? 'opacity-70 ' : '')
-                  }
-                  style={!chosen ? { borderColor: (TIER_COLORS[mod.tier] || '#2f4b6e') + '99' } : undefined}>
-                  <div className="flex justify-between">
-                    <span className="font-semibold">{mod.name}</span>
-                    <span className={'font-mono ' + T_GOLD}>{mod.cost}c</span>
-                  </div>
-                  <span className={T_MUted}>{mod.text}</span>
-                </button>
+                <li key={i} className="border-l-2 pl-2" style={{ borderColor: d?.color || '#26365a' }}>
+                  <b className={T_HEAD}>{s2.title}</b>
+                  <span className={T_MUted}> — {d?.icon} {solver?.name || '?'}</span>
+                  <div className={'italic ' + T_MUted}>{s2.text}</div>
+                </li>
               );
             })}
-            {!docking && (
-              <div className={'text-[10px] ' + T_MUted}>
-                Install by playing an Engineer — or free at even track steps.
-              </div>
-            )}
-          </div>
+            {state.story.length === 0 && <li className={T_MUted}>No crises resolved yet.</li>}
+          </ul>
         </Collapsible>
 
-        <Collapsible title="Sector log" open={panels.log}
+        <Collapsible title="Council log" open={panels.log}
           onToggle={() => setPanels((p) => ({ ...p, log: !p.log }))}>
           <ul className={'space-y-0.5 text-[11px] max-h-48 overflow-y-auto ' + T_MUted}>
             {[...state.events].reverse().map((e) => (
@@ -969,68 +625,34 @@ export default function SpaceGame() {
         </Collapsible>
       </div>
 
-      {/* ── top-left: THE SHIP (player board), collapsible leftward ── */}
-      <div className="absolute top-12 left-2 z-30">
-        {!shipOpen && (
-          <button type="button" onClick={() => setShipOpen(true)}
-            className={'px-2.5 py-1.5 text-sm ' + PANEL} title="Expand ship panel">
-            🚀 ▸
-          </button>
-        )}
-        {shipOpen && (
-        <div className={'p-2.5 pr-6 space-y-1.5 relative ' + PANEL}>
-        <button type="button" onClick={() => setShipOpen(false)}
-          className="absolute top-1.5 right-1.5 text-[12px] text-[#8593ad] hover:text-[#79c9d6]"
-          title="Collapse ship panel">◂</button>
+      {/* bottom-left: your team dossier */}
+      <div className={'absolute bottom-2 left-2 z-30 p-2.5 space-y-1.5 ' + PANEL}>
         <div className="flex items-center gap-3 text-sm">
-          <span className={'font-semibold ' + T_HEAD}
-            {...tipHandlers(
-              <div className="space-y-1">
-                <b className={T_HEAD + ' text-[12px]'}>Your ship</b>
-                <div>⚔ Military {you.ship?.military ?? 0} — added to every raid.</div>
-                <div>🤝 Political {you.ship?.political ?? 0} — added to every contract.</div>
-                <div className={T_MUted}>Docked at {map.planets[you.ship_at]?.name} — {map.systems[region]?.name}.
-                  Local bounty {bounty}, local rep {rep}.</div>
-              </div>
-            )}>
-            ⚔{you.ship?.military ?? 0} 🤝{you.ship?.political ?? 0}
+          <span className={'font-mono ' + T_GOLD}
+            {...tipHandlers(<div><b className={T_HEAD}>Research funding</b><div>Credits pay for hires, equipment charters, and score Wealth (1 VP per 10).</div></div>)}>
+            {you.credits}c
           </span>
-          <span className={'font-mono ' + T_GOLD}>{you.credits}c</span>
-          <CargoHold you={you} resourceNames={state.resource_names} tipHandlers={tipHandlers} />
+          <span className={'text-[11px] ' + T_MUted}
+            {...tipHandlers(<div><b className={T_HEAD}>Team roster</b><div>Hand + published work, max {state.crew_cap}. Hiring needs open slots.</div></div>)}>
+            team {you.roster}/{state.crew_cap}
+          </span>
+          {you.bio_solves > 0 && (
+            <span className={'text-[11px] ' + T_GOOD}
+              {...tipHandlers(<div><b className={T_GOOD}>Field notes</b><div>+1 per bio mission solved (max +{state.bio_notes_max}) on every Exobiology attempt.</div></div>)}>
+              🧬 notes +{Math.min(state.bio_notes_max, you.bio_solves)}
+            </span>
+          )}
         </div>
-        <div className={'text-[11px] ' + T_MUted}>
-          Docked: <b className="text-[#dbe4f0]">{map.planets[you.ship_at]?.name}</b>
-          {' '}({map.systems[region]?.name})
-          {bounty > 0 && <span className={T_BAD}> · bounty {bounty}</span>}
-          {rep > 0 && <span className={T_GOOD}> · rep {rep}</span>}
-          {' · '}{you.visited.length} regions charted
-        </div>
-        {/* Explicit ship stat tally */}
-        <ShipStatTally you={you} catalog={state.upgrades_catalog} />
-        <div className="border-t border-[#1d2c4c]" />
-        <TrackBar label="Pirate" trackKey="military" step={you.tracks.military.step} tipHandlers={tipHandlers} />
-        <TrackBar label="Diplomat" trackKey="diplomacy" step={you.tracks.diplomacy.step} tipHandlers={tipHandlers} />
-        <TrackBar label="Merchant" trackKey="trade" step={you.tracks.trade.step} tipHandlers={tipHandlers} />
-        {(you.upgrades || []).length > 0 && (
-          <div className={'text-[11px] max-w-[15rem] ' + T_MUted}>
-            {(you.upgrades || []).map((u) => (
-              <span key={u} className="mr-2 underline decoration-dotted"
-                {...tipHandlers(<ModuleTooltip mod={state.upgrades_catalog[u]} />)}>
-                {state.upgrades_catalog[u]?.name || u}
-              </span>
-            ))}
-          </div>
-        )}
-        </div>
-        )}
+        <TrackBar label="⛏ Xenogeology" color="#e58787" step={you.tracks.military.step} tipHandlers={tipHandlers} />
+        <TrackBar label="📜 Xenoanthropology" color="#79c9d6" step={you.tracks.diplomacy.step} tipHandlers={tipHandlers} />
+        <TrackBar label="🧬 Exobiology" color="#7fd8a0" step={you.tracks.trade.step} tipHandlers={tipHandlers} />
       </div>
 
-      {/* ── bottom-center: the crew hand ── */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 max-w-[60vw] flex flex-col items-center">
+      {/* bottom-center: the hand */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 max-w-[52vw] flex flex-col items-center">
         <button type="button" onClick={() => setHandOpen((o) => !o)}
-          className="px-3 py-0.5 rounded-t border border-[#26365a] bg-[#0a1120]/90 text-[11px] text-[#8593ad] hover:text-[#79c9d6]"
-          title={handOpen ? 'Collapse hand' : 'Expand hand'}>
-          Crew hand ({you.hand.length}) {handOpen ? '\u25be' : '\u25b4'}
+          className="px-3 py-0.5 rounded-t border border-[#26365a] bg-[#0a1120]/90 text-[11px] text-[#8593ad] hover:text-[#79c9d6]">
+          Research team ({you.hand.length}) {handOpen ? '▾' : '▴'}
         </button>
         {handOpen && (
         <div className="flex overflow-x-auto pt-7 pb-1 px-2 max-w-full">
@@ -1042,7 +664,7 @@ export default function SpaceGame() {
                 selected={selectedCard === key}
                 committed={draft.commits.includes(key)}
                 disabled={!myTurn || ended}
-                onCommit={effectiveAction === 'diplomacy' && key !== selectedCard
+                onCommit={activeDisc === 'anthro' && key !== selectedCard
                   && cards[key].action !== 'reset' && myTurn && !ended
                   ? () => toggleCommit(key) : undefined}
                 onClick={() => {
@@ -1057,14 +679,14 @@ export default function SpaceGame() {
           ))}
           {you.hand.length === 0 && (
             <span className={'text-sm px-3 py-2 ' + PANEL}>
-              Hand empty. Discard: {you.discard.map((k) => cards[k].name).join(', ') || 'empty'}
+              Hand empty. Published: {you.discard.map((k) => cards[k].name).join(', ') || 'nothing'}
             </span>
           )}
         </div>
         )}
       </div>
 
-      {/* ── bottom-right: action panel ── */}
+      {/* bottom-right: action panel */}
       {activeCardDef && (
         <div className={'absolute bottom-2 right-2 z-40 w-96 p-3 text-sm space-y-2 border-[#79c9d6]/50 ' + PANEL}>
           <div className="flex justify-between items-baseline">
@@ -1075,7 +697,7 @@ export default function SpaceGame() {
 
           {activeCardDef.action === 'copy' && (
             <div>
-              <div className="mb-1">Intercept whom?</div>
+              <div className="mb-1">Peer-review whom?</div>
               <div className="flex gap-1.5 flex-wrap">
                 {state.players.filter((p) => !p.is_you).map((p) => {
                   const top = p.discard_top;
@@ -1092,56 +714,45 @@ export default function SpaceGame() {
             </div>
           )}
 
-          {(effectiveAction === 'strike' || effectiveAction === 'diplomacy') && (
-            <div className="text-[12px]">
-              {effectiveAction === 'strike' ? 'Raid strength ' : 'Diplomatic weight '}
-              <b className={T_GOLD}>{missionTotal ?? '—'}</b>
-              {targetPlanet && (
-                <> vs {missionNeed !== null
-                  ? <b className={missionTotal >= missionNeed ? T_GOOD : T_BAD}>{missionNeed}</b>
-                  : <b className={T_MUted}>?</b>}
-                  {' '}at {targetPlanet.name}{draft.planet2 ? <> + {map.planets[draft.planet2]?.name}</> : null}
-                  {missionReward && <span className={T_MUted}> · reward {missionReward}</span>}
-                </>
-              )}
-              <div className={'text-[10px] ' + T_MUted}>
-                {effectiveAction === 'strike'
-                  ? `Ship military ${you.ship?.military ?? 0} + crew ${effectiveCard?.stats[0] ?? 0}. Success raises your bounty here (harder, richer).`
-                  : `Ship political ${you.ship?.political ?? 0} + crew ${effectiveCard?.stats[1] ?? 0} + ${draft.commits.length} bargained crew (use + on hand cards; they return on your next Regroup).${hasTwin ? ' Twin Consulate: click a second planet to resolve both at once.' : ''} Success raises your rep here (easier, poorer).`}
+          {activeDisc && (
+            <div className="text-[12px] space-y-1">
+              <div>
+                Proposal strength <b className={T_GOLD}>{solveTotal ?? '—'}</b>
+                {targetSolution && (
+                  <> vs <b className={solveTotal >= targetSolution.difficulty ? T_GOOD : T_BAD}>
+                    {targetSolution.difficulty}</b>
+                    {' '}on "{targetMission.title}"
+                    <span className={T_MUted}> · pays {targetSolution.credits}c
+                      {targetSolution.chaos !== 0 && (targetSolution.chaos > 0
+                        ? `, chaos +${targetSolution.chaos}` : `, order ${-targetSolution.chaos}`)}
+                    </span>
+                  </>
+                )}
               </div>
-            </div>
-          )}
-
-          {effectiveAction === 'move' && (
-            <div className={'text-[11px] ' + T_MUted}>
-              {hasWormhole
-                ? <>Wormhole Drive: click ANY planet to jump{draft.jump ? <> — target: <b>{map.planets[draft.jump]?.name}</b></> : null}.</>
-                : <>Path {draft.path.length}/{moveAllowance} hops — click neighboring planets
-              from your ship (green rings show legal hops).</>}
-              {draft.path.length > 0 && (
-                <>
-                  {' '}Route: {draft.path.map((pid) => map.planets[pid]?.name).join(' → ')}
-                  <button type="button" className={BTN + ' ml-2 text-[10px] py-0.5'}
-                    onClick={() => setDraft((dr) => ({ ...dr, path: [] }))}>
-                    Undo
-                  </button>
-                </>
+              {activeDisc === 'geo' && (
+                <div className="flex items-center gap-2 text-[11px]">
+                  Charter equipment:
+                  <button type="button" className={BTN + ' px-2 py-0 text-[11px]'}
+                    onClick={() => setDraft((dr) => ({ ...dr, charter: Math.max(0, dr.charter - state.geo_credits_per_point) }))}>−</button>
+                  <span className="font-mono">{draft.charter}c (+{Math.floor(draft.charter / state.geo_credits_per_point)})</span>
+                  <button type="button" className={BTN + ' px-2 py-0 text-[11px]'}
+                    onClick={() => setDraft((dr) => ({
+                      ...dr,
+                      charter: Math.min(you.credits - (you.credits % state.geo_credits_per_point === 0 ? 0 : you.credits % state.geo_credits_per_point), dr.charter + state.geo_credits_per_point),
+                    }))}>+</button>
+                  <span className={T_MUted}>(spent win or lose)</span>
+                </div>
               )}
-            </div>
-          )}
-
-          {effectiveAction === 'trade' && (
-            <TradeControls draft={draft} setDraft={setDraft} you={you}
-              prices={state.prices} markup={state.sell_markup}
-              capacity={tradeCapacity} planet={targetPlanet} hasForge={hasForge} />
-          )}
-
-          {docking && (
-            <div className={'text-[11px] ' + T_MUted}>
-              Select modules to install from the Upgrade dock panel (top right).
-              {draft.upgrades.length > 0 && (
-                <> Selected: {draft.upgrades.map((k) => state.upgrades_catalog[k]?.name).join(', ')}
-                  {' '}({draft.upgrades.reduce((s, k) => s + (state.upgrades_catalog[k]?.cost || 0), 0)}c)</>
+              {activeDisc === 'anthro' && (
+                <div className={'text-[10px] ' + T_MUted}>
+                  Consult colleagues with the + button on hand cards (+1 each; they return on your next Regroup).
+                  Consulted: {draft.commits.length}.
+                </div>
+              )}
+              {activeDisc === 'bio' && (
+                <div className={'text-[10px] ' + T_MUted}>
+                  Field notes: +{Math.min(state.bio_notes_max, you.bio_solves)} from {you.bio_solves} prior bio solve(s) (max +{state.bio_notes_max}).
+                </div>
               )}
             </div>
           )}
@@ -1152,117 +763,19 @@ export default function SpaceGame() {
 
           <div className="flex gap-2">
             <button className={BTN_ACCENT} disabled={busy || !confirmReady} onClick={handleConfirm}>
-              {busy ? 'Transmitting…' : 'Execute'}
+              {busy ? 'Submitting…' : 'Execute'}
             </button>
             <button className={BTN} onClick={resetDraft}>Cancel</button>
           </div>
         </div>
       )}
 
-      {ended && <ResultsOverlay state={state} />}
+      {ended && <ResultsOverlay state={state} collapsed={collapsed} />}
     </div>
   );
 }
 
-/** The explicit "+X to everything" readout for the ship board. */
-function ShipStatTally({ you, catalog }) {
-  const counts = { weapon: 0, diplomatic: 0, trade: 0 };
-  for (const key of you.upgrades || []) {
-    const t = catalog[key]?.type;
-    if (t && counts[t] !== undefined) counts[t] += 1;
-  }
-  const s = you.ship || {};
-  const rows = [
-    { icon: '⚔', label: 'Military', value: s.military ?? 0, cls: T_BAD,
-      src: counts.weapon ? `${counts.weapon} weapon${counts.weapon > 1 ? 's' : ''}` : 'no weapons yet',
-      note: 'added to every raid' },
-    { icon: '🤝', label: 'Diplomacy', value: s.political ?? 0, cls: T_HEAD,
-      src: counts.diplomatic ? `${counts.diplomatic} module${counts.diplomatic > 1 ? 's' : ''}` : 'no modules yet',
-      note: 'added to every contract' },
-    { icon: '📦', label: 'Cargo', value: you.cargo_capacity, cls: T_GOLD, flat: true,
-      src: (s.cargo_bonus ?? 0) > 0 ? `base 12 + ${s.cargo_bonus} pods` : 'base 12',
-      note: 'hold spaces' },
-    { icon: '🚀', label: 'Speed', value: s.speed_bonus ?? 0, cls: T_GOOD,
-      src: (s.speed_bonus ?? 0) > 0 ? 'afterburners' : 'no afterburners yet',
-      note: 'extra hops per flight' },
-    { icon: '👥', label: 'Crew', flat: true, cls: T_HEAD,
-      value: `${(you.hand?.length || 0) + (you.discard?.length || 0)}/${you.crew_capacity >= 999 ? '∞' : you.crew_capacity}`,
-      src: you.crew_capacity >= 999 ? 'pocket dimension' :
-        you.crew_capacity > 9 ? `base 9 + quarters` : 'base 9',
-      note: 'roster limit for hiring' },
-  ];
-  return (
-    <div className="text-[11px] leading-tight">
-      {rows.map((r) => (
-        <div key={r.label} className="flex items-baseline gap-1.5">
-          <span className={'w-28 whitespace-nowrap ' + r.cls}>
-            {r.icon} {r.flat ? '' : '+'}{r.value} {r.label}
-          </span>
-          <span className={T_MUted}>({r.src} — {r.note})</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function TradeControls({ draft, setDraft, you, prices, markup, capacity, planet, hasForge }) {
-  function setSide(side, letter, qty) {
-    setDraft((dr) => ({ ...dr, [side]: { ...dr[side], [letter]: Math.max(0, qty) } }));
-  }
-  const units = Object.values(draft.sell).reduce((a, b) => a + (b || 0), 0)
-    + Object.values(draft.buy).reduce((a, b) => a + (b || 0), 0);
-  return (
-    <div className="text-[11px] space-y-1">
-      <div className={units > capacity ? T_BAD : T_MUted}>
-        Capacity {units}/{capacity} units
-        {planet && <> · {planet.name} wants {planet.wants.map((w) => RESOURCE_ICONS[w]).join(' ')} (+{markup}c over list)</>}
-      </div>
-      {hasForge && (
-        <div>
-          Forge demand ({draft.forge ? RESOURCE_ICONS[draft.forge] : 'none'}):
-          {RESOURCE_LETTERS.map((l) => (
-            <button key={l} type="button"
-              onClick={() => setDraft((dr) => ({ ...dr, forge: dr.forge === l ? '' : l }))}
-              className={'ml-1 px-1 rounded border text-[11px] ' +
-                (draft.forge === l ? 'border-[#e5c14c] bg-[#2a2338]' : 'border-[#2f4b6e] bg-[#0c1424]')}>
-              {RESOURCE_ICONS[l]}
-            </button>
-          ))}
-        </div>
-      )}
-      <div>
-        Sell:
-        {RESOURCE_LETTERS.map((l) => {
-          const wanted = planet ? (planet.wants.includes(l) || draft.forge === l) : false;
-          return (
-            <span key={l} className={'ml-2 ' + (wanted ? '' : 'opacity-40')}>
-              <span>{RESOURCE_ICONS[l]}</span>
-              <input type="number" min={0} max={you.cargo[l] || 0}
-                disabled={!wanted}
-                value={draft.sell[l] || 0}
-                onChange={(e) => setSide('sell', l, Number(e.target.value))}
-                className="w-10 ml-0.5 bg-[#060b16] border border-[#2f4b6e] rounded px-1 disabled:opacity-50" />
-            </span>
-          );
-        })}
-      </div>
-      <div>
-        Buy {planet ? `${RESOURCE_ICONS[planet.faction]} (max ${planet.production})` : ''}:
-        {planet && (
-          <input type="number" min={0} max={planet.production}
-            value={draft.buy[planet.faction] || 0}
-            onChange={(e) => setSide('buy', planet.faction, Number(e.target.value))}
-            className="w-10 ml-1 bg-[#060b16] border border-[#2f4b6e] rounded px-1" />
-        )}
-      </div>
-      <div className={T_MUted}>
-        List prices {RESOURCE_LETTERS.map((l) => `${RESOURCE_ICONS[l]}${prices[l]}`).join(' ')}.
-      </div>
-    </div>
-  );
-}
-
-function ResultsOverlay({ state }) {
+function ResultsOverlay({ state, collapsed }) {
   const winner = state.players.find((p) => p.seat === state.game.winner_seat);
   const ranked = [...state.players]
     .filter((p) => p.final_score !== null)
@@ -1270,9 +783,17 @@ function ResultsOverlay({ state }) {
   return (
     <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-6">
       <div className={'max-w-lg w-full p-5 space-y-3 ' + PANEL}>
-        <div className={'text-xl font-semibold ' + T_HEAD}>
-          Journey's end{winner ? ` — ${winner.name} takes the sector` : ''}
+        <div className={'text-xl font-semibold ' + (collapsed ? T_BAD : T_HEAD)}>
+          {collapsed
+            ? 'THE ICC HAS COLLAPSED'
+            : <>The Council adjourns{winner ? ` — ${winner.name} leads the field` : ''}</>}
         </div>
+        {collapsed && (
+          <p className={'text-sm ' + T_MUted}>
+            Chaos reached its breaking point. Every delegation loses 10 VP —
+            the stories you wrote survive; the institution did not.
+          </p>
+        )}
         {ranked.map((p, i) => (
           <div key={p.seat} className="rounded border border-[#1d2c4c] px-3 py-2">
             <div className="flex justify-between text-sm">
@@ -1282,7 +803,7 @@ function ResultsOverlay({ state }) {
             {p.score_breakdown && (
               <div className={'text-[11px] ' + T_MUted}>
                 {Object.entries(p.score_breakdown)
-                  .filter(([, v]) => v > 0)
+                  .filter(([, v]) => v !== 0)
                   .map(([k, v]) => `${AFFILIATION_LABELS[k] || k} ${v}`)
                   .join(' · ')}
               </div>

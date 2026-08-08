@@ -501,3 +501,36 @@ economy only); mission strength = ship stat + card stat.
   deck has no engineering cards — the ship board scores itself).
 - **Solo games strip copy-action crew** from the market (dead cards
   without opponents).
+
+---
+
+## 14. Ruleset v4 — "THE ICC" (2026-08-06, supersedes §13)
+
+Total pivot from economy race to moral-scientific drama. REMOVED: the
+star map and all movement, resources/cargo, the module deck, navigators.
+Credits are the only currency (research funding; hiring is credit-priced
+with credit position surcharges).
+
+- **Three schools of thought** (track keys unchanged): military →
+  XENOGEOLOGY (engineer the world; lever: charter equipment, +1 per 2
+  credits, spent win or lose), diplomacy → XENOANTHROPOLOGY (understand
+  the culture; lever: consult colleagues — discard crew +1 each,
+  recovered on Regroup), trade → EXOBIOLOGY (engineer life; lever: field
+  notes, +1 per prior bio solve, max +3).
+- **Mission docket** (4 face-up, deck tiered minor→major→critical): each
+  mission is a cultural crisis with THREE competing solutions, each with
+  its own difficulty, credit payout, chaos delta, and canonical outcome
+  text. First solve writes the culture's story permanently. Some
+  solutions CHAIN follow-up missions onto the deck (the story branches).
+  The Binding Suns (the founding example) ships with three distinct
+  futures and three follow-up chains.
+- **Chaos/Order track** (shared, −10…+10, start 0): every |3| chaos
+  shifts ALL difficulties ±1. At +10 the ICC COLLAPSES — game over,
+  −10 VP to every player.
+- **Tracks:** 12 steps; gates at 5 (needs a MAJOR solve) and 9 (needs
+  CRITICAL); gate breaks grant +10c/+15c research grants; step 12
+  triggers the endgame (+7 trophy). Other endings: crew market
+  exhausted, mission deck exhausted, chaos collapse.
+- **Scoring:** cards × matching track (three guilds), Wealth flat
+  (credits/10), trophy, collapse penalty. Alliances/Engineering gone.
+- Roster cap 9 fixed. Solo strips copy cards. Pre-v4 games sunset.

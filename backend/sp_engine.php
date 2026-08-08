@@ -1,91 +1,67 @@
 <?php
 /**
- * sp_engine.php — the SPACE GAME rules engine (server-authoritative), v3.
+ * sp_engine.php — the ICC rules engine (server-authoritative), v4.
  *
- * v3 model ("one ship, many occupations"):
- *  - Hand cards are CREW OCCUPATIONS. Each player pilots ONE ship token
- *    that sits at a planet; its system is the player's current REGION.
- *  - The ship is the player board: installed upgrade modules give it
- *    military / political / negotiating power (+ cargo & speed systems).
- *    Modules are bought with credits during a reset, or granted free from
- *    the upgrade stack when a track reaches an even step.
- *  - RAID (pirate): ship military + card Military vs planet military +
- *    local bounty. Loot = production + bounty (goods); bounty then rises —
- *    harder and richer each time.
- *  - DIPLOMATIC CONTRACT: ship political + card Diplomacy vs planet
- *    political − local reputation. Payout = 2 × production − rep
- *    (credits); rep then rises — easier and poorer each time.
- *  - TRADE: no opposed roll. Sell what the planet WANTS at list + 2, buy
- *    its own goods at list, capacity 2 + card Trade + negotiating; any
- *    trade moving ≥1 unit advances the Merchant track.
- *  - Tracks: Pirate / Diplomat / Merchant (internal keys unchanged:
- *    military / diplomacy / trade). 12 steps, ring gates at 5 and 9,
- *    free matching module at every even step, step 12 triggers endgame.
+ * "The Interstellar Cultural Council": players lead research teams of one
+ * of three schools of thought — Xenogeology (engineer the world),
+ * Xenoanthropology (understand the culture), Exobiology (engineer life) —
+ * racing to resolve cultural crises from a shared MISSION DOCKET. Each
+ * mission offers three competing solutions; the first solve writes that
+ * culture's story permanently, moves the shared CHAOS/ORDER track, and may
+ * chain follow-up missions into the deck.
  *
- * NOT an endpoint — require_once'd by every sp_*.php endpoint. All rules
- * live here; the client is presentation only.
+ *  - No map, no movement, no resources, no modules. Credits are the only
+ *    currency (research funding); crew are hired with credits.
+ *  - Chaos (−10 order … +10 collapse): every point of |chaos| ÷ 3 shifts
+ *    ALL mission difficulties (harder in chaos, easier in order). At +10
+ *    the ICC COLLAPSES: the game ends at once and everyone loses 10 VP.
+ *  - Tracks (internal keys unchanged): military=Xenogeology,
+ *    diplomacy=Xenoanthropology, trade=Exobiology. 12 steps; entering
+ *    step 5 requires a MAJOR-tier solve, step 9 a CRITICAL-tier solve;
+ *    breaking those gates grants research grants (+10c / +15c). Step 12
+ *    triggers the endgame (trophy +7).
+ *
+ * NOT an endpoint — require_once'd by every sp_*.php endpoint.
  */
 
 require_once __DIR__ . '/mp_dbConfig.php';
 require_once __DIR__ . '/sp_cards_data.php';
-require_once __DIR__ . '/sp_map_data.php';
+require_once __DIR__ . '/sp_missions_data.php';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Tuning constants
 // ─────────────────────────────────────────────────────────────────────────
 
-const SP_RESOURCES      = ['O', 'B', 'C', 'N', 'A'];
-const SP_PRICES         = ['O' => 3, 'B' => 4, 'C' => 5, 'N' => 6, 'A' => 7];
-const SP_FACTION_NAMES  = [
-  'O' => 'Krath Combine',    'B' => 'Verdani Symbiosis',
-  'C' => 'Mekkari Assembly', 'N' => 'Aurelian Court', 'A' => 'Umbral Choir',
-];
-const SP_RESOURCE_NAMES = [
-  'O' => 'Ore', 'B' => 'Biomass', 'C' => 'Components', 'N' => 'Nectar', 'A' => 'Aether',
-];
-
-const SP_STARTING_CREDITS = 5;
-const SP_STARTING_CARGO   = ['O' => 1, 'B' => 1, 'C' => 0, 'N' => 0, 'A' => 0];
-const SP_CARGO_CAPACITY   = 12;
+const SP_STARTING_CREDITS = 12;
 const SP_MARKET_DISPLAY   = 7;
-const SP_UPGRADE_DISPLAY  = 4;
+const SP_DOCKET_SIZE      = 4;
 const SP_TROPHY_VP        = 7;
-const SP_SELL_MARKUP      = 3;    // wanted goods sell at list + this
-const SP_DEMAND_BONUS     = 3;    // merchant bonus per unit sold that's in demand
-const SP_TRADE_BASE_CAP   = 3;    // + card Trade stat + ship negotiating
-// Diplomat pacing: each planet's crisis can be resolved only ONCE per
-// player (no rep cap) — track mastery means twelve solved planets.
+const SP_BASE_CREW_CAP    = 9;
+
+const SP_CHAOS_MIN        = -10;
+const SP_CHAOS_MAX        = 10;   // collapse
+const SP_COLLAPSE_PENALTY = 10;   // VP lost by everyone on collapse
 
 const SP_TRACK_MAX  = 12;
 const SP_TIER_STEPS = 4;
-const SP_GATE_RING  = [1 => 0, 2 => 2, 3 => 3];   // tier => min ring to enter
+// Gate tiers: entering step 5 needs a solve of at least 'major';
+// entering step 9 needs 'critical'.
+const SP_GATE_TIER  = [1 => 'minor', 2 => 'major', 3 => 'critical'];
+const SP_GATE_GRANT = [5 => 10, 9 => 15];   // credits on gate break
 
-const SP_POSITION_COST = [[], [], ['?'], ['?'], ['?', '?'], ['?', '?'], ['?', '?', '?']];
+const SP_GEO_CREDITS_PER_POINT = 2;   // charter equipment: 2c per +1
+const SP_BIO_NOTES_MAX = 3;           // field notes cap
 
-const SP_ENGINEERING_VP_PER_UPGRADE = 2;
+// Market position surcharge, in credits, by display position 0..6.
+const SP_POSITION_COST = [0, 0, 1, 1, 2, 2, 3];
 
-// Track key → module type granted when a gate step is reached.
-const SP_TRACK_MODULE_TYPE = [
-  'military' => 'weapon', 'diplomacy' => 'diplomatic', 'trade' => 'trade',
+// discipline key → [action, stat index, track key, label]
+const SP_DISCIPLINES = [
+  'geo'    => ['survey',      0, 'military',  'Xenogeology'],
+  'anthro' => ['ethnography', 1, 'diplomacy', 'Xenoanthropology'],
+  'bio'    => ['biology',     2, 'trade',     'Exobiology'],
 ];
-// Free modules arrive when you BREAK a gate (steps 5 and 9).
-const SP_FREE_MODULE_STEPS = [5, 9];
-// Crew roster (hand + discard) capacity; raised by Crew's Quarters,
-// unlimited with the Pocket Dimension.
-const SP_BASE_CREW_CAP = 9;
-
-function sp_crew_capacity($p) {
-  if (in_array('pocket_dimension', $p['upgrades'], true)) return 999;
-  $cap = SP_BASE_CREW_CAP;
-  foreach ($p['upgrades'] as $k) {
-    if (strpos($k, 'crews_quarters') === 0) $cap += 2;
-  }
-  return $cap;
-}
-
-function sp_roster_size($p) {
-  return count($p['hand']) + count($p['discard']);
-}
+const SP_TIER_RANK = ['minor' => 1, 'major' => 2, 'critical' => 3];
 
 // ─────────────────────────────────────────────────────────────────────────
 // State load / save
@@ -108,12 +84,20 @@ function sp_load_game($mysqli, $gameId, $forUpdate = false) {
   $row['market_display'] = sp_j($row['market_display'], []);
   $row['market_stack']   = sp_j($row['market_stack'], []);
   $row['board_state']    = sp_j($row['board_state'],
-    ['ships' => [], 'upgrade_display' => [], 'upgrade_stack' => [], 'meta' => []]);
-  // Pre-v3 games (drone/control boards) cannot be migrated to the ship
-  // model — flag them so the state endpoint can sunset them gracefully.
+    ['docket' => [], 'mission_stack' => [], 'chaos' => 0, 'solved' => [], 'meta' => []]);
+  foreach (['docket' => [], 'mission_stack' => [], 'solved' => [], 'meta' => []] as $k => $d) {
+    if (!isset($row['board_state'][$k])) $row['board_state'][$k] = $d;
+  }
+  if (!isset($row['board_state']['chaos'])) $row['board_state']['chaos'] = 0;
+  // Pre-v4 games (ship/map or older boards) can't run under the ICC
+  // ruleset — flag for graceful sunset on the poll path.
   $row['legacy_ruleset'] = ($row['status'] !== 'lobby')
-    && !isset($row['board_state']['ships']);
-  if (!isset($row['board_state']['meta'])) $row['board_state']['meta'] = [];
+    && !isset($row['board_state']['docket']);
+  // (docket default was just added above, so detect legacy via ships/drones)
+  if (($row['status'] !== 'lobby')
+      && (isset($row['board_state']['ships']) || isset($row['board_state']['drones']))) {
+    $row['legacy_ruleset'] = true;
+  }
   return $row;
 }
 
@@ -124,17 +108,13 @@ function sp_load_players($mysqli, $gameId) {
   $res = $stmt->get_result();
   $players = [];
   while ($row = $res->fetch_assoc()) {
-    $row['cargo']    = sp_j($row['cargo'], ['O'=>0,'B'=>0,'C'=>0,'N'=>0,'A'=>0]);
+    $row['cargo']    = sp_j($row['cargo'], []);
     $row['hand']     = sp_j($row['hand'], []);
     $row['discard']  = sp_j($row['discard'], []);
     $row['tracks']   = sp_j($row['tracks'], []);
     foreach (['military', 'diplomacy', 'trade'] as $t) {
       if (!isset($row['tracks'][$t])) $row['tracks'][$t] = ['step' => 0];
     }
-    if (!isset($row['tracks']['bounty']))  $row['tracks']['bounty'] = [];
-    if (!isset($row['tracks']['rep']))     $row['tracks']['rep'] = [];
-    if (!isset($row['tracks']['visited'])) $row['tracks']['visited'] = [];
-    if (!isset($row['tracks']['contracted'])) $row['tracks']['contracted'] = [];
     $row['intel']    = sp_j($row['intel'], []);
     $row['upgrades'] = sp_j($row['upgrades'], []);
     $players[(int)$row['seat']] = $row;
@@ -242,166 +222,38 @@ function sp_authenticate($mysqli, $tokenOverride = null) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Ship, cargo, region helpers
+// Helpers
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Derived ship stats from installed modules. (No trade stat — trade
- *  modules grant STORAGE via their 'cargo' field instead.) */
-function sp_ship_stats($player) {
-  $u = sp_upgrade_cards();
-  $s = ['military' => 0, 'political' => 0, 'negotiating' => 0,
-        'cargo_bonus' => 0, 'speed_bonus' => 0];
-  foreach ($player['upgrades'] as $key) {
-    $mod = $u[$key] ?? null;
-    if (!$mod) continue;
-    if ($mod['type'] === 'weapon')     $s['military']  += $mod['bonus'];
-    if ($mod['type'] === 'diplomatic') $s['political'] += $mod['bonus'];
-    if (!empty($mod['cargo']))         $s['cargo_bonus'] += (int)$mod['cargo'];
-    if ($mod['name'] === 'Afterburners') $s['speed_bonus'] += 1;
+function sp_roster_size($p) {
+  return count($p['hand']) + count($p['discard']);
+}
+
+function sp_chaos_mod($chaos) {
+  return intdiv((int)$chaos, 3);   // truncates toward zero for both signs
+}
+
+/** Count a seat's solved missions for one discipline. */
+function sp_solve_count($board, $seat, $discipline) {
+  $n = 0;
+  foreach ($board['solved'] as $entry) {
+    if ((int)$entry['seat'] === (int)$seat && $entry['discipline'] === $discipline) $n++;
   }
-  return $s;
+  return $n;
 }
 
-function sp_cargo_used($p) {
-  // Installed modules occupy hull space alongside goods (the Concordia
-  // storehouse tension: your ship's build-out squeezes your loot room).
-  return array_sum($p['cargo']) + count($p['upgrades']);
-}
-function sp_cargo_free($p) {
-  return max(0, (int)$p['cargo_capacity'] - sp_cargo_used($p));
-}
-function sp_cargo_add(&$p, $letter, $units) {
-  $add = min($units, sp_cargo_free($p));
-  if ($add > 0) $p['cargo'][$letter] += $add;
-  return $add;
-}
-
-/** The system id of the player's ship (their current region). */
-function sp_ship_region($board, $seat) {
-  $pid = $board['ships'][(string)$seat] ?? null;
-  if ($pid === null) return null;
-  return sp_map()['planets'][$pid]['system'] ?? null;
-}
-
-function sp_bounty_at(&$player, $sysId) {
-  return (int)($player['tracks']['bounty'][$sysId] ?? 0);
-}
-function sp_rep_at(&$player, $sysId) {
-  return (int)($player['tracks']['rep'][$sysId] ?? 0);
-}
-
-/** Reveal intel around a planet (that planet + lane neighbors). */
-function sp_reveal_around(&$player, $pid) {
-  $known = array_flip($player['intel']);
-  $known[$pid] = true;
-  foreach (sp_lanes_of_planet($pid) as $other) $known[$other] = true;
-  $player['intel'] = array_keys($known);
-}
-
-/** Record a region visit (Explorers Guild scoring). */
-function sp_visit(&$player, $sysId) {
-  if ($sysId !== null && !in_array($sysId, $player['tracks']['visited'], true)) {
-    $player['tracks']['visited'][] = $sysId;
+function sp_discipline_of_action($action) {
+  foreach (SP_DISCIPLINES as $key => $def) {
+    if ($def[0] === $action) return $key;
   }
+  return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Tracks & the upgrade dock
-// ─────────────────────────────────────────────────────────────────────────
-
-/** Install a module by key onto a player (stat effects are derived; only
- *  cargo pods touch a stored column). */
-function sp_install_module(&$player, $key) {
-  $mod = sp_upgrade_cards()[$key] ?? null;
-  if (!$mod) throw new Exception('Unknown module');
-  $player['upgrades'][] = $key;
-  if (!empty($mod['cargo'])) {
-    $player['cargo_capacity'] = (int)$player['cargo_capacity'] + (int)$mod['cargo'];
-  }
-  return $mod['name'];
-}
-
-function sp_upgrade_dock_refill(&$game) {
+function sp_docket_refill(&$game) {
   $b = &$game['board_state'];
-  while (count($b['upgrade_display']) < SP_UPGRADE_DISPLAY && count($b['upgrade_stack']) > 0) {
-    $b['upgrade_display'][] = array_shift($b['upgrade_stack']);
+  while (count($b['docket']) < SP_DOCKET_SIZE && count($b['mission_stack']) > 0) {
+    $b['docket'][] = array_shift($b['mission_stack']);
   }
-}
-
-/**
- * Advance a track by 1 (ring-gated). Even steps grant a free module of the
- * matching type from the upgrade stack. Step 12 triggers the endgame.
- * Returns a suffix string for the event message ('' if no advance).
- */
-function sp_track_advance(&$game, &$players, $seat, $trackKey, $planetRing) {
-  $p = &$players[$seat];
-  $step = (int)$p['tracks'][$trackKey]['step'];
-  if ($step >= SP_TRACK_MAX) return '';
-  $nextStep = $step + 1;
-  $nextTier = intdiv($nextStep - 1, SP_TIER_STEPS) + 1;
-  $minRing = SP_GATE_RING[$nextTier] ?? 0;
-  if ($planetRing < $minRing) return '';
-  $p['tracks'][$trackKey]['step'] = $nextStep;
-  $label = ['military' => 'Pirate', 'diplomacy' => 'Diplomat', 'trade' => 'Merchant'][$trackKey];
-  $suffix = " ($label +1)";
-
-  // Gate steps (5 and 9): free module of the matching type from the stack.
-  // Needs a free hull slot — a stuffed hold forfeits the freebie.
-  if (in_array($nextStep, SP_FREE_MODULE_STEPS, true)) {
-    if (sp_cargo_free($p) < 1) {
-      $suffix .= ' — free module forfeited (no hull space!)';
-    } else {
-      $wantType = SP_TRACK_MODULE_TYPE[$trackKey];
-      $stack = &$game['board_state']['upgrade_stack'];
-      foreach ($stack as $i => $key) {
-        if ((sp_upgrade_cards()[$key]['type'] ?? '') === $wantType) {
-          array_splice($stack, $i, 1);
-          $name = sp_install_module($p, $key);
-          $suffix .= " — free module: $name";
-          break;
-        }
-      }
-    }
-  }
-  if ($nextStep >= SP_TRACK_MAX) {
-    sp_trigger_endgame($game, $players, $seat, 'track_mastery');
-    $suffix .= ' — TRACK MASTERED';
-  }
-  return $suffix;
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// Payments (market recruiting)
-// ─────────────────────────────────────────────────────────────────────────
-
-function sp_validate_payment($player, $cost, $payment) {
-  $need = [];
-  $wild = 0;
-  foreach ($cost as $c) {
-    if ($c === '?') $wild++;
-    else $need[$c] = ($need[$c] ?? 0) + 1;
-  }
-  $paid = 0;
-  foreach ($payment as $letter => $n) {
-    $n = (int)$n;
-    if ($n < 0 || !in_array($letter, SP_RESOURCES, true)) throw new Exception('Bad payment');
-    if (($player['cargo'][$letter] ?? 0) < $n) {
-      throw new Exception('Not enough ' . SP_RESOURCE_NAMES[$letter] . ' in cargo');
-    }
-    $paid += $n;
-  }
-  foreach ($need as $letter => $n) {
-    if ((int)($payment[$letter] ?? 0) < $n) {
-      throw new Exception('Cost requires ' . $n . '× ' . SP_RESOURCE_NAMES[$letter]);
-    }
-  }
-  if ($paid !== count($cost)) {
-    throw new Exception('Payment must total exactly ' . count($cost) . ' resources');
-  }
-}
-
-function sp_apply_payment(&$player, $payment) {
-  foreach ($payment as $letter => $n) $player['cargo'][$letter] -= (int)$n;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -409,18 +261,14 @@ function sp_apply_payment(&$player, $payment) {
 // ─────────────────────────────────────────────────────────────────────────
 
 function sp_setup_game(&$game, &$players) {
-  // Crew market: shuffle within each stage, concatenate I→V.
-  // Solo games strip copy-action crew (Spy line) — dead cards with no
-  // opponents to intercept.
+  // Crew market: shuffle within stage, concatenate I→V. Solo strips copy.
   $solo = count($players) === 1;
   $cards = sp_cards();
   $stack = [];
   foreach (sp_market_stages() as $stage => $keys) {
     if ($solo) {
       $filtered = [];
-      foreach ($keys as $k) {
-        if ($cards[$k]['action'] !== 'copy') $filtered[] = $k;
-      }
+      foreach ($keys as $k) if ($cards[$k]['action'] !== 'copy') $filtered[] = $k;
       $keys = $filtered;
     }
     shuffle($keys);
@@ -429,307 +277,191 @@ function sp_setup_game(&$game, &$players) {
   $game['market_display'] = array_splice($stack, 0, SP_MARKET_DISPLAY);
   $game['market_stack'] = $stack;
 
-  // Upgrade dock: tier-ordered deck — bronze first, then silver, then
-  // gold — shuffled within each tier. Golds surface late.
-  $byTier = ['bronze' => [], 'silver' => [], 'gold' => []];
-  foreach (sp_upgrade_cards() as $ukey => $mod) {
-    $byTier[$mod['tier'] ?? 'bronze'][] = $ukey;
+  // Mission deck: minors, then majors, then criticals (shuffled per tier).
+  $tiers = sp_mission_tiers();
+  $missionStack = [];
+  foreach (['minor', 'major', 'critical'] as $tier) {
+    $keys = $tiers[$tier];
+    shuffle($keys);
+    foreach ($keys as $k) $missionStack[] = $k;
   }
-  $upgradeStack = [];
-  foreach (['bronze', 'silver', 'gold'] as $tier) {
-    $tierKeys = $byTier[$tier];
-    shuffle($tierKeys);
-    foreach ($tierKeys as $uk) $upgradeStack[] = $uk;
-  }
-  $board = ['ships' => [], 'upgrade_display' => [], 'upgrade_stack' => $upgradeStack, 'meta' => []];
+  $board = [
+    'docket' => array_splice($missionStack, 0, SP_DOCKET_SIZE),
+    'mission_stack' => $missionStack,
+    'chaos' => 0, 'solved' => [], 'meta' => [],
+  ];
 
   foreach ($players as $seat => &$p) {
-    $home = "H{$seat}a";
-    $board['ships'][(string)$seat] = $home;
     $p['hand'] = sp_starter_keys();
     $p['discard'] = [];
     $p['credits'] = SP_STARTING_CREDITS;
-    $p['cargo'] = SP_STARTING_CARGO;
-    $p['cargo_capacity'] = SP_CARGO_CAPACITY;
+    $p['cargo'] = [];
+    $p['cargo_capacity'] = 0;
     $p['drones_reserve'] = 0;
     $p['tracks'] = [
       'military' => ['step' => 0], 'diplomacy' => ['step' => 0], 'trade' => ['step' => 0],
-      'bounty' => [], 'rep' => [], 'visited' => ["H{$seat}"],
     ];
     $p['intel'] = [];
     $p['upgrades'] = [];
-    sp_reveal_around($p, $home);
   }
   unset($p);
 
   $game['board_state'] = $board;
-  sp_upgrade_dock_refill($game);
   $game['status'] = 'active';
   $game['current_seat'] = 0;
   $game['turn_number'] = 1;
-  $game['boon_seat'] = count($players) - 1;   // retained only as the tie-break anchor
+  $game['boon_seat'] = count($players) - 1;   // tie-break anchor only
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Action executors
+// Tracks
 // ─────────────────────────────────────────────────────────────────────────
-
-function sp_exec_move(&$game, &$players, $seat, $cardKey, $params, $asCard) {
-  $map = sp_map();
-  $board = &$game['board_state'];
-  $p = &$players[$seat];
-  $cards = sp_cards();
-  // GOLD Wormhole Drive: a move action may jump anywhere on the map.
-  $jump = (string)($params['jump'] ?? '');
-  if ($jump !== '') {
-    if (!in_array('wormhole_drive', $p['upgrades'], true)) {
-      throw new Exception('Jumping needs the Wormhole Drive (gold module)');
-    }
-    if (!isset($map['planets'][$jump])) throw new Exception('Unknown planet: ' . $jump);
-    $board['ships'][(string)$seat] = $jump;
-    sp_reveal_around($p, $jump);
-    sp_visit($p, $map['planets'][$jump]['system']);
-    return $p['player_name'] . ' jumped through the wormhole to ' . $map['planets'][$jump]['name'];
-  }
-
-  $path = $params['path'] ?? [];
-  if (!is_array($path) || count($path) === 0) throw new Exception('No flight path given');
-
-  $ship = sp_ship_stats($p);
-  $allowed = (int)($cards[$asCard]['steps'] ?? 3) + $ship['speed_bonus'];
-  if (count($path) > $allowed) throw new Exception("Flight path too long (max $allowed hops)");
-
-  $at = $board['ships'][(string)$seat];
-  foreach ($path as $to) {
-    $to = (string)$to;
-    if (!isset($map['planets'][$to])) throw new Exception('Unknown planet: ' . $to);
-    if (!isset($map['lanes'][sp_lane_key($at, $to)])) {
-      throw new Exception('No star-lane connects ' . $at . ' and ' . $to);
-    }
-    $at = $to;
-    sp_reveal_around($p, $at);
-    sp_visit($p, $map['planets'][$at]['system']);
-  }
-  $board['ships'][(string)$seat] = $at;
-  return $p['player_name'] . ' flew to ' . $map['planets'][$at]['name'];
-}
-
-/** RAID — harder and richer with every success in the region. */
-function sp_exec_strike(&$game, &$players, $seat, $cardKey, $params, $asCard) {
-  $map = sp_map();
-  $board = &$game['board_state'];
-  $p = &$players[$seat];
-  $cards = sp_cards();
-  $planetId = (string)($params['planet'] ?? '');
-  $planet = $map['planets'][$planetId] ?? null;
-  if (!$planet) throw new Exception('Unknown planet');
-  $region = sp_ship_region($board, $seat);
-  if ($planet['system'] !== $region) throw new Exception('Your ship must be in that region to raid');
-
-  $bounty = sp_bounty_at($p, $region);
-  $ship = sp_ship_stats($p);
-  $total = $ship['military'] + (int)$cards[$asCard]['stats'][0];
-  // GOLD Cloaking Device: raids ignore your bounty for the check (loot
-  // still scales with it — infamy pays, anonymously).
-  $cloaked = in_array('cloaking_device', $p['upgrades'], true);
-  $need = (int)$planet['military'] + ($cloaked ? 0 : $bounty);
-  sp_reveal_around($p, $planetId);
-
-  if ($total >= $need) {
-    // Yield scales with bounty on BOTH axes: goods (cargo-capped) and
-    // plundered credits (always paid, even with a full hold).
-    $yield = (int)$planet['production'] + $bounty;
-    $got = sp_cargo_add($p, $planet['faction'], $yield);
-    $p['credits'] += $yield;
-    $p['tracks']['bounty'][$region] = $bounty + 1;
-    $suffix = sp_track_advance($game, $players, $seat, 'military', $planet['ring']);
-    return $p['player_name'] . ' raided ' . $planet['name'] . " ($total vs $need) — looted $got "
-         . SP_RESOURCE_NAMES[$planet['faction']] . " and $yield credits, bounty now " . ($bounty + 1) . $suffix;
-  }
-  return $p['player_name'] . '\'s raid on ' . $planet['name'] . " was repelled ($total vs $need)";
-}
 
 /**
- * DIPLOMATIC CONTRACT — easier and poorer with every success in the region.
- * The diplomat's unique lever: DISCARD other crew members (+1 political
- * each) — crew become commodities for political power. Discards are spent
- * win or lose (tempo cost; they return on the next Regroup).
- * Payout: 3 × production − 2 × rep, floored at production.
+ * Advance a track by 1, gated by the solved mission's tier. Gate breaks
+ * (steps 5 and 9) grant research-grant credits. Step 12 triggers endgame.
+ * Returns a message suffix ('' if the gate held).
  */
-function sp_exec_diplomacy(&$game, &$players, $seat, $cardKey, $params, $asCard) {
-  $map = sp_map();
+function sp_track_advance(&$game, &$players, $seat, $trackKey, $solvedTier) {
+  $p = &$players[$seat];
+  $step = (int)$p['tracks'][$trackKey]['step'];
+  if ($step >= SP_TRACK_MAX) return '';
+  $nextStep = $step + 1;
+  $nextTier = intdiv($nextStep - 1, SP_TIER_STEPS) + 1;   // 1..3
+  $needTier = SP_GATE_TIER[$nextTier] ?? 'minor';
+  if (SP_TIER_RANK[$solvedTier] < SP_TIER_RANK[$needTier]) return '';
+  $p['tracks'][$trackKey]['step'] = $nextStep;
+  $labels = ['military' => 'Xenogeology', 'diplomacy' => 'Xenoanthropology', 'trade' => 'Exobiology'];
+  $suffix = ' (' . $labels[$trackKey] . ' +1)';
+
+  if (isset(SP_GATE_GRANT[$nextStep])) {
+    $grant = SP_GATE_GRANT[$nextStep];
+    $p['credits'] += $grant;
+    $suffix .= " — gate broken: +{$grant}c research grant";
+  }
+  if ($nextStep >= SP_TRACK_MAX) {
+    sp_trigger_endgame($game, $players, $seat, 'track_mastery');
+    $suffix .= ' — FIELD MASTERED';
+  }
+  return $suffix;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE SOLVE — one executor for all three disciplines
+// ─────────────────────────────────────────────────────────────────────────
+
+function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $discipline) {
   $board = &$game['board_state'];
   $p = &$players[$seat];
   $cards = sp_cards();
-  $planetId = (string)($params['planet'] ?? '');
-  $planet = $map['planets'][$planetId] ?? null;
-  if (!$planet) throw new Exception('Unknown planet');
-  $region = sp_ship_region($board, $seat);
-  if ($planet['system'] !== $region) throw new Exception('Your ship must be in that region to negotiate');
+  $missions = sp_missions();
 
-  // Validate discarded crew: in hand, unique, not the played card itself.
-  // Reset crew (Quartermaster line) can NEVER be bargained — losing your
-  // only reset card to a bargain would soft-lock the hand cycle.
-  $commits = is_array($params['commits'] ?? null) ? $params['commits'] : [];
-  $seen = [];
-  foreach ($commits as $k) {
-    if (!is_string($k) || $k === $cardKey || isset($seen[$k])) {
-      throw new Exception('Invalid crew selection');
-    }
-    $seen[$k] = true;
-    if (!in_array($k, $p['hand'], true)) throw new Exception('Crew not in hand: ' . $k);
-    if ((sp_cards()[$k]['action'] ?? '') === 'reset') {
-      throw new Exception(sp_cards()[$k]['name'] . ' refuses to be bargained away (reset crew never can be)');
-    }
-  }
+  $missionKey = (string)($params['mission'] ?? '');
+  $pos = array_search($missionKey, $board['docket'], true);
+  if ($pos === false) throw new Exception('That mission is not on the docket');
+  $mission = $missions[$missionKey] ?? null;
+  if (!$mission) throw new Exception('Unknown mission');
+  $solution = $mission['solutions'][$discipline] ?? null;
+  if (!$solution) throw new Exception('No ' . SP_DISCIPLINES[$discipline][3] . ' approach exists for this crisis');
 
-  // Target list: one planet, or TWO with the gold Twin Consulate.
-  $targets = [$planet];
-  $planet2Id = (string)($params['planet2'] ?? '');
-  if ($planet2Id !== '') {
-    if (!in_array('twin_consulate', $p['upgrades'], true)) {
-      throw new Exception('A second target needs the Twin Consulate (gold module)');
-    }
-    $planet2 = $map['planets'][$planet2Id] ?? null;
-    if (!$planet2) throw new Exception('Unknown second planet');
-    if ($planet2Id === $planetId) throw new Exception('Pick two different planets');
-    if ($planet2['system'] !== $region) throw new Exception('Both planets must be in your region');
-    $targets[] = $planet2;
-  }
-  foreach ($targets as $t) {
-    if (in_array($t['id'], $p['tracks']['contracted'], true)) {
-      throw new Exception('You already resolved ' . $t['name']
-        . '\'s crisis — each planet negotiates only once. Fly on.');
-    }
-  }
+  $statIdx = SP_DISCIPLINES[$discipline][1];
+  $total = (int)$cards[$asCard]['stats'][$statIdx];
+  $spentNote = '';
 
-  $rep = sp_rep_at($p, $region);
-  $ship = sp_ship_stats($p);
-  $total = $ship['political'] + (int)$cards[$asCard]['stats'][1] + count($commits);
-  $need = 0;
-  foreach ($targets as $t) {
-    $need += max(1, (int)$t['political'] - $rep);
-    sp_reveal_around($p, $t['id']);
-  }
-
-  // Crew are bargained away win or lose.
-  foreach ($commits as $k) {
-    $pos = array_search($k, $p['hand'], true);
-    array_splice($p['hand'], $pos, 1);
-    $p['discard'][] = $k;
-  }
-  $crewNote = count($commits) > 0 ? (', ' . count($commits) . ' crew bargained') : '';
-
-  if ($total >= $need) {
-    $paidTotal = 0; $inKindNotes = []; $suffix = ''; $names = [];
-    foreach ($targets as $t) {
-      $prod = (int)$t['production'];
-      $payout = max($prod, 3 * $prod - 2 * $rep);
-      $p['credits'] += $payout;
-      $paidTotal += $payout;
-      // Payment in kind: a grateful planet also hands over 1 of its own
-      // good (cargo permitting) — the diplomat's trickle of hiring currency.
-      if (sp_cargo_add($p, $t['faction'], 1) > 0) {
-        $inKindNotes[] = '1 ' . SP_RESOURCE_NAMES[$t['faction']];
+  // Discipline levers.
+  if ($discipline === 'geo') {
+    $spend = (int)($params['charter_credits'] ?? 0);
+    if ($spend < 0) throw new Exception('Bad charter amount');
+    if ($spend > 0) {
+      if ($spend % SP_GEO_CREDITS_PER_POINT !== 0) {
+        throw new Exception('Equipment charters cost ' . SP_GEO_CREDITS_PER_POINT . ' credits per +1');
       }
-      $p['tracks']['contracted'][] = $t['id'];
-      $names[] = $t['name'];
-      $suffix .= sp_track_advance($game, $players, $seat, 'diplomacy', $t['ring']);
+      if ($p['credits'] < $spend) throw new Exception('Not enough credits to charter equipment');
+      $p['credits'] -= $spend;   // spent win or lose — the rig was rented
+      $boost = intdiv($spend, SP_GEO_CREDITS_PER_POINT);
+      $total += $boost;
+      $spentNote = ", {$spend}c chartered";
     }
-    $p['tracks']['rep'][$region] = $rep + count($targets);
-    return $p['player_name'] . ' resolved ' . (count($targets) > 1 ? 'crises' : 'a crisis')
-         . ' on ' . implode(' and ', $names)
-         . " ($total vs $need$crewNote) — paid $paidTotal credits"
-         . (count($inKindNotes) ? ' + ' . implode(' + ', $inKindNotes) : '')
-         . ', rep now ' . ($rep + count($targets)) . $suffix;
+  } elseif ($discipline === 'anthro') {
+    $commits = is_array($params['commits'] ?? null) ? $params['commits'] : [];
+    $seen = [];
+    foreach ($commits as $k) {
+      if (!is_string($k) || $k === $cardKey || isset($seen[$k])) {
+        throw new Exception('Invalid colleague selection');
+      }
+      $seen[$k] = true;
+      if (!in_array($k, $p['hand'], true)) throw new Exception('Colleague not in hand: ' . $k);
+      if (($cards[$k]['action'] ?? '') === 'reset') {
+        throw new Exception($cards[$k]['name'] . ' cannot be consulted away (reset crew never can be)');
+      }
+    }
+    foreach ($commits as $k) {
+      $cpos = array_search($k, $p['hand'], true);
+      array_splice($p['hand'], $cpos, 1);
+      $p['discard'][] = $k;
+    }
+    $total += count($commits);
+    if (count($commits) > 0) $spentNote = ', ' . count($commits) . ' colleagues consulted';
+  } else { // bio
+    $notes = min(SP_BIO_NOTES_MAX, sp_solve_count($board, $seat, 'bio'));
+    $total += $notes;
+    if ($notes > 0) $spentNote = ", +$notes field notes";
   }
-  return $p['player_name'] . '\'s envoys were turned away'
-       . (count($targets) > 1 ? ' (twin contract)' : ' at ' . $planet['name'])
-       . " ($total vs $need$crewNote)";
+
+  $chaosMod = sp_chaos_mod($board['chaos']);
+  $need = max(1, (int)$solution['difficulty'] + $chaosMod);
+
+  if ($total < $need) {
+    return $p['player_name'] . '\'s ' . SP_DISCIPLINES[$discipline][3]
+         . ' proposal for "' . $mission['title'] . "\" was rejected ($total vs $need"
+         . $spentNote . ')';
+  }
+
+  // ── Success: this culture's story is written, permanently. ──
+  array_splice($board['docket'], $pos, 1);
+  $p['credits'] += (int)$solution['credits'];
+  $board['chaos'] = max(SP_CHAOS_MIN, min(SP_CHAOS_MAX, (int)$board['chaos'] + (int)$solution['chaos']));
+  $board['solved'][] = [
+    'mission' => $missionKey, 'title' => $mission['title'], 'culture' => $mission['culture'],
+    'discipline' => $discipline, 'seat' => $seat, 'text' => $solution['text'],
+    'chaos' => (int)$solution['chaos'],
+  ];
+
+  // The story branches: chained consequences enter the deck next.
+  $followNote = '';
+  if (!empty($solution['follow']) && isset($missions[$solution['follow']])) {
+    array_unshift($board['mission_stack'], $solution['follow']);
+    $followNote = ' — consequences will follow';
+  }
+  sp_docket_refill($game);
+
+  $suffix = sp_track_advance($game, $players, $seat, SP_DISCIPLINES[$discipline][2], $mission['tier']);
+
+  $chaosDelta = (int)$solution['chaos'];
+  $chaosNote = $chaosDelta === 0 ? ''
+    : ($chaosDelta > 0 ? ", chaos +$chaosDelta" : ', order ' . abs($chaosDelta));
+
+  // Collapse check.
+  if ((int)$board['chaos'] >= SP_CHAOS_MAX) {
+    sp_end_game($game, $players, null, 'chaos_collapse');
+    return $p['player_name'] . ' resolved "' . $mission['title'] . '" the '
+         . SP_DISCIPLINES[$discipline][3] . " way ($total vs $need$spentNote)"
+         . ' — AND THE ICC COLLAPSED IN THE AFTERMATH';
+  }
+
+  // Missions exhausted → every story is written.
+  if (count($board['docket']) === 0 && count($board['mission_stack']) === 0) {
+    sp_trigger_endgame($game, $players, $seat, 'missions_complete');
+  }
+
+  return $p['player_name'] . ' resolved "' . $mission['title'] . '" the '
+       . SP_DISCIPLINES[$discipline][3] . " way ($total vs $need$spentNote) — +"
+       . (int)$solution['credits'] . 'c' . $chaosNote . $suffix . $followNote;
 }
 
-/** TRADE — demand-matched, no opposed roll. */
-function sp_exec_trade(&$game, &$players, $seat, $cardKey, $params, $asCard) {
-  $map = sp_map();
-  $board = &$game['board_state'];
-  $p = &$players[$seat];
-  $cards = sp_cards();
-  $planetId = (string)($params['planet'] ?? '');
-  $planet = $map['planets'][$planetId] ?? null;
-  if (!$planet) throw new Exception('Unknown planet');
-  $region = sp_ship_region($board, $seat);
-  if ($planet['system'] !== $region) throw new Exception('Your ship must be in that region to trade');
-
-  $capacity = SP_TRADE_BASE_CAP + (int)$cards[$asCard]['stats'][2];
-  $sell = is_array($params['sell'] ?? null) ? $params['sell'] : [];
-  $buy  = is_array($params['buy'] ?? null) ? $params['buy'] : [];
-
-  $units = 0;
-  foreach ([$sell, $buy] as $side) {
-    foreach ($side as $letter => $n) {
-      if (!in_array($letter, SP_RESOURCES, true)) throw new Exception('Bad resource');
-      if ((int)$n < 0) throw new Exception('Bad amount');
-      $units += (int)$n;
-    }
-  }
-  if ($units === 0) throw new Exception('Trade at least one unit');
-  if ($units > $capacity) throw new Exception("Over trade capacity (max $capacity units)");
-
-  // GOLD Demand Forge: declare one resource sought-after at this planet.
-  $forge = (string)($params['forge'] ?? '');
-  if ($forge !== '') {
-    if (!in_array('demand_forge', $p['upgrades'], true)) {
-      throw new Exception('Forging demand needs the Demand Forge (gold module)');
-    }
-    if (!in_array($forge, SP_RESOURCES, true)) throw new Exception('Bad forged resource');
-  }
-
-  $earned = 0; $spent = 0; $soldUnits = 0;
-  // Sell: what this planet WANTS (or your forged good), at list + markup
-  // + negotiating per unit.
-  foreach ($sell as $letter => $n) {
-    $n = (int)$n;
-    if ($n <= 0) continue;
-    if (!in_array($letter, $planet['wants'], true) && $letter !== $forge) {
-      $wantNames = [];
-      foreach ($planet['wants'] as $w) $wantNames[] = SP_RESOURCE_NAMES[$w];
-      throw new Exception($planet['name'] . ' does not want ' . SP_RESOURCE_NAMES[$letter]
-        . ' (wants: ' . implode(', ', $wantNames) . ')');
-    }
-    if (($p['cargo'][$letter] ?? 0) < $n) throw new Exception('Not enough ' . SP_RESOURCE_NAMES[$letter] . ' to sell');
-    $p['cargo'][$letter] -= $n;
-    // In-demand sales: markup + the merchant's demand bonus per unit.
-    $earned += $n * (SP_PRICES[$letter] + SP_SELL_MARKUP + SP_DEMAND_BONUS);
-    $soldUnits += $n;
-  }
-  // Buy: only the planet's own goods, at list, at most its production per visit.
-  foreach ($buy as $letter => $n) {
-    $n = (int)$n;
-    if ($n <= 0) continue;
-    if ($letter !== $planet['faction']) {
-      throw new Exception($planet['name'] . ' only sells ' . SP_RESOURCE_NAMES[$planet['faction']]);
-    }
-    if ($n > (int)$planet['production']) {
-      throw new Exception($planet['name'] . ' sells at most ' . $planet['production'] . ' units per visit');
-    }
-    $price = $n * SP_PRICES[$letter];
-    if ($p['credits'] + $earned < $price + $spent) throw new Exception('Not enough credits');
-    if (sp_cargo_free($p) < $n) throw new Exception('Not enough cargo space');
-    $p['cargo'][$letter] += $n;
-    $spent += $price;
-  }
-
-  $rider = (int)$cards[$asCard]['rider_credits'];
-  $p['credits'] += $earned - $spent + $rider;
-  sp_reveal_around($p, $planetId);
-  // Merchant rank comes from FULFILLING DEMAND: only a trade that SELLS
-  // wanted goods advances the track (buying alone is just logistics).
-  $suffix = $soldUnits > 0
-    ? sp_track_advance($game, $players, $seat, 'trade', $planet['ring']) : '';
-  $net = $earned - $spent + $rider;
-  return $p['player_name'] . ' traded at ' . $planet['name']
-       . " ($units units, " . ($net >= 0 ? '+' : '') . "$net credits)" . $suffix;
-}
+// ─────────────────────────────────────────────────────────────────────────
+// Support actions
+// ─────────────────────────────────────────────────────────────────────────
 
 function sp_market_refill(&$game) {
   while (count($game['market_display']) < SP_MARKET_DISPLAY && count($game['market_stack']) > 0) {
@@ -741,26 +473,23 @@ function sp_exec_recruit(&$game, &$players, $seat, $cardKey, $params, $freeMode)
   $p = &$players[$seat];
   $cards = sp_cards();
   $picks = $params['picks'] ?? [];
-  if (!is_array($picks) || count($picks) === 0) throw new Exception('No cards picked');
+  if (!is_array($picks) || count($picks) === 0) throw new Exception('No researchers picked');
   $maxPicks = $freeMode ? 1 : 2;
-  if (count($picks) > $maxPicks) throw new Exception("At most $maxPicks card(s)");
+  if (count($picks) > $maxPicks) throw new Exception("At most $maxPicks hire(s)");
 
-  // Crew roster capacity: hand + discard, capped by quarters (9 base).
-  $cap = sp_crew_capacity($p);
-  if (sp_roster_size($p) + count($picks) > $cap) {
-    throw new Exception("Crew quarters full ($cap max) — install Crew's Quarters or a Pocket Dimension to hire more");
+  if (sp_roster_size($p) + count($picks) > SP_BASE_CREW_CAP) {
+    throw new Exception('Team roster full (' . SP_BASE_CREW_CAP . ' max)');
   }
 
   $names = [];
   foreach ($picks as $pick) {
-    $key = (string)($pick['card'] ?? '');
-    $payment = is_array($pick['payment'] ?? null) ? $pick['payment'] : [];
+    $key = is_array($pick) ? (string)($pick['card'] ?? '') : (string)$pick;
     $pos = array_search($key, $game['market_display'], true);
-    if ($pos === false) throw new Exception('Card not in the market display');
-    $cost = $cards[$key]['cost'];
-    if (!$freeMode) $cost = array_merge($cost, SP_POSITION_COST[$pos] ?? []);
-    sp_validate_payment($p, $cost, $payment);
-    sp_apply_payment($p, $payment);
+    if ($pos === false) throw new Exception('Researcher not in the market display');
+    $cost = (int)$cards[$key]['cost_credits'];
+    if (!$freeMode) $cost += (int)(SP_POSITION_COST[$pos] ?? 0);
+    if ($p['credits'] < $cost) throw new Exception('Not enough credits for ' . $cards[$key]['name'] . " ({$cost}c)");
+    $p['credits'] -= $cost;
     array_splice($game['market_display'], $pos, 1);
     $p['hand'][] = $key;
     $names[] = $cards[$key]['name'];
@@ -779,16 +508,14 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
 
   $p['hand'] = array_merge($p['hand'], $p['discard']);
   $p['discard'] = [];
-  $msg = $p['player_name'] . ' regrouped and recovered their cards';
+  $msg = $p['player_name'] . ' regrouped the team and recovered their cards';
 
-  // Reset riders (Bosun / First Mate pocket credits).
   $rider = (int)($cards[$asCard]['rider_credits'] ?? 0);
   if ($rider > 0) {
     $p['credits'] += $rider;
-    $msg .= " (+$rider credits)";
+    $msg .= " (+{$rider}c)";
   }
 
-  // Intermediate scoring on each player's FIRST reset.
   if (!(int)$p['first_reset_done']) {
     $p['first_reset_done'] = 1;
     $score = sp_compute_score($game, $players, $seat, false);
@@ -800,51 +527,9 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   return $msg;
 }
 
-/**
- * ENGINEER — the module-buying occupation. Install any number of modules
- * from the upgrade dock, paying their credit costs. (Free even-track
- * modules come from the stack automatically; this is the credit path.)
- */
-function sp_exec_engineer(&$game, &$players, $seat, $cardKey, $params) {
-  $p = &$players[$seat];
-  $wanted = $params['upgrades'] ?? [];
-  if (!is_array($wanted) || count($wanted) === 0) {
-    throw new Exception('Pick at least one module from the upgrade dock');
-  }
-  $names = [];
-  foreach ($wanted as $key) {
-    $pos = array_search($key, $game['board_state']['upgrade_display'], true);
-    if ($pos === false) throw new Exception('Module not in the upgrade dock');
-    $mod = sp_upgrade_cards()[$key];
-    if ($p['credits'] < $mod['cost']) throw new Exception('Not enough credits for ' . $mod['name']);
-    if (sp_cargo_free($p) < 1) {
-      throw new Exception('No hull space for ' . $mod['name'] . ' — modules occupy a cargo slot (sell or spend goods first)');
-    }
-    $p['credits'] -= $mod['cost'];
-    array_splice($game['board_state']['upgrade_display'], $pos, 1);
-    $names[] = sp_install_module($p, $key);
-  }
-  sp_upgrade_dock_refill($game);
-  return $p['player_name'] . ' installed ' . implode(', ', $names);
-}
-
-/**
- * One-time rescue kept from the v1 era (reset cards stranded in discards).
- * Harmless for new games; still referenced by sp_getGameState.
- */
+/** Legacy shim kept for sp_getGameState's poll-path maintenance. */
 function sp_heal_stranded_resets(&$game, &$players) {
   if (!empty($game['board_state']['meta']['reset_healed'])) return false;
-  $cards = sp_cards();
-  foreach ($players as $seat => &$p) {
-    for ($i = count($p['discard']) - 1; $i >= 0; $i--) {
-      $k = $p['discard'][$i];
-      if (isset($cards[$k]) && $cards[$k]['action'] === 'reset') {
-        array_splice($p['discard'], $i, 1);
-        $p['hand'][] = $k;
-      }
-    }
-  }
-  unset($p);
   $game['board_state']['meta']['reset_healed'] = true;
   return true;
 }
@@ -885,14 +570,13 @@ function sp_exec_copy(&$game, &$players, $seat, $cardKey, $params) {
 }
 
 function sp_dispatch_action(&$game, &$players, $seat, $cardKey, $action, $params, $asCard) {
+  $discipline = sp_discipline_of_action($action);
+  if ($discipline !== null) {
+    return sp_exec_solve($game, $players, $seat, $cardKey, $params, $asCard, $discipline);
+  }
   switch ($action) {
-    case 'move':         return sp_exec_move($game, $players, $seat, $cardKey, $params, $asCard);
-    case 'strike':       return sp_exec_strike($game, $players, $seat, $cardKey, $params, $asCard);
-    case 'diplomacy':    return sp_exec_diplomacy($game, $players, $seat, $cardKey, $params, $asCard);
-    case 'trade':        return sp_exec_trade($game, $players, $seat, $cardKey, $params, $asCard);
     case 'recruit':      return sp_exec_recruit($game, $players, $seat, $cardKey, $params, false);
     case 'recruit_free': return sp_exec_recruit($game, $players, $seat, $cardKey, $params, true);
-    case 'engineer':     return sp_exec_engineer($game, $players, $seat, $cardKey, $params);
     case 'reset':        return sp_exec_reset($game, $players, $seat, $cardKey, $params, $asCard);
     case 'copy':         return sp_exec_copy($game, $players, $seat, $cardKey, $params);
     default: throw new Exception('Unknown action: ' . $action);
@@ -913,8 +597,7 @@ function sp_play_card(&$game, &$players, $seat, $cardKey, $params, $mysqli) {
     $pos = array_search($cardKey, $p['hand'], true);
     array_splice($p['hand'], $pos, 1);
     $msg = sp_exec_reset($game, $players, $seat, $cardKey, $params, $cardKey);
-    // The reset card returns with everything else (Concordia Tribune).
-    $p['hand'][] = $cardKey;
+    $p['hand'][] = $cardKey;   // the reset card returns with everything else
   } else {
     $msg = sp_dispatch_action($game, $players, $seat, $cardKey, $action, $params, $cardKey);
     $pos = array_search($cardKey, $p['hand'], true);
@@ -926,7 +609,9 @@ function sp_play_card(&$game, &$players, $seat, $cardKey, $params, $mysqli) {
 
   sp_log($mysqli, (int)$game['game_id'], $seat, 'action', $msg,
     ['card' => $cardKey, 'action' => $action]);
-  sp_advance_turn($game, $players, $mysqli);
+  if ($game['status'] === 'active') {
+    sp_advance_turn($game, $players, $mysqli);
+  }
   return $msg;
 }
 
@@ -944,21 +629,23 @@ function sp_trigger_endgame(&$game, &$players, $seat, $reason) {
   if ($game['endgame_trigger'] !== null) return;
   $game['endgame_trigger'] = $reason;
   $game['trigger_seat'] = $seat;
-  $players[$seat]['trophy'] = 1;
+  if ($reason === 'track_mastery' && $seat !== null) {
+    $players[$seat]['trophy'] = 1;
+  }
   $game['final_turns_remaining'] = count(sp_active_seats($players)) - 1;
 }
 
 function sp_advance_turn(&$game, &$players, $mysqli) {
   if ($game['endgame_trigger'] !== null) {
     if ((int)$game['final_turns_remaining'] <= 0) {
-      sp_end_game($game, $players, $mysqli);
+      sp_end_game($game, $players, $mysqli, $game['endgame_trigger']);
       return;
     }
     $game['final_turns_remaining'] = (int)$game['final_turns_remaining'] - 1;
   }
 
   $seats = sp_active_seats($players);
-  if (count($seats) === 0) { sp_end_game($game, $players, $mysqli); return; }
+  if (count($seats) === 0) { sp_end_game($game, $players, $mysqli, 'all_conceded'); return; }
   $n = count($players);
   $next = (int)$game['current_seat'];
   for ($i = 0; $i < $n; $i++) {
@@ -970,7 +657,7 @@ function sp_advance_turn(&$game, &$players, $mysqli) {
 
   if ($game['endgame_trigger'] !== null && (int)$game['final_turns_remaining'] <= 0
       && count($seats) <= 1) {
-    sp_end_game($game, $players, $mysqli);
+    sp_end_game($game, $players, $mysqli, $game['endgame_trigger']);
   }
 }
 
@@ -979,31 +666,30 @@ function sp_compute_score($game, $players, $seat, $final = true) {
   $p = $players[$seat];
 
   $owned = array_merge($p['hand'], $p['discard']);
-  $counts = ['wealth'=>0,'diplomatic_corps'=>0,'alliances'=>0,
-             'trade_guild'=>0,'war_college'=>0,'engineering'=>0];
+  $counts = ['wealth'=>0,'diplomatic_corps'=>0,'trade_guild'=>0,'war_college'=>0];
   foreach ($owned as $k) {
-    if (isset($cards[$k])) $counts[$cards[$k]['affiliation']]++;
+    if (isset($cards[$k]) && isset($counts[$cards[$k]['affiliation']])) {
+      $counts[$cards[$k]['affiliation']]++;
+    }
   }
 
-  $cargoValue = 0;
-  foreach ($p['cargo'] as $letter => $n) $cargoValue += $n * SP_PRICES[$letter];
-  $visited = count($p['tracks']['visited'] ?? []);
-
   $b = [];
-  $b['wealth']           = intdiv((int)$p['credits'] + $cargoValue, 10);
+  $b['wealth']           = intdiv((int)$p['credits'], 10);
+  $b['war_college']      = $counts['war_college'] * (int)$p['tracks']['military']['step'];
   $b['diplomatic_corps'] = $counts['diplomatic_corps'] * (int)$p['tracks']['diplomacy']['step'];
   $b['trade_guild']      = $counts['trade_guild'] * (int)$p['tracks']['trade']['step'];
-  $b['war_college']      = $counts['war_college'] * (int)$p['tracks']['military']['step'];
-  $b['alliances']        = $counts['alliances'] * $visited;
-  // Engineering (Minerva): each Engineer card scores 2 VP per installed
-  // module. Every starting hand has one Engineer, so modules always score.
-  $b['engineering']      = $counts['engineering'] * SP_ENGINEERING_VP_PER_UPGRADE * count($p['upgrades']);
   $b['trophy']           = ($final && (int)$p['trophy']) ? SP_TROPHY_VP : 0;
+  if ($final && ($game['endgame_trigger'] ?? null) === 'chaos_collapse') {
+    $b['collapse'] = -SP_COLLAPSE_PENALTY;
+  }
 
   return ['total' => array_sum($b), 'breakdown' => $b, 'card_counts' => $counts];
 }
 
-function sp_end_game(&$game, &$players, $mysqli) {
+function sp_end_game(&$game, &$players, $mysqli, $reason = null) {
+  if ($reason !== null && $game['endgame_trigger'] === null) {
+    $game['endgame_trigger'] = $reason;
+  }
   $game['status'] = 'ended';
   foreach ($players as $seat => &$p) {
     $score = sp_compute_score($game, $players, $seat, true);
@@ -1035,71 +721,78 @@ function sp_end_game(&$game, &$players, $mysqli) {
     }
   }
   $game['winner_seat'] = $bestSeat;
-  sp_log($mysqli, (int)$game['game_id'], $bestSeat, 'game_ended',
-    'Game over — winner: ' . ($bestSeat !== null ? $players[$bestSeat]['player_name'] : 'nobody'));
+  if ($mysqli !== null) {
+    sp_log($mysqli, (int)$game['game_id'], $bestSeat, 'game_ended',
+      ($game['endgame_trigger'] === 'chaos_collapse'
+        ? 'THE ICC HAS COLLAPSED. Final tally under the ruins — '
+        : 'The Council adjourns — ')
+      . 'winner: ' . ($bestSeat !== null ? $players[$bestSeat]['player_name'] : 'nobody'));
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Public (masked) state
+// Public state
 // ─────────────────────────────────────────────────────────────────────────
 
 function sp_public_state($mysqli, $game, $players, $yourSeat) {
-  $map = sp_map();
   $cards = sp_cards();
+  $missions = sp_missions();
   $you = $players[$yourSeat];
   $board = $game['board_state'];
+  $chaosMod = sp_chaos_mod($board['chaos']);
 
   $catalog = [];
   foreach ($cards as $key => $c) {
     $catalog[$key] = [
       'key' => $key, 'name' => $c['name'], 'action' => $c['action'],
       'stats' => $c['stats'], 'affiliation' => $c['affiliation'],
-      'stage' => $c['stage'], 'cost' => $c['cost'],
+      'stage' => $c['stage'], 'cost_credits' => $c['cost_credits'],
       'rider_credits' => $c['rider_credits'], 'text' => $c['text'],
-      'steps' => $c['steps'] ?? null, 'kind' => $c['kind'],
+      'kind' => $c['kind'],
     ];
   }
 
-  $planets = [];
-  foreach ($map['planets'] as $pid => $pl) {
-    $planets[$pid] = [
-      'id' => $pid, 'system' => $pl['system'], 'name' => $pl['name'],
-      'faction' => $pl['faction'], 'ring' => $pl['ring'],
-      'production' => $pl['production'], 'wants' => $pl['wants'],
-      'x' => $pl['x'], 'y' => $pl['y'], 'home_seat' => $pl['home_seat'],
-    ];
-  }
-  $intel = [];
-  foreach ($you['intel'] as $pid) {
-    if (isset($map['planets'][$pid])) {
-      $intel[$pid] = [
-        'm' => $map['planets'][$pid]['military'],
-        'p' => $map['planets'][$pid]['political'],
+  // Docket missions: full data, difficulties pre-adjusted for chaos.
+  $docket = [];
+  foreach ($board['docket'] as $mk) {
+    $mm = $missions[$mk] ?? null;
+    if (!$mm) continue;
+    $sols = [];
+    foreach ($mm['solutions'] as $d => $sol) {
+      $sols[$d] = [
+        'difficulty' => max(1, (int)$sol['difficulty'] + $chaosMod),
+        'base_difficulty' => (int)$sol['difficulty'],
+        'chaos' => (int)$sol['chaos'], 'credits' => (int)$sol['credits'],
+        'has_follow' => !empty($sol['follow']),
+        'text' => $sol['text'],
       ];
     }
+    $docket[] = [
+      'key' => $mk, 'title' => $mm['title'], 'culture' => $mm['culture'],
+      'tier' => $mm['tier'], 'problem' => $mm['problem'],
+      'chained' => !empty($mm['chained']), 'solutions' => $sols,
+    ];
   }
 
   $pubPlayers = [];
   foreach ($players as $seat => $p) {
-    $ship = sp_ship_stats($p);
     $pubPlayers[] = [
       'seat' => $seat, 'name' => $p['player_name'],
       'user_id' => $p['user_id'] !== null ? (int)$p['user_id'] : null,
-      'credits' => (int)$p['credits'], 'cargo' => $p['cargo'],
-      'cargo_capacity' => (int)$p['cargo_capacity'],
+      'credits' => (int)$p['credits'],
       'tracks' => [
         'military' => $p['tracks']['military'], 'diplomacy' => $p['tracks']['diplomacy'],
         'trade' => $p['tracks']['trade'],
       ],
-      'bounty' => $p['tracks']['bounty'], 'rep' => $p['tracks']['rep'],
-      'visited_count' => count($p['tracks']['visited'] ?? []),
-      'upgrades' => $p['upgrades'],
-      'ship' => $ship,
-      'ship_at' => $board['ships'][(string)$seat] ?? null,
-      'crew_capacity' => sp_crew_capacity($p),
+      'solves' => [
+        'geo' => sp_solve_count($board, $seat, 'geo'),
+        'anthro' => sp_solve_count($board, $seat, 'anthro'),
+        'bio' => sp_solve_count($board, $seat, 'bio'),
+      ],
       'hand_count' => count($p['hand']),
       'discard_count' => count($p['discard']),
       'discard_top' => count($p['discard']) ? $p['discard'][count($p['discard']) - 1] : null,
+      'roster' => sp_roster_size($p),
       'first_reset_done' => (int)$p['first_reset_done'],
       'trophy' => (int)$p['trophy'], 'conceded' => (int)$p['conceded'],
       'final_score' => $p['final_score'] !== null ? (int)$p['final_score'] : null,
@@ -1121,13 +814,9 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
   $stmt->close();
   $events = array_reverse($events);
 
-  $yourShipAt = $board['ships'][(string)$yourSeat] ?? null;
-  $yourRegion = $yourShipAt !== null ? ($map['planets'][$yourShipAt]['system'] ?? null) : null;
-
   return [
     'game' => [
       'game_id' => (int)$game['game_id'], 'status' => $game['status'],
-      'map_key' => $game['map_key'], 'deck_key' => $game['deck_key'],
       'max_players' => (int)$game['max_players'],
       'current_seat' => (int)$game['current_seat'],
       'turn_number' => (int)$game['turn_number'],
@@ -1139,42 +828,29 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'host_player_id' => $game['host_player_id'] !== null ? (int)$game['host_player_id'] : null,
     ],
     'cards' => $catalog,
-    'upgrades_catalog' => sp_upgrade_cards(),
-    'upgrade_dock' => [
-      'display' => $board['upgrade_display'] ?? [],
-      'stack_count' => count($board['upgrade_stack'] ?? []),
-    ],
-    'prices' => SP_PRICES,
-    'sell_markup' => SP_SELL_MARKUP + SP_DEMAND_BONUS,
-    'trade_base_cap' => SP_TRADE_BASE_CAP,
-    'resource_names' => SP_RESOURCE_NAMES,
-    'faction_names' => SP_FACTION_NAMES,
+    'chaos' => (int)$board['chaos'],
+    'chaos_mod' => $chaosMod,
+    'chaos_max' => SP_CHAOS_MAX, 'chaos_min' => SP_CHAOS_MIN,
+    'docket' => $docket,
+    'mission_stack_count' => count($board['mission_stack']),
+    'story' => $board['solved'],
     'position_costs' => SP_POSITION_COST,
-    'map' => [
-      'key' => $map['key'], 'name' => $map['name'],
-      'systems' => $map['systems'], 'planets' => $planets, 'lanes' => $map['lanes'],
-    ],
-    'board' => ['ships' => $board['ships'] ?? []],
+    'geo_credits_per_point' => SP_GEO_CREDITS_PER_POINT,
+    'bio_notes_max' => SP_BIO_NOTES_MAX,
+    'crew_cap' => SP_BASE_CREW_CAP,
     'market' => [
       'display' => $game['market_display'],
       'stack_count' => count($game['market_stack']),
     ],
     'you' => [
       'seat' => $yourSeat, 'hand' => $you['hand'], 'discard' => $you['discard'],
-      'credits' => (int)$you['credits'], 'cargo' => $you['cargo'],
-      'cargo_capacity' => (int)$you['cargo_capacity'],
+      'credits' => (int)$you['credits'],
       'tracks' => [
         'military' => $you['tracks']['military'], 'diplomacy' => $you['tracks']['diplomacy'],
         'trade' => $you['tracks']['trade'],
       ],
-      'bounty' => $you['tracks']['bounty'], 'rep' => $you['tracks']['rep'],
-      'visited' => $you['tracks']['visited'],
-      'contracted' => $you['tracks']['contracted'],
-      'upgrades' => $you['upgrades'],
-      'ship' => sp_ship_stats($you),
-      'crew_capacity' => sp_crew_capacity($you),
-      'ship_at' => $yourShipAt, 'region' => $yourRegion,
-      'intel' => $intel,
+      'bio_solves' => sp_solve_count($board, $yourSeat, 'bio'),
+      'roster' => sp_roster_size($you),
       'first_reset_done' => (int)$you['first_reset_done'],
       'intermediate_score' => $you['intermediate_score'] !== null ? (int)$you['intermediate_score'] : null,
       'trophy' => (int)$you['trophy'],

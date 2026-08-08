@@ -152,15 +152,16 @@ export default function SpaceLobby() {
     <div className="min-h-screen bg-[#03060d] text-[#dbe4f0] px-6 py-8">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-baseline justify-between mb-6">
-          <h1 className="font-display text-3xl text-[#79c9d6]">Sector Umbra — Space Game</h1>
+          <h1 className="font-display text-3xl text-[#79c9d6]">THE ICC — Space Game</h1>
           <Link to="/" className="text-sm underline text-[#8593ad] hover:text-[#79c9d6]">
             ← Back to The Historians
           </Link>
         </div>
         <p className="text-[#8593ad] text-sm mb-6">
-          Concordia-engine prototype: captain a starship, play component cards,
-          send drones down star-lanes, sign treaties with alien factions, and
-          score your whole collection at journey's end.
+          The Interstellar Cultural Council: lead a research team of
+          xenogeologists, xenoanthropologists, and exobiologists racing to
+          resolve alien cultural crises — each solution rewrites a culture's
+          story forever and tips the Council toward order or collapse.
         </p>
 
         {error && (
