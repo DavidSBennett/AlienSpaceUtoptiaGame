@@ -152,9 +152,9 @@ export default function SpaceLobby() {
     <div className="min-h-screen bg-[#03060d] text-[#dbe4f0] px-6 py-8">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-baseline justify-between mb-6">
-          <h1 className="font-display text-3xl text-[#79c9d6]">THE ICC — Space Game</h1>
-          <Link to="/" className="text-sm underline text-[#8593ad] hover:text-[#79c9d6]">
-            ← Back to The Historians
+          <h1 className="font-display text-3xl text-[#79c9d6]">THE ICC — Interstellar Cultural Council</h1>
+          <Link to="/account" className="text-sm underline text-[#8593ad] hover:text-[#79c9d6]">
+            Account
           </Link>
         </div>
         <p className="text-[#8593ad] text-sm mb-6">
