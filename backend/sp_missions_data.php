@@ -401,6 +401,18 @@ function sp_missions() {
     if (isset($m[$k])) $m[$k]['keywords'] = $kws;
   }
 
+  // ── Credits: VIRTUE PAYS. Funding is derived from the chaos delta —
+  // the more order a solution restores, the bigger the Council's grant;
+  // chaotic solutions pay little (their reward is the boon below). ──
+  $payBase = ['minor' => 5, 'major' => 9, 'critical' => 13];
+  foreach ($m as $mkey => &$mm) {
+    foreach ($mm['solutions'] as $disc => &$sol) {
+      $sol['credits'] = max(2, ($payBase[$mm['tier']] ?? 5) - (int)$sol['chaos']);
+    }
+    unset($sol);
+  }
+  unset($mm);
+
   // ── Boons: the tempting engine on the back of every chaotic choice. ──
   // Solutions with chaos ≥ 1 carry a boon the solver claims permanently;
   // chaos ≥ 3 carries a MAJOR one. Order solutions carry none — stability
