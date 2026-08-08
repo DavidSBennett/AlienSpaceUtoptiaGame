@@ -41,11 +41,21 @@ const TIER_STYLE = {
   critical: { label: 'CRITICAL', color: '#e58787' },
 };
 
-const AFFILIATION_LABELS = {
+const AFFILIATION_LABELS_STORY = {
   wealth: 'Foundation', diplomatic_corps: 'Xenoanthropology Circle',
   trade_guild: 'Exobiology Institute', war_college: 'Xenogeology Guild',
   trophy: 'Trophy', collapse: 'ICC Collapse',
 };
+const AFFILIATION_LABELS_PLAIN = {
+  wealth: 'Wealth', diplomatic_corps: 'Anthropology',
+  trade_guild: 'Biology', war_college: 'Geology',
+  trophy: 'Trophy', collapse: 'Collapse penalty',
+};
+// Rebound per render via setAffiliationVariant(); default = story names.
+let AFFILIATION_LABELS = AFFILIATION_LABELS_STORY;
+function setAffiliationVariant(storyMode) {
+  AFFILIATION_LABELS = storyMode ? AFFILIATION_LABELS_STORY : AFFILIATION_LABELS_PLAIN;
+}
 const AFFILIATION_SCORING = {
   wealth: 'Scores once for everyone: 1 VP per 10 credits at game end.',
   diplomatic_corps: 'At game end this card scores VP equal to your Xenoanthropology track.',
@@ -140,7 +150,7 @@ function SolutionTooltip({ mission, discKey, sol }) {
 
 // ── chaos track ──────────────────────────────────────────────────────────
 
-function ChaosBar({ chaos, mod, tipHandlers }) {
+function ChaosBar({ chaos, mod, storyMode, tipHandlers }) {
   const cells = [];
   for (let v = -10; v <= 10; v++) {
     const active = v === chaos;
@@ -158,13 +168,13 @@ function ChaosBar({ chaos, mod, tipHandlers }) {
     <div className="flex items-center gap-2 text-[11px]"
       {...tipHandlers(
         <div className="space-y-1">
-          <b className={T_HEAD + ' text-[12px]'}>The ICC — chaos {chaos > 0 ? `+${chaos}` : chaos}</b>
-          <div>Every solution nudges this shared track: reckless interventions add CHAOS, respectful ones restore ORDER.</div>
+          <b className={T_HEAD + ' text-[12px]'}>{storyMode ? 'The ICC' : 'Stability'} — chaos {chaos > 0 ? `+${chaos}` : chaos}</b>
+          <div>Every solution nudges this shared track toward CHAOS or ORDER.</div>
           <div className={mod !== 0 ? T_GOLD : T_MUted}>
             Current effect: all mission difficulties {mod > 0 ? `+${mod}` : mod < 0 ? mod : '±0'} (1 per 3 chaos).
           </div>
-          <div className={T_GOOD}>At −10 (full ORDER) the game ends in triumph — highest VP wins clean.</div>
-          <div className={T_BAD}>At +10 the ICC COLLAPSES: the game ends at once and every player loses 5 VP PER BOON they claimed — the blame lands on the profiteers.</div>
+          <div className={T_GOOD}>At −10 (full ORDER) the game ends — highest VP wins clean.</div>
+          <div className={T_BAD}>At +10 (full CHAOS) the game ends at once and every player loses 5 VP PER BOON claimed.</div>
         </div>
       )}>
       <span className={T_GOOD}>ORDER</span>
@@ -364,7 +374,7 @@ export default function SpaceGame() {
       </Shell>
     );
   }
-  if (isLoading && !state) return <Shell><p>Convening the Council…</p></Shell>;
+  if (isLoading && !state) return <Shell><p>Loading…</p></Shell>;
   if (error && !state) return <Shell><p className={T_BAD}>{error}</p></Shell>;
   if (state?.message && !state.docket) {
     return (
@@ -538,6 +548,7 @@ export default function SpaceGame() {
   const collapsed = game.endgame_trigger === 'chaos_collapse';
   const ordered = game.endgame_trigger === 'order_triumph';
   const storyMode = game.variant === 'story';
+  setAffiliationVariant(storyMode);
 
   return (
     <div className="h-screen overflow-hidden relative text-[#dbe4f0]"
@@ -573,13 +584,14 @@ export default function SpaceGame() {
 
       {/* chaos bar */}
       <div className="absolute top-11 left-1/2 -translate-x-1/2 z-30 px-4 py-1.5 rounded-b-lg border border-t-0 border-[#26365a] bg-[#0a1120]/90">
-        <ChaosBar chaos={state.chaos} mod={state.chaos_mod} tipHandlers={tipHandlers} />
+        <ChaosBar chaos={state.chaos} mod={state.chaos_mod} storyMode={storyMode} tipHandlers={tipHandlers} />
       </div>
 
       {/* THE DOCKET */}
       <div className="absolute top-24 bottom-40 left-2 right-[19rem] z-10 overflow-y-auto pr-1">
         <div className={'text-[11px] mb-1 ' + T_MUted}>
-          Mission docket · {state.mission_stack_count} crises pending
+          {storyMode ? <>Mission docket · {state.mission_stack_count} crises pending</>
+            : <>Missions · {state.mission_stack_count} remaining in deck</>}
           {activeDisc && <span style={{ color: activeDiscMeta.color }}> — click a mission to target your {activeDiscMeta.label} solution</span>}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-4xl">
@@ -836,12 +848,12 @@ export default function SpaceGame() {
         </div>
       )}
 
-      {ended && <ResultsOverlay state={state} collapsed={collapsed} ordered={ordered} />}
+      {ended && <ResultsOverlay state={state} collapsed={collapsed} ordered={ordered} storyMode={storyMode} />}
     </div>
   );
 }
 
-function ResultsOverlay({ state, collapsed, ordered }) {
+function ResultsOverlay({ state, collapsed, ordered, storyMode }) {
   const winner = state.players.find((p) => p.seat === state.game.winner_seat);
   const ranked = [...state.players]
     .filter((p) => p.final_score !== null)
@@ -851,19 +863,19 @@ function ResultsOverlay({ state, collapsed, ordered }) {
       <div className={'max-w-lg w-full p-5 space-y-3 ' + PANEL}>
         <div className={'text-xl font-semibold ' + (collapsed ? T_BAD : ordered ? T_GOOD : T_HEAD)}>
           {collapsed
-            ? 'THE ICC HAS COLLAPSED'
+            ? (storyMode ? 'THE ICC HAS COLLAPSED' : 'FULL CHAOS — GAME OVER')
             : ordered
-              ? 'PERFECT ORDER — THE COUNCIL STANDS ETERNAL'
-              : <>The Council adjourns{winner ? ` — ${winner.name} leads the field` : ''}</>}
+              ? (storyMode ? 'PERFECT ORDER — THE COUNCIL STANDS ETERNAL' : 'FULL ORDER — GAME OVER')
+              : <>{storyMode ? 'The Council adjourns' : 'Game over'}{winner ? ` — ${winner.name} wins` : ''}</>}
         </div>
         {collapsed && (
           <p className={'text-sm ' + T_MUted}>
-            Chaos reached its breaking point. Every delegation loses 5 VP per
-            boon it claimed — the profiteers wear the blame. The stories you
-            wrote survive; the institution did not.
+            {storyMode
+              ? 'Chaos reached its breaking point. Every delegation loses 5 VP per boon it claimed — the profiteers wear the blame. The stories you wrote survive; the institution did not.'
+              : 'Each player loses 5 VP per boon claimed.'}
           </p>
         )}
-        {ordered && (
+        {ordered && storyMode && (
           <p className={'text-sm ' + T_MUted}>
             The Council reached perfect stability{winner ? ` — ${winner.name} leads its golden age` : ''}.
           </p>

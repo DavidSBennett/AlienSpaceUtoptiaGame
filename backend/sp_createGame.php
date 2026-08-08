@@ -58,7 +58,8 @@ try {
 }
 
 sp_log($mysqli, $gameId, 0, 'game_created',
-  $playerName . ' founded the expedition' . ($maxPlayers === 1 ? ' (solo)' : ''));
+  $playerName . ($variant === 'story' ? ' founded the expedition' : ' created the game')
+  . ($maxPlayers === 1 ? ' (solo)' : ''));
 sp_bump($mysqli, $gameId);
 
 mp_json([

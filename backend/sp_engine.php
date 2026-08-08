@@ -632,14 +632,18 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
     sp_end_game($game, $players, null, 'chaos_collapse');
     return $p['player_name'] . ' resolved "' . $mission['title'] . '" the '
          . SP_DISCIPLINES[$discipline][3] . " way ($total vs $need$spentNote)"
-         . ' — AND THE ICC COLLAPSED IN THE AFTERMATH';
+         . (sp_variant() === 'story'
+           ? ' — AND THE ICC COLLAPSED IN THE AFTERMATH'
+           : ' — chaos reached maximum: game over');
   }
   // Full order: the Council stands perfected — game ends, best VP wins.
   if ((int)$board['chaos'] <= SP_CHAOS_MIN) {
     sp_end_game($game, $players, null, 'order_triumph');
     return $p['player_name'] . ' resolved "' . $mission['title'] . '" the '
          . SP_DISCIPLINES[$discipline][3] . " way ($total vs $need$spentNote)"
-         . ' — AND PERFECT ORDER SETTLED OVER THE COUNCIL';
+         . (sp_variant() === 'story'
+           ? ' — AND PERFECT ORDER SETTLED OVER THE COUNCIL'
+           : ' — order reached maximum: game over');
   }
 
   // The last mission card has been revealed → final turns begin.
@@ -703,7 +707,9 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
 
   $p['hand'] = array_merge($p['hand'], $p['discard']);
   $p['discard'] = [];
-  $msg = $p['player_name'] . ' regrouped the team and recovered their cards';
+  $msg = $p['player_name'] . (sp_variant() === 'story'
+    ? ' regrouped the team and recovered their cards'
+    : ' reset and recovered their cards');
 
   $rider = (int)($cards[$asCard]['rider_credits'] ?? 0);
   if ($rider > 0) {
@@ -937,11 +943,13 @@ function sp_end_game(&$game, &$players, $mysqli, $reason = null) {
   $game['winner_seat'] = $bestSeat;
   if ($mysqli !== null) {
     sp_log($mysqli, (int)$game['game_id'], $bestSeat, 'game_ended',
-      ($game['endgame_trigger'] === 'chaos_collapse'
+      (sp_variant() !== 'story'
+        ? 'Game over — '
+        : ($game['endgame_trigger'] === 'chaos_collapse'
         ? 'THE ICC HAS COLLAPSED. Final tally under the ruins — '
         : ($game['endgame_trigger'] === 'order_triumph'
           ? 'PERFECT ORDER. The Council stands eternal — '
-          : 'The Council adjourns — '))
+          : 'The Council adjourns — ')))
       . 'winner: ' . ($bestSeat !== null ? $players[$bestSeat]['player_name'] : 'nobody'));
   }
 }
