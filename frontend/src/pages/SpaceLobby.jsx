@@ -203,6 +203,7 @@ export default function SpaceLobby() {
             </div>
           </div>
         ) : (
+          <>
           <div className="grid sm:grid-cols-2 gap-4 mb-4">
             <div className="rounded-lg border border-[#26365a] bg-[#0a1120]/90 p-5">
               <h2 className="font-display text-lg text-[#79c9d6] mb-2">Solo</h2>
@@ -245,6 +246,7 @@ export default function SpaceLobby() {
               </button>
             </div>
           </div>
+          </>
         )}
 
         <h2 className="font-display text-xl text-[#79c9d6] mb-3">Open lobbies</h2>
