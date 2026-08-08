@@ -675,19 +675,20 @@ export default function SpaceGame() {
         </Collapsible>
       </div>
 
-      {/* bottom-left: your team dossier */}
-      <div className={'absolute bottom-2 left-2 z-30 p-2.5 space-y-1.5 ' + PANEL}>
-        <div className="flex items-center gap-3 text-sm">
-          <span className={'font-mono ' + T_GOLD}
-            {...tipHandlers(<div><b className={T_HEAD}>Research funding</b><div>Credits pay for hires, equipment charters, and score Wealth (1 VP per 10).</div></div>)}>
+      {/* bottom-center: the hand */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 max-w-[62vw] flex flex-col items-center">
+        <div className="flex items-stretch gap-1">
+          <button type="button" onClick={() => setHandOpen((o) => !o)}
+            className="px-3 py-0.5 rounded-t border border-[#26365a] bg-[#0a1120]/90 text-[11px] text-[#8593ad] hover:text-[#79c9d6]"
+            {...tipHandlers(<div><b className={T_HEAD}>Team roster</b><div>Hand + published work, max {you.crew_cap} (ranks 5 and 9 on any track raise the limit to 12 and 15). Hiring needs open slots.</div></div>)}>
+            Team {you.roster}/{you.crew_cap} · hand {you.hand.length} {handOpen ? '▾' : '▴'}
+          </button>
+          <span className={'px-2 py-0.5 rounded-t border border-[#26365a] bg-[#0a1120]/90 text-[11px] font-mono ' + T_GOLD}
+            {...tipHandlers(<div><b className={T_HEAD}>Research funding</b><div>Credits pay for hires and equipment charters, and score Wealth (1 VP per 10).</div></div>)}>
             {you.credits}c
           </span>
-          <span className={'text-[11px] ' + T_MUted}
-            {...tipHandlers(<div><b className={T_HEAD}>Team roster</b><div>Hand + published work, max {you.crew_cap} (ranks 5 and 9 on any track raise it to 12 and 15). Hiring needs open slots.</div></div>)}>
-            team {you.roster}/{you.crew_cap}
-          </span>
           {myBoons.length > 0 && (
-            <span className={'text-[11px] ' + T_GOLD}
+            <span className={'px-2 py-0.5 rounded-t border border-[#26365a] bg-[#0a1120]/90 text-[11px] ' + T_GOLD}
               {...tipHandlers(
                 <div className="space-y-1">
                   <b className={T_GOLD + ' text-[12px]'}>Your boons</b>
@@ -696,24 +697,10 @@ export default function SpaceGame() {
                   ))}
                 </div>
               )}>
-              ★ {myBoons.length} boon{myBoons.length > 1 ? 's' : ''}
-            </span>
-          )}
-          {state.docket.some((m) => m.your_cultures > 0) && (
-            <span className={'text-[11px] ' + T_GOOD}
-              {...tipHandlers(<div><b className={T_GOOD}>Matured cultures</b><div>Failed Exobiology trials permanently add +1 on that mission. Active: {state.docket.filter((m) => m.your_cultures > 0).map((m) => `${m.title} +${m.your_cultures}`).join(', ')}.</div></div>)}>
-              🧪 cultures active
+              ★{myBoons.length}
             </span>
           )}
         </div>
-      </div>
-
-      {/* bottom-center: the hand */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 max-w-[62vw] flex flex-col items-center">
-        <button type="button" onClick={() => setHandOpen((o) => !o)}
-          className="px-3 py-0.5 rounded-t border border-[#26365a] bg-[#0a1120]/90 text-[11px] text-[#8593ad] hover:text-[#79c9d6]">
-          Research team ({you.hand.length}) {handOpen ? '▾' : '▴'}
-        </button>
         {handOpen && (
         <div className="flex gap-1.5 overflow-x-auto pt-3 pb-1 px-2 max-w-full">
           {you.hand.map((key) => (
