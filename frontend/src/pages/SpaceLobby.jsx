@@ -82,11 +82,11 @@ export default function SpaceLobby() {
     return () => clearInterval(t);
   }, [waiting, navigate, reload]);
 
-  async function handleCreate(solo) {
+  async function handleCreate(solo, variant = 'plain') {
     setBusy(true);
     setError(null);
     try {
-      const res = await spCreateGame(solo ? 1 : maxPlayers);
+      const res = await spCreateGame(solo ? 1 : maxPlayers, variant);
       saveSpSession(res.game_id, {
         player_token: res.player_token, seat: res.seat, game_id: res.game_id,
       });
@@ -152,17 +152,12 @@ export default function SpaceLobby() {
     <div className="min-h-screen bg-[#03060d] text-[#dbe4f0] px-6 py-8">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-baseline justify-between mb-6">
-          <h1 className="font-display text-3xl text-[#79c9d6]">THE ICC — Interstellar Cultural Council</h1>
+          <h1 className="font-display text-3xl text-[#79c9d6]">Utopian Space Game</h1>
           <Link to="/account" className="text-sm underline text-[#8593ad] hover:text-[#79c9d6]">
             Account
           </Link>
         </div>
-        <p className="text-[#8593ad] text-sm mb-6">
-          The Interstellar Cultural Council: lead a research team of
-          xenogeologists, xenoanthropologists, and exobiologists racing to
-          resolve alien cultural crises — each solution rewrites a culture's
-          story forever and tips the Council toward order or collapse.
-        </p>
+        <p className="text-sm mb-6">&nbsp;</p>
 
         {error && (
           <div className="mb-4 rounded border border-[#e58787] bg-[#3a1420]/80 px-4 py-3 text-sm">
@@ -208,14 +203,11 @@ export default function SpaceLobby() {
             </div>
           </div>
         ) : (
-          <div className="grid sm:grid-cols-2 gap-4 mb-8">
+          <div className="grid sm:grid-cols-2 gap-4 mb-4">
             <div className="rounded-lg border border-[#26365a] bg-[#0a1120]/90 p-5">
-              <h2 className="font-display text-lg text-[#79c9d6] mb-2">Solo expedition</h2>
-              <p className="text-sm text-[#8593ad] mb-3">
-                One captain against the sector. Same rules, same scoring.
-              </p>
-              <button className={BTN_ACCENT} disabled={busy} onClick={() => handleCreate(true)}>
-                {busy ? 'Launching…' : 'Launch solo'}
+              <h2 className="font-display text-lg text-[#79c9d6] mb-2">Solo</h2>
+              <button className={BTN_ACCENT} disabled={busy} onClick={() => handleCreate(true, 'plain')}>
+                {busy ? 'Launching…' : 'Play solo'}
               </button>
             </div>
             <div className="rounded-lg border border-[#26365a] bg-[#0a1120]/90 p-5">
@@ -228,8 +220,28 @@ export default function SpaceLobby() {
                   {[2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-              <button className={BTN_ACCENT} disabled={busy} onClick={() => handleCreate(false)}>
+              <button className={BTN_ACCENT} disabled={busy} onClick={() => handleCreate(false, 'plain')}>
                 {busy ? 'Opening…' : 'Open a lobby'}
+              </button>
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4 mb-8">
+            <div className="rounded-lg border border-[#26365a] bg-[#0a1120]/70 p-5">
+              <h2 className="font-display text-lg text-[#e0b45c] mb-2">Story edition — solo</h2>
+              <p className="text-sm text-[#8593ad] mb-3">
+                The same game with authored missions: THE ICC.
+              </p>
+              <button className={BTN} disabled={busy} onClick={() => handleCreate(true, 'story')}>
+                {busy ? 'Launching…' : 'Play the story'}
+              </button>
+            </div>
+            <div className="rounded-lg border border-[#26365a] bg-[#0a1120]/70 p-5">
+              <h2 className="font-display text-lg text-[#e0b45c] mb-2">Story edition — multiplayer</h2>
+              <p className="text-sm text-[#8593ad] mb-3">
+                Authored missions, shared docket, same player count picker above.
+              </p>
+              <button className={BTN} disabled={busy} onClick={() => handleCreate(false, 'story')}>
+                {busy ? 'Opening…' : 'Open a story lobby'}
               </button>
             </div>
           </div>
@@ -244,7 +256,7 @@ export default function SpaceLobby() {
               <li key={g.game_id}
                 className="flex items-center justify-between rounded border border-[#26365a] bg-[#0a1120]/70 px-4 py-2 text-sm">
                 <span>
-                  #{g.game_id} — host {g.host_name || '?'} — {g.player_count}/{g.max_players} seats
+                  #{g.game_id} — {g.variant === 'story' ? 'story' : 'base'} — host {g.host_name || '?'} — {g.player_count}/{g.max_players} seats
                 </span>
                 <button className={BTN} disabled={busy} onClick={() => handleJoin(g.game_id)}>
                   Join
@@ -263,7 +275,7 @@ export default function SpaceLobby() {
               <li key={g.game_id}
                 className="flex items-center justify-between rounded border border-[#26365a] bg-[#0a1120]/70 px-4 py-2 text-sm">
                 <span>
-                  #{g.game_id} — {g.is_solo ? 'solo' : `${g.player_count}/${g.max_players} players`}
+                  #{g.game_id} — {g.variant === 'story' ? 'story' : 'base'} — {g.is_solo ? 'solo' : `${g.player_count}/${g.max_players} players`}
                   {' · '}{g.status}
                   {g.status === 'active' && (g.your_turn ? ' · YOUR TURN' : ' · waiting')}
                   {g.status === 'ended' && g.final_score !== null && ` · ${g.final_score} VP`}

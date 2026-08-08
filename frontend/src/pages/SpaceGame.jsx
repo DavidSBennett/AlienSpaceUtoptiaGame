@@ -115,7 +115,7 @@ function SolutionTooltip({ mission, discKey, sol }) {
     <div className="space-y-1">
       <b style={{ color: d.color }} className="text-[12px]">{d.icon} The {d.label} way</b>
       <div className={T_MUted}>"{mission.title}" — {mission.culture}</div>
-      <div className="italic">{sol.text}</div>
+      {sol.text && <div className="italic">{sol.text}</div>}
       <div>
         Difficulty <b className={T_GOLD}>{sol.difficulty}</b>
         {sol.difficulty !== sol.base_difficulty && (
@@ -200,7 +200,7 @@ function MissionCard({ m, activeDisc, targeted, onClick, tipHandlers }) {
           <span key={kw} className="ml-1.5 px-1 rounded bg-[#12203a] text-[#8fb2d0]">{kw}</span>
         ))}
       </div>
-      <div className="text-[11px] leading-snug mb-2">{m.problem}</div>
+      {m.problem && <div className="text-[11px] leading-snug mb-2">{m.problem}</div>}
       <div className="space-y-0.5">
         {['geo', 'anthro', 'bio'].map((dk) => {
           const sol = m.solutions[dk];
@@ -537,6 +537,7 @@ export default function SpaceGame() {
   const ended = game.status === 'ended';
   const collapsed = game.endgame_trigger === 'chaos_collapse';
   const ordered = game.endgame_trigger === 'order_triumph';
+  const storyMode = game.variant === 'story';
 
   return (
     <div className="h-screen overflow-hidden relative text-[#dbe4f0]"
@@ -547,7 +548,7 @@ export default function SpaceGame() {
       <div className="absolute top-0 inset-x-0 z-40 flex items-center justify-between px-4 py-1.5 bg-[#060b16]/85 backdrop-blur border-b border-[#1d2c4c]">
         <div className="flex items-center gap-4 text-sm">
           <Link to="/space" className={'underline ' + T_MUted}>← Lobby</Link>
-          <span className={'font-semibold ' + T_HEAD}>THE ICC</span>
+          <span className={'font-semibold ' + T_HEAD}>{storyMode ? 'THE ICC' : 'Utopian Space Game'}</span>
           <span className={T_MUted}>session #{game.game_id} · turn {game.turn_number}</span>
           {game.endgame_trigger && !ended && (
             <span className={T_BAD}>Final turns! ({game.final_turns_remaining} remaining)</span>
@@ -600,7 +601,7 @@ export default function SpaceGame() {
           <TrackBar label="📜 Xenoanthropology" color="#79c9d6" step={you.tracks.diplomacy.step} tipHandlers={tipHandlers} />
           <TrackBar label="🧬 Exobiology" color="#7fd8a0" step={you.tracks.trade.step} tipHandlers={tipHandlers} />
         </div>
-        <Collapsible title="The Council" open={panels.council}
+        <Collapsible title={storyMode ? 'The Council' : 'Players'} open={panels.council}
           onToggle={() => setPanels((p) => ({ ...p, council: !p.council }))}>
           {state.players.map((p) => (
             <div key={p.seat}
@@ -646,7 +647,7 @@ export default function SpaceGame() {
           </div>
         </Collapsible>
 
-        <Collapsible title="The story so far" badge={`${state.story.length} resolved`}
+        <Collapsible title={storyMode ? 'The story so far' : 'Resolved missions'} badge={`${state.story.length} resolved`}
           open={panels.story}
           onToggle={() => setPanels((p) => ({ ...p, story: !p.story }))}>
           <ul className="space-y-1.5 text-[11px] max-h-64 overflow-y-auto">
@@ -657,7 +658,7 @@ export default function SpaceGame() {
                 <li key={i} className="border-l-2 pl-2" style={{ borderColor: d?.color || '#26365a' }}>
                   <b className={T_HEAD}>{s2.title}</b>
                   <span className={T_MUted}> — {d?.icon} {solver?.name || '?'}</span>
-                  <div className={'italic ' + T_MUted}>{s2.text}</div>
+                  {s2.text && <div className={'italic ' + T_MUted}>{s2.text}</div>}
                 </li>
               );
             })}

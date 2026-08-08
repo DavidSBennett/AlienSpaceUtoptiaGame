@@ -29,6 +29,123 @@ require_once __DIR__ . '/sp_cards_data.php';
 require_once __DIR__ . '/sp_missions_data.php';
 
 // ─────────────────────────────────────────────────────────────────────────
+// Variants: 'plain' (Utopian Space Game — no authored fiction) vs 'story'
+// (the ICC edition with authored missions). The variant is stored per game
+// in sp_games.deck_key and set globally when the game row loads; the
+// transforms below rewrite DISPLAY STRINGS ONLY — keys, stats, and every
+// mechanic are identical between editions.
+// ─────────────────────────────────────────────────────────────────────────
+
+function sp_variant() {
+  return $GLOBALS['SP_VARIANT'] ?? 'story';
+}
+
+function sp_cards() {
+  static $cache = [];
+  $v = sp_variant();
+  if (!isset($cache[$v])) {
+    $base = sp_cards_base();
+    $cache[$v] = ($v === 'plain') ? sp_plain_cards($base) : $base;
+  }
+  return $cache[$v];
+}
+
+function sp_missions() {
+  static $cache = [];
+  $v = sp_variant();
+  if (!isset($cache[$v])) {
+    $base = sp_missions_base();
+    $cache[$v] = ($v === 'plain') ? sp_plain_missions($base) : $base;
+  }
+  return $cache[$v];
+}
+
+function sp_plain_cards($base) {
+  foreach ($base as $key => &$c) {
+    switch ($c['action']) {
+      case 'survey':      $c['name'] = 'Geologist ' . $c['stats'][0]; break;
+      case 'ethnography': $c['name'] = 'Anthropologist ' . $c['stats'][1]; break;
+      case 'biology':     $c['name'] = 'Biologist ' . $c['stats'][2]; break;
+      case 'reset':       $c['name'] = 'Reset' . ($c['rider_credits'] > 0 ? ' (+' . $c['rider_credits'] . 'c)' : ''); break;
+      case 'recruit':     $c['name'] = 'Recruiter'; break;
+      case 'recruit_free': $c['name'] = 'Recruiter (free)'; break;
+      case 'copy':        $c['name'] = 'Copy'; break;
+    }
+  }
+  unset($c);
+  return $base;
+}
+
+function sp_plain_missions($base) {
+  $kwMap = [];
+  $cultMap = [];
+  $i = 0;
+  foreach ($base as $key => &$mm) {
+    $i++;
+    $mm['title'] = 'Mission ' . $i;
+    $orig = $mm['culture'];
+    if (!isset($cultMap[$orig])) $cultMap[$orig] = 'Culture ' . (count($cultMap) + 1);
+    $mm['culture'] = $cultMap[$orig];
+    $mm['problem'] = '';
+    $kws = [];
+    foreach ($mm['keywords'] ?? [] as $kw) {
+      if (!isset($kwMap[$kw])) $kwMap[$kw] = 'keyword ' . (count($kwMap) + 1);
+      $kws[] = $kwMap[$kw];
+    }
+    $mm['keywords'] = $kws;
+    foreach ($mm['solutions'] as $d => &$sol) {
+      $sol['text'] = '';
+      if (!empty($sol['boon'])) {
+        $b = $sol['boon'];
+        switch ($b['type']) {
+          case 'affinity':
+            $b['keyword'] = $kwMap[$b['keyword']] ?? $b['keyword'];
+            $b['name'] = 'Boon: ' . $b['keyword'] . ' +' . $b['power'];
+            $b['text'] = '+' . $b['power'] . ' on every mission tagged "' . $b['keyword'] . '".';
+            break;
+          case 'fleet':
+            $b['name'] = 'Boon: charters 1c';
+            $b['text'] = 'Equipment charters cost 1 credit per +1 (instead of 2).';
+            break;
+          case 'faculty':
+            $b['name'] = 'Boon: colleagues +2';
+            $b['text'] = 'Consulted colleagues add +2 each (instead of +1).';
+            break;
+          case 'panspermia':
+            $b['name'] = 'Boon: biology +1';
+            $b['text'] = '+1 on every Exobiology attempt.';
+            break;
+          case 'income':
+            $b['name'] = 'Boon: +' . $b['power'] . 'c per solve';
+            $b['text'] = '+' . $b['power'] . ' credits every time you solve a mission.';
+            break;
+          case 'purist':
+            $b['name'] = 'Boon: purity +3';
+            $b['text'] = '+3 when every consulted colleague is an anthropologist (at least one).';
+            break;
+          case 'incubators':
+            $b['name'] = 'Boon: cultures +2';
+            $b['text'] = 'Your cultures mature +2 per failed trial.';
+            break;
+          case 'hire_discount':
+            $b['name'] = 'Boon: hires -1c';
+            $b['text'] = 'Hiring researchers costs 1 credit less.';
+            break;
+          case 'severance':
+            $b['name'] = 'Boon: dismiss crew';
+            $b['text'] = 'During a Regroup you may permanently dismiss crew (reset crew never).';
+            break;
+        }
+        $sol['boon'] = $b;
+      }
+    }
+    unset($sol);
+  }
+  unset($mm);
+  return $base;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Tuning constants
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -82,6 +199,8 @@ function sp_load_game($mysqli, $gameId, $forUpdate = false) {
   $row = $stmt->get_result()->fetch_assoc();
   $stmt->close();
   if (!$row) return null;
+  // Set the variant for everything downstream in this request.
+  $GLOBALS['SP_VARIANT'] = (($row['deck_key'] ?? '') === 'story') ? 'story' : 'plain';
   $row['market_display'] = sp_j($row['market_display'], []);
   $row['market_stack']   = sp_j($row['market_stack'], []);
   $row['board_state']    = sp_j($row['board_state'],
@@ -928,6 +1047,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'winner_seat' => $game['winner_seat'] !== null ? (int)$game['winner_seat'] : null,
       'state_version' => (int)$game['state_version'],
       'host_player_id' => $game['host_player_id'] !== null ? (int)$game['host_player_id'] : null,
+      'variant' => sp_variant(),
     ],
     'cards' => $catalog,
     'chaos' => (int)$board['chaos'],

@@ -9,7 +9,7 @@ mp_require_method('GET');
 users_require_session($mysqli);
 
 $res = $mysqli->query("
-  SELECT g.game_id, g.max_players, g.created_at,
+  SELECT g.game_id, g.max_players, g.created_at, g.deck_key,
          COUNT(p.player_id) AS player_count,
          (SELECT player_name FROM sp_game_players
            WHERE player_id = g.host_player_id) AS host_name
@@ -28,6 +28,7 @@ while ($row = $res->fetch_assoc()) {
     'max_players' => (int)$row['max_players'],
     'player_count' => (int)$row['player_count'],
     'host_name' => $row['host_name'],
+    'variant' => (($row['deck_key'] ?? '') === 'story') ? 'story' : 'plain',
     'created_at' => $row['created_at'],
   ];
 }

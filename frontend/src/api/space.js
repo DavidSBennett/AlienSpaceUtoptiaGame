@@ -32,9 +32,10 @@ async function get(path, params) {
   }
 }
 
-/** Create a game. maxPlayers 1 = solo (starts immediately). */
-export const spCreateGame = (maxPlayers) =>
-  post('/sp_createGame.php', { max_players: maxPlayers });
+/** Create a game. maxPlayers 1 = solo (starts immediately).
+ *  variant: 'plain' (themeless) | 'story' (authored missions). */
+export const spCreateGame = (maxPlayers, variant = 'plain') =>
+  post('/sp_createGame.php', { max_players: maxPlayers, variant });
 
 export const spJoinGame = (gameId) =>
   post('/sp_joinGame.php', { game_id: gameId });

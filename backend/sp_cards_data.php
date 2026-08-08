@@ -18,7 +18,7 @@
  *            permanent +1 there (iterate until the experiment takes)
  */
 
-function sp_cards() {
+function sp_cards_base() {
   static $cards = null;
   if ($cards !== null) return $cards;
 

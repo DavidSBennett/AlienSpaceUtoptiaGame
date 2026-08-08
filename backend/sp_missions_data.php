@@ -16,7 +16,7 @@
  * Track gates: step 5 needs a MAJOR solve, step 9 a CRITICAL solve.
  */
 
-function sp_missions() {
+function sp_missions_base() {
   static $m = null;
   if ($m !== null) return $m;
 

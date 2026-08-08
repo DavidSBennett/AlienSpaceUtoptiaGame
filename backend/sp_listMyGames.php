@@ -11,7 +11,7 @@ $auth = users_require_session($mysqli);
 $userId = (int)$auth['user']['user_id'];
 
 $stmt = $mysqli->prepare("
-  SELECT g.game_id, g.status, g.max_players, g.current_seat, g.turn_number,
+  SELECT g.game_id, g.status, g.max_players, g.deck_key, g.current_seat, g.turn_number,
          g.winner_seat, g.created_at, g.updated_at,
          p.seat, p.player_token, p.conceded, p.final_score,
          (SELECT COUNT(*) FROM sp_game_players q WHERE q.game_id = g.game_id) AS player_count
@@ -32,6 +32,7 @@ while ($row = $res->fetch_assoc()) {
     'max_players' => (int)$row['max_players'],
     'player_count' => (int)$row['player_count'],
     'is_solo' => (int)$row['max_players'] === 1,
+    'variant' => (($row['deck_key'] ?? '') === 'story') ? 'story' : 'plain',
     'seat' => (int)$row['seat'],
     'player_token' => $row['player_token'],
     'your_turn' => $row['status'] === 'active' && (int)$row['current_seat'] === (int)$row['seat'],

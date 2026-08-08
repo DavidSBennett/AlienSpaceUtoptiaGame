@@ -16,11 +16,12 @@ $playerName = $auth['user']['username'];
 $body = mp_read_json_body();
 $maxPlayers = isset($body['max_players']) ? (int)$body['max_players'] : 2;
 if ($maxPlayers < 1 || $maxPlayers > 5) mp_error('max_players must be 1–5', 400);
+$variant = (isset($body['variant']) && $body['variant'] === 'story') ? 'story' : 'plain';
 
 $mysqli->begin_transaction();
 try {
-  $stmt = $mysqli->prepare("INSERT INTO sp_games (max_players, status) VALUES (?, 'lobby')");
-  $stmt->bind_param('i', $maxPlayers);
+  $stmt = $mysqli->prepare("INSERT INTO sp_games (max_players, status, deck_key) VALUES (?, 'lobby', ?)");
+  $stmt->bind_param('is', $maxPlayers, $variant);
   if (!$stmt->execute()) throw new Exception('Failed to create game: ' . $stmt->error);
   $gameId = $mysqli->insert_id;
   $stmt->close();
