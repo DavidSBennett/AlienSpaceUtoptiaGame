@@ -227,29 +227,28 @@ function CardChip({ cardKey, cards, onClick, onCommit, committed, selected, disa
   if (!c) return null;
   const disc = DISCIPLINES[c.action];
   return (
-    <div className={'relative ' + (small ? 'w-36' : 'w-40')}
+    <div className="relative w-28"
       {...tipHandlers(<CardTooltip cardKey={cardKey} cards={cards} />)}>
       <button type="button" onClick={onClick} disabled={disabled}
         className={
-          'w-full text-left rounded-md border px-2 py-1.5 transition-colors shadow-lg ' +
+          'w-full text-left rounded-md border px-1.5 py-1 transition-colors shadow-lg ' +
           (selected ? 'border-[#79c9d6] bg-[#123143] ' :
            committed ? 'border-[#e0b45c] bg-[#2a2338] ' :
            'border-[#2f4b6e] bg-[#0c1424]/95 hover:border-[#8593ad] ') +
           (disabled ? 'opacity-50 cursor-not-allowed ' : '')
         }>
+        <div className="font-semibold text-[10px] leading-tight truncate">{c.name}</div>
         <div className="flex justify-between items-baseline gap-1">
-          <span className="font-semibold text-[11px] leading-tight">{c.name}</span>
-          <span className="text-[10px] font-mono whitespace-nowrap">
+          <span className={'text-[9px] truncate ' + (disc ? '' : T_MUted)}
+            style={disc ? { color: disc.color } : undefined}>
+            {disc ? `${disc.icon} ${disc.label.slice(0, 8)}` : ACTION_LABELS[c.action]}
+          </span>
+          <span className="text-[9px] font-mono whitespace-nowrap">
             <span className={T_BAD}>{c.stats[0]}</span>/
             <span className={T_HEAD}>{c.stats[1]}</span>/
             <span className={T_GOOD}>{c.stats[2]}</span>
           </span>
         </div>
-        <div className={'text-[10px] ' + (disc ? '' : T_MUted)}
-          style={disc ? { color: disc.color } : undefined}>
-          {disc ? `${disc.icon} ${disc.label}` : ACTION_LABELS[c.action]}
-        </div>
-        <div className={'text-[9px] ' + T_GOLD}>{AFFILIATION_LABELS[c.affiliation]}</div>
       </button>
       {onCommit && (
         <button type="button" onClick={onCommit}
@@ -289,10 +288,10 @@ function TrackBar({ label, color, step, tipHandlers }) {
     </div>
   ) : {};
   return (
-    <div className="flex items-center gap-2 text-[11px]" {...handlers}>
-      <span className="w-24 truncate" style={{ color }}>{label}</span>
-      <span>{cells}</span>
-      <span className={'font-mono ' + T_MUted}>{step}/12</span>
+    <div className="flex items-center gap-1.5 text-[11px]" {...handlers}>
+      <span className="w-6" style={{ color }}>{label.slice(0, 2)}</span>
+      <span className="whitespace-nowrap">{cells}</span>
+      <span className={'font-mono ' + T_MUted}>{step}</span>
     </div>
   );
 }
@@ -554,6 +553,11 @@ export default function SpaceGame() {
 
       {/* right rail */}
       <div className="absolute top-12 right-2 z-30 w-72 space-y-2 max-h-[calc(100vh-11rem)] overflow-y-auto pr-0.5">
+        <div className={PANEL + ' px-3 py-2 space-y-1'}>
+          <TrackBar label="⛏ Xenogeology" color="#e58787" step={you.tracks.military.step} tipHandlers={tipHandlers} />
+          <TrackBar label="📜 Xenoanthropology" color="#79c9d6" step={you.tracks.diplomacy.step} tipHandlers={tipHandlers} />
+          <TrackBar label="🧬 Exobiology" color="#7fd8a0" step={you.tracks.trade.step} tipHandlers={tipHandlers} />
+        </div>
         <Collapsible title="The Council" open={panels.council}
           onToggle={() => setPanels((p) => ({ ...p, council: !p.council }))}>
           {state.players.map((p) => (
@@ -646,9 +650,6 @@ export default function SpaceGame() {
             </span>
           )}
         </div>
-        <TrackBar label="⛏ Xenogeology" color="#e58787" step={you.tracks.military.step} tipHandlers={tipHandlers} />
-        <TrackBar label="📜 Xenoanthropology" color="#79c9d6" step={you.tracks.diplomacy.step} tipHandlers={tipHandlers} />
-        <TrackBar label="🧬 Exobiology" color="#7fd8a0" step={you.tracks.trade.step} tipHandlers={tipHandlers} />
       </div>
 
       {/* bottom-center: the hand */}
