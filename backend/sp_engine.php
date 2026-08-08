@@ -36,11 +36,13 @@ const SP_STARTING_CREDITS = 12;
 const SP_MARKET_DISPLAY   = 7;
 const SP_DOCKET_SIZE      = 4;
 const SP_TROPHY_VP        = 7;
-const SP_BASE_CREW_CAP    = 9;
+const SP_BASE_CREW_CAP    = 8;    // team cap; any track step >=5 -> 12, >=9 -> 15
+const SP_CAP_STEP5        = 12;
+const SP_CAP_STEP9        = 15;
 
-const SP_CHAOS_MIN        = -10;
-const SP_CHAOS_MAX        = 10;   // collapse
-const SP_COLLAPSE_PENALTY = 10;   // VP lost by everyone on collapse
+const SP_CHAOS_MIN        = -10;  // full ORDER: game ends, best VP wins clean
+const SP_CHAOS_MAX        = 10;   // full CHAOS: collapse
+const SP_COLLAPSE_PENALTY = 5;    // VP lost PER BOON on collapse — the blame
 
 const SP_TRACK_MAX  = 12;
 const SP_TIER_STEPS = 4;
@@ -227,6 +229,16 @@ function sp_authenticate($mysqli, $tokenOverride = null) {
 
 function sp_roster_size($p) {
   return count($p['hand']) + count($p['discard']);
+}
+
+/** Team capacity grows with your best track: 8 base, 12 at step 5, 15 at step 9. */
+function sp_crew_capacity($p) {
+  $best = max((int)$p['tracks']['military']['step'],
+              (int)$p['tracks']['diplomacy']['step'],
+              (int)$p['tracks']['trade']['step']);
+  if ($best >= 9) return SP_CAP_STEP9;
+  if ($best >= 5) return SP_CAP_STEP5;
+  return SP_BASE_CREW_CAP;
 }
 
 function sp_chaos_mod($chaos) {
@@ -496,16 +508,23 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
   $chaosNote = $chaosDelta === 0 ? ''
     : ($chaosDelta > 0 ? ", chaos +$chaosDelta" : ', order ' . abs($chaosDelta));
 
-  // Collapse check.
+  // Full chaos: the ICC collapses — blame lands on the boon-holders.
   if ((int)$board['chaos'] >= SP_CHAOS_MAX) {
     sp_end_game($game, $players, null, 'chaos_collapse');
     return $p['player_name'] . ' resolved "' . $mission['title'] . '" the '
          . SP_DISCIPLINES[$discipline][3] . " way ($total vs $need$spentNote)"
          . ' — AND THE ICC COLLAPSED IN THE AFTERMATH';
   }
+  // Full order: the Council stands perfected — game ends, best VP wins.
+  if ((int)$board['chaos'] <= SP_CHAOS_MIN) {
+    sp_end_game($game, $players, null, 'order_triumph');
+    return $p['player_name'] . ' resolved "' . $mission['title'] . '" the '
+         . SP_DISCIPLINES[$discipline][3] . " way ($total vs $need$spentNote)"
+         . ' — AND PERFECT ORDER SETTLED OVER THE COUNCIL';
+  }
 
-  // Missions exhausted → every story is written.
-  if (count($board['docket']) === 0 && count($board['mission_stack']) === 0) {
+  // The last mission card has been revealed → final turns begin.
+  if (count($board['mission_stack']) === 0 && $game['endgame_trigger'] === null) {
     sp_trigger_endgame($game, $players, $seat, 'missions_complete');
   }
 
@@ -532,8 +551,9 @@ function sp_exec_recruit(&$game, &$players, $seat, $cardKey, $params, $freeMode)
   $maxPicks = $freeMode ? 1 : 2;
   if (count($picks) > $maxPicks) throw new Exception("At most $maxPicks hire(s)");
 
-  if (sp_roster_size($p) + count($picks) > SP_BASE_CREW_CAP) {
-    throw new Exception('Team roster full (' . SP_BASE_CREW_CAP . ' max)');
+  $cap = sp_crew_capacity($p);
+  if (sp_roster_size($p) + count($picks) > $cap) {
+    throw new Exception("Team roster full ($cap max — track ranks 5 and 9 raise it)");
   }
 
   $names = [];
@@ -570,6 +590,24 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   if ($rider > 0) {
     $p['credits'] += $rider;
     $msg .= " (+{$rider}c)";
+  }
+
+  // Severance Authority boon: permanently dismiss crew while regrouping.
+  $dismiss = is_array($params['dismiss'] ?? null) ? $params['dismiss'] : [];
+  if (count($dismiss) > 0) {
+    if (sp_boon_count($p, 'severance') === 0) {
+      throw new Exception('Dismissing crew requires the Severance Authority boon');
+    }
+    foreach ($dismiss as $k) {
+      if (!is_string($k)) throw new Exception('Bad dismissal');
+      if (($cards[$k]['action'] ?? '') === 'reset') {
+        throw new Exception('Reset crew cannot be dismissed');
+      }
+      $dpos = array_search($k, $p['hand'], true);
+      if ($dpos === false) throw new Exception('Crew not on your team: ' . $k);
+      array_splice($p['hand'], $dpos, 1);
+    }
+    $msg .= ' — dismissed ' . count($dismiss) . ' crew permanently';
   }
 
   if (!(int)$p['first_reset_done']) {
@@ -736,7 +774,8 @@ function sp_compute_score($game, $players, $seat, $final = true) {
   $b['trade_guild']      = $counts['trade_guild'] * (int)$p['tracks']['trade']['step'];
   $b['trophy']           = ($final && (int)$p['trophy']) ? SP_TROPHY_VP : 0;
   if ($final && ($game['endgame_trigger'] ?? null) === 'chaos_collapse') {
-    $b['collapse'] = -SP_COLLAPSE_PENALTY;
+    // The blame: 5 VP per boon claimed — the profiteers pay for the ruin.
+    $b['collapse'] = -SP_COLLAPSE_PENALTY * count(sp_player_boons($p));
   }
 
   return ['total' => array_sum($b), 'breakdown' => $b, 'card_counts' => $counts];
@@ -781,7 +820,9 @@ function sp_end_game(&$game, &$players, $mysqli, $reason = null) {
     sp_log($mysqli, (int)$game['game_id'], $bestSeat, 'game_ended',
       ($game['endgame_trigger'] === 'chaos_collapse'
         ? 'THE ICC HAS COLLAPSED. Final tally under the ruins — '
-        : 'The Council adjourns — ')
+        : ($game['endgame_trigger'] === 'order_triumph'
+          ? 'PERFECT ORDER. The Council stands eternal — '
+          : 'The Council adjourns — '))
       . 'winner: ' . ($bestSeat !== null ? $players[$bestSeat]['player_name'] : 'nobody'));
   }
 }
@@ -853,6 +894,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'discard_top' => count($p['discard']) ? $p['discard'][count($p['discard']) - 1] : null,
       'boon_count' => count(sp_player_boons($p)),
       'roster' => sp_roster_size($p),
+      'crew_cap' => sp_crew_capacity($p),
       'first_reset_done' => (int)$p['first_reset_done'],
       'trophy' => (int)$p['trophy'], 'conceded' => (int)$p['conceded'],
       'final_score' => $p['final_score'] !== null ? (int)$p['final_score'] : null,
@@ -896,7 +938,6 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
     'story' => $board['solved'],
     'position_costs' => SP_POSITION_COST,
     'geo_credits_per_point' => SP_GEO_CREDITS_PER_POINT,
-    'crew_cap' => SP_BASE_CREW_CAP,
     'market' => [
       'display' => $game['market_display'],
       'stack_count' => count($game['market_stack']),
@@ -911,6 +952,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'bio_solves' => sp_solve_count($board, $yourSeat, 'bio'),
       'boons' => sp_player_boons($you),
       'roster' => sp_roster_size($you),
+      'crew_cap' => sp_crew_capacity($you),
       'first_reset_done' => (int)$you['first_reset_done'],
       'intermediate_score' => $you['intermediate_score'] !== null ? (int)$you['intermediate_score'] : null,
       'trophy' => (int)$you['trophy'],

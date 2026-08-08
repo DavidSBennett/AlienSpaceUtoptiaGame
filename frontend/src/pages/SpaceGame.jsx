@@ -58,7 +58,7 @@ const ACTION_LABELS = {
   copy: 'Peer review',
 };
 
-const emptyDraft = { mission: null, commits: [], charter: 0, picks: [], copyTarget: null };
+const emptyDraft = { mission: null, commits: [], charter: 0, picks: [], copyTarget: null, dismiss: [] };
 
 // ── tooltips ─────────────────────────────────────────────────────────────
 
@@ -163,7 +163,8 @@ function ChaosBar({ chaos, mod, tipHandlers }) {
           <div className={mod !== 0 ? T_GOLD : T_MUted}>
             Current effect: all mission difficulties {mod > 0 ? `+${mod}` : mod < 0 ? mod : '±0'} (1 per 3 chaos).
           </div>
-          <div className={T_BAD}>At +10 the ICC COLLAPSES: the game ends at once and every player loses 10 VP.</div>
+          <div className={T_GOOD}>At −10 (full ORDER) the game ends in triumph — highest VP wins clean.</div>
+          <div className={T_BAD}>At +10 the ICC COLLAPSES: the game ends at once and every player loses 5 VP PER BOON they claimed — the blame lands on the profiteers.</div>
         </div>
       )}>
       <span className={T_GOOD}>ORDER</span>
@@ -295,7 +296,7 @@ function TrackBar({ label, color, step, tipHandlers }) {
     <div className="space-y-1">
       <b style={{ color }} className="text-[12px]">{label} — step {step}/12</b>
       <div>+1 per mission solved your way.</div>
-      <div>Gates (red rings): step 5 needs a MAJOR solve, step 9 a CRITICAL solve. Breaking them grants research grants (+10c / +15c).</div>
+      <div>Gates (red rings): step 5 needs a MAJOR solve, step 9 a CRITICAL solve. Breaking them grants research grants (+10c / +15c) AND raises your team cap (12 at rank 5, 15 at rank 9).</div>
       <div className={T_MUted}>Step 12 triggers the endgame (+7 VP trophy). Matching cards score VP × this number.</div>
     </div>
   ) : {};
@@ -446,6 +447,15 @@ export default function SpaceGame() {
     }));
   }
 
+  function toggleDismiss(key) {
+    setDraft((dr) => ({
+      ...dr,
+      dismiss: dr.dismiss.includes(key)
+        ? dr.dismiss.filter((k) => k !== key)
+        : [...dr.dismiss, key],
+    }));
+  }
+
   function togglePick(key) {
     const maxPicks = activeCardDef?.action === 'recruit' ? 2 : 1;
     setDraft((dr) => {
@@ -464,6 +474,7 @@ export default function SpaceGame() {
       if (effectiveAction === 'recruit' || effectiveAction === 'recruit_free') {
         return { picks: draft.picks.map((key) => ({ card: key })) };
       }
+      if (effectiveAction === 'reset') return { dismiss: draft.dismiss };
       return {};
     };
     if (a === 'copy') return { target_seat: draft.copyTarget, params: inner() };
@@ -506,9 +517,9 @@ export default function SpaceGame() {
       return null;
     }
     if (picking) {
-      if (draft.picks.length === 0) return 'Pick a researcher from the Market panel.';
-      if (you.roster + draft.picks.length > state.crew_cap) {
-        return `Team roster full (${state.crew_cap} max).`;
+      if (draft.picks.length === 0) return 'Pick a researcher from the University panel.';
+      if (you.roster + draft.picks.length > you.crew_cap) {
+        return `Team roster full (${you.crew_cap} max — track ranks 5 and 9 raise it).`;
       }
       const cost = draft.picks.reduce((sum, key) => {
         const pos = state.market.display.indexOf(key);
@@ -525,6 +536,7 @@ export default function SpaceGame() {
 
   const ended = game.status === 'ended';
   const collapsed = game.endgame_trigger === 'chaos_collapse';
+  const ordered = game.endgame_trigger === 'order_triumph';
 
   return (
     <div className="h-screen overflow-hidden relative text-[#dbe4f0]"
@@ -604,7 +616,7 @@ export default function SpaceGame() {
                 ⛏{p.tracks.military.step} 📜{p.tracks.diplomacy.step} 🧬{p.tracks.trade.step}
                 {' · '}solved {p.solves.geo + p.solves.anthro + p.solves.bio}
                 {p.boon_count > 0 && <> · ★{p.boon_count}</>}
-                {' · '}team {p.roster}/{state.crew_cap}
+                {' · '}team {p.roster}/{p.crew_cap}
                 {p.discard_top && <> · last: {cards[p.discard_top]?.name}</>}
                 {p.conceded ? ' · withdrew' : ''}
                 {ended && p.final_score !== null && <> · <b>{p.final_score} VP</b></>}
@@ -613,7 +625,7 @@ export default function SpaceGame() {
           ))}
         </Collapsible>
 
-        <Collapsible title="Researcher market" badge={`${state.market.stack_count} in stock`}
+        <Collapsible title="The University" badge={`${state.market.stack_count} in stock`}
           open={panels.market || picking}
           onToggle={() => setPanels((p) => ({ ...p, market: !p.market }))}>
           <div className="flex flex-wrap gap-1.5">
@@ -671,8 +683,8 @@ export default function SpaceGame() {
             {you.credits}c
           </span>
           <span className={'text-[11px] ' + T_MUted}
-            {...tipHandlers(<div><b className={T_HEAD}>Team roster</b><div>Hand + published work, max {state.crew_cap}. Hiring needs open slots.</div></div>)}>
-            team {you.roster}/{state.crew_cap}
+            {...tipHandlers(<div><b className={T_HEAD}>Team roster</b><div>Hand + published work, max {you.crew_cap} (ranks 5 and 9 on any track raise it to 12 and 15). Hiring needs open slots.</div></div>)}>
+            team {you.roster}/{you.crew_cap}
           </span>
           {myBoons.length > 0 && (
             <span className={'text-[11px] ' + T_GOLD}
@@ -709,11 +721,17 @@ export default function SpaceGame() {
               className="shrink-0 transition-transform hover:-translate-y-1">
               <CardChip cardKey={key} cards={cards} tipHandlers={tipHandlers}
                 selected={selectedCard === key}
-                committed={draft.commits.includes(key)}
+                committed={draft.commits.includes(key) || draft.dismiss.includes(key)}
                 disabled={!myTurn || ended}
-                onCommit={activeDisc === 'anthro' && key !== selectedCard
-                  && cards[key].action !== 'reset' && myTurn && !ended
-                  ? () => toggleCommit(key) : undefined}
+                onCommit={
+                  activeDisc === 'anthro' && key !== selectedCard
+                    && cards[key].action !== 'reset' && myTurn && !ended
+                    ? () => toggleCommit(key)
+                  : activeCardDef?.action === 'reset' && boonCount('severance') > 0
+                    && key !== selectedCard && cards[key].action !== 'reset' && myTurn && !ended
+                    ? () => toggleDismiss(key)
+                  : undefined
+                }
                 onClick={() => {
                   if (selectedCard === key) {
                     resetDraft();
@@ -810,6 +828,13 @@ export default function SpaceGame() {
             </div>
           )}
 
+          {activeCardDef.action === 'reset' && boonCount('severance') > 0 && (
+            <div className={'text-[11px] ' + T_GOLD}>
+              ★ Severance Authority: mark crew with + to dismiss them PERMANENTLY
+              ({draft.dismiss.length} selected). Thin your team to sharpen your hand.
+            </div>
+          )}
+
           {blockReason && myTurn && (
             <div className={'text-[11px] ' + T_GOLD}>▸ {blockReason}</div>
           )}
@@ -823,12 +848,12 @@ export default function SpaceGame() {
         </div>
       )}
 
-      {ended && <ResultsOverlay state={state} collapsed={collapsed} />}
+      {ended && <ResultsOverlay state={state} collapsed={collapsed} ordered={ordered} />}
     </div>
   );
 }
 
-function ResultsOverlay({ state, collapsed }) {
+function ResultsOverlay({ state, collapsed, ordered }) {
   const winner = state.players.find((p) => p.seat === state.game.winner_seat);
   const ranked = [...state.players]
     .filter((p) => p.final_score !== null)
@@ -836,15 +861,23 @@ function ResultsOverlay({ state, collapsed }) {
   return (
     <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-6">
       <div className={'max-w-lg w-full p-5 space-y-3 ' + PANEL}>
-        <div className={'text-xl font-semibold ' + (collapsed ? T_BAD : T_HEAD)}>
+        <div className={'text-xl font-semibold ' + (collapsed ? T_BAD : ordered ? T_GOOD : T_HEAD)}>
           {collapsed
             ? 'THE ICC HAS COLLAPSED'
-            : <>The Council adjourns{winner ? ` — ${winner.name} leads the field` : ''}</>}
+            : ordered
+              ? 'PERFECT ORDER — THE COUNCIL STANDS ETERNAL'
+              : <>The Council adjourns{winner ? ` — ${winner.name} leads the field` : ''}</>}
         </div>
         {collapsed && (
           <p className={'text-sm ' + T_MUted}>
-            Chaos reached its breaking point. Every delegation loses 10 VP —
-            the stories you wrote survive; the institution did not.
+            Chaos reached its breaking point. Every delegation loses 5 VP per
+            boon it claimed — the profiteers wear the blame. The stories you
+            wrote survive; the institution did not.
+          </p>
+        )}
+        {ordered && (
+          <p className={'text-sm ' + T_MUted}>
+            The Council reached perfect stability{winner ? ` — ${winner.name} leads its golden age` : ''}.
           </p>
         )}
         {ranked.map((p, i) => (

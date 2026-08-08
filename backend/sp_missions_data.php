@@ -423,6 +423,7 @@ function sp_missions() {
       if ($chaos < 1) continue;
       $kw = $mm['keywords'][0] ?? 'ritual';
       $slot = abs(crc32($mkey . $disc)) % 3;
+      $minorSlot = abs(crc32($mkey . $disc)) % 4;
       if ($chaos >= 3) {
         if ($slot === 0) {
           $sol['boon'] = ['type' => 'affinity', 'power' => 2, 'keyword' => $kw,
@@ -444,11 +445,14 @@ function sp_missions() {
             'text' => '+2 credits every time you solve a mission.'];
         }
       } else {
-        if ($slot === 0) {
+        if ($minorSlot === 3) {
+          $sol['boon'] = ['type' => 'severance', 'name' => 'Severance Authority',
+            'text' => 'During a Regroup you may permanently dismiss crew from your team (reset crew never).'];
+        } elseif ($minorSlot === 0) {
           $sol['boon'] = ['type' => 'affinity', 'power' => 1, 'keyword' => $kw,
             'name' => 'Field Dossier: ' . ucfirst($kw),
             'text' => '+1 on every mission tagged "' . $kw . '".'];
-        } elseif ($slot === 1) {
+        } elseif ($minorSlot === 1) {
           if ($disc === 'geo') {
             $sol['boon'] = ['type' => 'income', 'power' => 1, 'name' => 'Salvage Rights',
               'text' => '+1 credit every time you solve a mission.'];
@@ -459,7 +463,7 @@ function sp_missions() {
             $sol['boon'] = ['type' => 'incubators', 'name' => 'Rapid Incubators',
               'text' => 'Your cultures mature +2 per failed trial.'];
           }
-        } else {
+        } elseif ($minorSlot === 2) {
           $sol['boon'] = ['type' => 'hire_discount', 'power' => 1, 'name' => 'Recruiting Ties',
             'text' => 'Hiring researchers costs 1 credit less.'];
         }
