@@ -14,7 +14,8 @@
  *   geo    — charter heavy equipment: +1 per 2 credits spent (win or lose)
  *   anthro — consult colleagues: discard other researchers, +1 each
  *            (reset crew never; they return on Regroup)
- *   bio    — field notes: +1 per bio mission you have already solved (max +3)
+ *   bio    — cultures: each failed bio attempt on a mission gives you a
+ *            permanent +1 there (iterate until the experiment takes)
  */
 
 function sp_cards() {
@@ -46,7 +47,7 @@ function sp_cards() {
     'name' => 'Exobiologist', 'action' => 'biology',
     'stats' => [0, 0, 2], 'affiliation' => 'trade_guild',
     'kind' => 'starter', 'stage' => null, 'cost_credits' => 0, 'rider_credits' => 0,
-    'text' => 'Attempt an EXOBIOLOGY solution: Biology 2 vs its difficulty (+ chaos), +1 per bio mission you have already solved (max +3).',
+    'text' => 'Attempt an EXOBIOLOGY solution: Biology 2 vs its difficulty (+ chaos). A failed trial is never wasted: your cultures mature, +1 on that mission from then on.',
   ];
   $c['talent_scout'] = [
     'name' => 'Talent Scout', 'action' => 'recruit',
@@ -70,7 +71,7 @@ function sp_cards() {
   $mk('linguist', 'Linguist', 'ethnography', 0, 3, 0, 'diplomatic_corps', 1, 3, 0,
       'Xenoanthropology solution attempt: Anthropology 3 (+ consulted colleagues).');
   $mk('geneticist', 'Geneticist', 'biology', 0, 0, 3, 'trade_guild', 1, 3, 0,
-      'Exobiology solution attempt: Biology 3 (+ field notes).');
+      'Exobiology solution attempt: Biology 3 (+ matured cultures).');
   $mk('logistics_officer', 'Logistics Officer', 'reset', 1, 1, 1, 'wealth', 1, 3, 2,
       'Recover ALL cards (discard plus this card) and pocket 2 credits.');
   $mk('peer_reviewer', 'Peer Reviewer', 'copy', 1, 1, 1, 'diplomatic_corps', 1, 3, 0,
@@ -84,7 +85,7 @@ function sp_cards() {
   $mk('archivist', 'Archivist', 'ethnography', 0, 4, 0, 'diplomatic_corps', 2, 4, 0,
       'Xenoanthropology solution attempt: Anthropology 4 (+ consulted colleagues).');
   $mk('ecologist', 'Ecologist', 'biology', 0, 0, 4, 'trade_guild', 2, 4, 0,
-      'Exobiology solution attempt: Biology 4 (+ field notes).');
+      'Exobiology solution attempt: Biology 4 (+ matured cultures).');
   $mk('deputy_director', 'Deputy Director', 'reset', 1, 1, 1, 'wealth', 2, 4, 3,
       'Recover ALL cards (discard plus this card) and pocket 3 credits.');
   $mk('headhunter', 'Headhunter', 'recruit_free', 1, 1, 1, 'wealth', 2, 4, 0,
@@ -98,7 +99,7 @@ function sp_cards() {
   $mk('chief_ethnologist', 'Chief Ethnologist', 'ethnography', 0, 5, 0, 'diplomatic_corps', 3, 6, 0,
       'Xenoanthropology solution attempt: Anthropology 5 (+ consulted colleagues).');
   $mk('biome_designer', 'Biome Designer', 'biology', 0, 0, 5, 'trade_guild', 3, 6, 0,
-      'Exobiology solution attempt: Biology 5 (+ field notes).');
+      'Exobiology solution attempt: Biology 5 (+ matured cultures).');
   $mk('dean', 'Dean', 'recruit', 0, 2, 2, 'wealth', 3, 6, 0,
       'Hire up to 2 researchers from the market.');
   $mk('grant_writer', 'Grant Writer', 'reset', 1, 1, 1, 'wealth', 3, 6, 5,
@@ -110,7 +111,7 @@ function sp_cards() {
   $mk('mythographer', 'Mythographer', 'ethnography', 0, 5, 1, 'diplomatic_corps', 4, 8, 0,
       'Xenoanthropology solution attempt: Anthropology 5 (+ consulted colleagues).');
   $mk('symbiogenesist', 'Symbiogenesist', 'biology', 1, 0, 5, 'trade_guild', 4, 8, 0,
-      'Exobiology solution attempt: Biology 5 (+ field notes).');
+      'Exobiology solution attempt: Biology 5 (+ matured cultures).');
   $mk('spymaster', 'Spymaster', 'copy', 2, 2, 2, 'diplomatic_corps', 4, 8, 0,
       'Execute the top card of another player\'s discard pile.');
   $mk('provost', 'Provost', 'recruit', 1, 2, 2, 'wealth', 4, 8, 0,
@@ -122,7 +123,7 @@ function sp_cards() {
   $mk('loremaster', 'Loremaster', 'ethnography', 0, 6, 0, 'diplomatic_corps', 5, 10, 0,
       'Xenoanthropology solution attempt: Anthropology 6 (+ consulted colleagues).');
   $mk('lifewright', 'Lifewright', 'biology', 0, 0, 6, 'trade_guild', 5, 10, 0,
-      'Exobiology solution attempt: Biology 6 (+ field notes).');
+      'Exobiology solution attempt: Biology 6 (+ matured cultures).');
   $mk('laureate', 'Nobel Laureate', 'reset', 2, 2, 2, 'wealth', 5, 10, 6,
       'Recover ALL cards (discard plus this card) and pocket 6 credits.');
 

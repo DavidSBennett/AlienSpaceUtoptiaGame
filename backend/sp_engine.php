@@ -50,7 +50,6 @@ const SP_GATE_TIER  = [1 => 'minor', 2 => 'major', 3 => 'critical'];
 const SP_GATE_GRANT = [5 => 10, 9 => 15];   // credits on gate break
 
 const SP_GEO_CREDITS_PER_POINT = 2;   // charter equipment: 2c per +1
-const SP_BIO_NOTES_MAX = 3;           // field notes cap
 
 // Market position surcharge, in credits, by display position 0..6.
 const SP_POSITION_COST = [0, 0, 1, 1, 2, 2, 3];
@@ -84,8 +83,8 @@ function sp_load_game($mysqli, $gameId, $forUpdate = false) {
   $row['market_display'] = sp_j($row['market_display'], []);
   $row['market_stack']   = sp_j($row['market_stack'], []);
   $row['board_state']    = sp_j($row['board_state'],
-    ['docket' => [], 'mission_stack' => [], 'chaos' => 0, 'solved' => [], 'meta' => []]);
-  foreach (['docket' => [], 'mission_stack' => [], 'solved' => [], 'meta' => []] as $k => $d) {
+    ['docket' => [], 'mission_stack' => [], 'chaos' => 0, 'solved' => [], 'cultures' => [], 'meta' => []]);
+  foreach (['docket' => [], 'mission_stack' => [], 'solved' => [], 'cultures' => [], 'meta' => []] as $k => $d) {
     if (!isset($row['board_state'][$k])) $row['board_state'][$k] = $d;
   }
   if (!isset($row['board_state']['chaos'])) $row['board_state']['chaos'] = 0;
@@ -288,7 +287,7 @@ function sp_setup_game(&$game, &$players) {
   $board = [
     'docket' => array_splice($missionStack, 0, SP_DOCKET_SIZE),
     'mission_stack' => $missionStack,
-    'chaos' => 0, 'solved' => [], 'meta' => [],
+    'chaos' => 0, 'solved' => [], 'cultures' => [], 'meta' => [],
   ];
 
   foreach ($players as $seat => &$p) {
@@ -403,15 +402,23 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
     $total += count($commits);
     if (count($commits) > 0) $spentNote = ', ' . count($commits) . ' colleagues consulted';
   } else { // bio
-    $notes = min(SP_BIO_NOTES_MAX, sp_solve_count($board, $seat, 'bio'));
-    $total += $notes;
-    if ($notes > 0) $spentNote = ", +$notes field notes";
+    // Cultures: every prior bio attempt on THIS mission matured your lab
+    // cultures — a permanent +1 each, for you, on this crisis.
+    $cult = (int)($board['cultures'][$missionKey][(string)$seat] ?? 0);
+    $total += $cult;
+    if ($cult > 0) $spentNote = ", +$cult cultures";
   }
 
   $chaosMod = sp_chaos_mod($board['chaos']);
   $need = max(1, (int)$solution['difficulty'] + $chaosMod);
 
   if ($total < $need) {
+    if ($discipline === 'bio') {
+      $grown = (int)($board['cultures'][$missionKey][(string)$seat] ?? 0) + 1;
+      $board['cultures'][$missionKey][(string)$seat] = $grown;
+      return $p['player_name'] . '\'s Exobiology trial on "' . $mission['title']
+           . "\" fell short ($total vs $need$spentNote) — but the cultures matured: +$grown there from now on";
+    }
     return $p['player_name'] . '\'s ' . SP_DISCIPLINES[$discipline][3]
          . ' proposal for "' . $mission['title'] . "\" was rejected ($total vs $need"
          . $spentNote . ')';
@@ -419,6 +426,7 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
 
   // ── Success: this culture's story is written, permanently. ──
   array_splice($board['docket'], $pos, 1);
+  unset($board['cultures'][$missionKey]);
   $p['credits'] += (int)$solution['credits'];
   $board['chaos'] = max(SP_CHAOS_MIN, min(SP_CHAOS_MAX, (int)$board['chaos'] + (int)$solution['chaos']));
   $board['solved'][] = [
@@ -771,6 +779,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'key' => $mk, 'title' => $mm['title'], 'culture' => $mm['culture'],
       'tier' => $mm['tier'], 'problem' => $mm['problem'],
       'chained' => !empty($mm['chained']), 'solutions' => $sols,
+      'your_cultures' => (int)($board['cultures'][$mk][(string)$yourSeat] ?? 0),
     ];
   }
 
@@ -836,7 +845,6 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
     'story' => $board['solved'],
     'position_costs' => SP_POSITION_COST,
     'geo_credits_per_point' => SP_GEO_CREDITS_PER_POINT,
-    'bio_notes_max' => SP_BIO_NOTES_MAX,
     'crew_cap' => SP_BASE_CREW_CAP,
     'market' => [
       'display' => $game['market_display'],

@@ -208,6 +208,9 @@ function MissionCard({ m, activeDisc, targeted, onClick, tipHandlers }) {
               <span className={'font-mono w-14 ' + (sol.chaos > 0 ? T_BAD : sol.chaos < 0 ? T_GOOD : T_MUted)}>
                 {sol.chaos > 0 ? `chaos +${sol.chaos}` : sol.chaos < 0 ? `order ${-sol.chaos}` : '—'}
               </span>
+              {dk === 'bio' && m.your_cultures > 0 && (
+                <span className={T_GOOD}>🧪+{m.your_cultures}</span>
+              )}
               {sol.has_follow && <span className={T_GOLD}>⛓</span>}
             </div>
           );
@@ -395,7 +398,7 @@ export default function SpaceGame() {
     solveTotal = effectiveCard.stats[statIdx];
     if (activeDisc === 'geo') solveTotal += Math.floor(draft.charter / state.geo_credits_per_point);
     if (activeDisc === 'anthro') solveTotal += draft.commits.length;
-    if (activeDisc === 'bio') solveTotal += Math.min(state.bio_notes_max, you.bio_solves);
+    if (activeDisc === 'bio') solveTotal += (targetMission?.your_cultures || 0);
   }
 
   const picking = effectiveAction === 'recruit' || effectiveAction === 'recruit_free';
@@ -636,10 +639,10 @@ export default function SpaceGame() {
             {...tipHandlers(<div><b className={T_HEAD}>Team roster</b><div>Hand + published work, max {state.crew_cap}. Hiring needs open slots.</div></div>)}>
             team {you.roster}/{state.crew_cap}
           </span>
-          {you.bio_solves > 0 && (
+          {state.docket.some((m) => m.your_cultures > 0) && (
             <span className={'text-[11px] ' + T_GOOD}
-              {...tipHandlers(<div><b className={T_GOOD}>Field notes</b><div>+1 per bio mission solved (max +{state.bio_notes_max}) on every Exobiology attempt.</div></div>)}>
-              🧬 notes +{Math.min(state.bio_notes_max, you.bio_solves)}
+              {...tipHandlers(<div><b className={T_GOOD}>Matured cultures</b><div>Failed Exobiology trials permanently add +1 on that mission. Active: {state.docket.filter((m) => m.your_cultures > 0).map((m) => `${m.title} +${m.your_cultures}`).join(', ')}.</div></div>)}>
+              🧪 cultures active
             </span>
           )}
         </div>
@@ -750,7 +753,8 @@ export default function SpaceGame() {
               )}
               {activeDisc === 'bio' && (
                 <div className={'text-[10px] ' + T_MUted}>
-                  Field notes: +{Math.min(state.bio_notes_max, you.bio_solves)} from {you.bio_solves} prior bio solve(s) (max +{state.bio_notes_max}).
+                  Cultures: +{targetMission?.your_cultures || 0} matured on this crisis.
+                  A failed trial is never wasted — it adds +1 here permanently.
                 </div>
               )}
             </div>
