@@ -667,8 +667,9 @@ function sp_apply_solution(&$game, &$players, $seat, $missionKey, $discipline) {
     $endNote = sp_variant() === 'story'
       ? ' — AND PERFECT ORDER SETTLED OVER THE COUNCIL'
       : ' — order reached maximum: game over';
-  } elseif (count($board['mission_stack']) === 0 && $game['endgame_trigger'] === null) {
-    // The last mission card has been revealed → final turns begin.
+  } elseif (count($board['mission_stack']) === 0 && count($board['docket']) === 0
+      && $game['endgame_trigger'] === null) {
+    // Every mission is resolved — none left anywhere → final turns begin.
     sp_trigger_endgame($game, $players, $seat, 'missions_complete');
   }
 
