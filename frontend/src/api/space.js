@@ -81,6 +81,14 @@ export const spConcede = (playerToken) =>
 export const spCancelGame = (playerToken) =>
   post('/sp_cancelGame.php', { player_token: playerToken });
 
+/** Full playthrough export: game summary, players, story, entire event log. */
+export const spExportGame = (playerToken) =>
+  get('/sp_exportGame.php', { player_token: playerToken });
+
+/** File a playtest report (notes required, rating 1-5 optional). */
+export const spSubmitReport = (playerToken, notes, rating = null) =>
+  post('/sp_submitReport.php', { player_token: playerToken, notes, rating });
+
 export const spListOpenGames = () => get('/sp_listOpenGames.php');
 
 export const spListMyGames = () => get('/sp_listMyGames.php');

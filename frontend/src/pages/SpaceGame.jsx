@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useSpaceGame } from '../hooks/useSpaceGame.js';
-import { spPlayCard, spHarvest, spResolveBoon, spConcede } from '../api/space.js';
+import { spPlayCard, spHarvest, spResolveBoon, spConcede, spExportGame, spSubmitReport } from '../api/space.js';
 import { loadSpSession } from '../api/spSession.js';
 
 /**
@@ -378,6 +378,10 @@ export default function SpaceGame() {
   const [harvestPairs, setHarvestPairs] = useState([]); // [{field, mission}]
   const [harvestSel, setHarvestSel] = useState(null);   // field index awaiting a mission
   const [firePick, setFirePick] = useState(null);       // card picked in the boon modal
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportNotes, setReportNotes] = useState('');
+  const [reportRating, setReportRating] = useState(null);
+  const [reportDone, setReportDone] = useState(false);
 
   const tipHandlers = useCallback((node) => ({
     onMouseEnter: (e) => setTip({ x: e.clientX, y: e.clientY, node }),
@@ -571,6 +575,40 @@ export default function SpaceGame() {
     }
   }
 
+  async function handleExport() {
+    setBusy(true);
+    setActionError(null);
+    try {
+      const res = await spExportGame(session.player_token);
+      const blob = new Blob([JSON.stringify(res.export, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `utopian-playthrough-game${res.export?.game?.game_id ?? gameId}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSubmitReport() {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await spSubmitReport(session.player_token, reportNotes, reportRating);
+      setReportDone(true);
+      setReportNotes('');
+      setReportRating(null);
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleConcede() {
     // eslint-disable-next-line no-alert
     if (!window.confirm('Withdraw your team from the Council?')) return;
@@ -638,6 +676,10 @@ export default function SpaceGame() {
               {myTurn ? 'YOUR TURN' : `Waiting on ${state.players.find((p) => p.seat === game.current_seat)?.name || '…'}`}
             </span>
           )}
+          <button className={BTN}
+            onClick={() => { setReportOpen(true); setReportDone(false); }}>
+            📝 Report
+          </button>
           {!ended && <button className={BTN} onClick={handleConcede}>Concede</button>}
         </div>
       </div>
@@ -1116,12 +1158,71 @@ export default function SpaceGame() {
         </div>
       )}
 
-      {ended && <ResultsOverlay state={state} collapsed={collapsed} ordered={ordered} storyMode={storyMode} />}
+      {ended && (
+        <ResultsOverlay state={state} collapsed={collapsed} ordered={ordered} storyMode={storyMode}
+          busy={busy} onExport={handleExport}
+          onReport={() => { setReportOpen(true); setReportDone(false); }} />
+      )}
+
+      {/* playtest report modal */}
+      {reportOpen && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-[#03060d]/85 p-6">
+          <div className={'w-[30rem] max-w-[92vw] p-4 space-y-3 border-[#79c9d6]/60 ' + PANEL}>
+            <div className="flex justify-between items-baseline">
+              <b className={T_HEAD}>📝 Playtest report</b>
+              <span className={'text-[11px] ' + T_MUted}>game #{game.game_id} · turn {game.turn_number}</span>
+            </div>
+            {reportDone ? (
+              <>
+                <p className={'text-sm ' + T_GOOD}>Report saved — thank you!</p>
+                <div className="flex gap-2">
+                  <button className={BTN} onClick={() => setReportOpen(false)}>Close</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className={'text-[12px] ' + T_MUted}>
+                  What worked, what dragged, what confused you, what broke?
+                  A snapshot of the current game state is attached automatically.
+                </p>
+                <textarea
+                  className="w-full h-32 rounded border border-[#2f4b6e] bg-[#060b16] px-2 py-1.5 text-sm text-[#dbe4f0] focus:outline-none focus:border-[#79c9d6]"
+                  value={reportNotes}
+                  onChange={(e) => setReportNotes(e.target.value)}
+                  placeholder="Your notes…" />
+                <div className="flex items-center gap-1.5 text-[12px]">
+                  <span className={T_MUted}>Fun rating:</span>
+                  {[1, 2, 3, 4, 5].map((r) => (
+                    <button key={r} type="button"
+                      onClick={() => setReportRating((cur) => (cur === r ? null : r))}
+                      className={
+                        'w-7 h-7 rounded border text-[12px] ' +
+                        (reportRating !== null && r <= reportRating
+                          ? 'border-[#e0b45c] bg-[#2a2338] text-[#e0b45c]'
+                          : 'border-[#2f4b6e] bg-[#0c1424] text-[#8593ad] hover:border-[#e0b45c]')
+                      }>
+                      ★
+                    </button>
+                  ))}
+                  {reportRating !== null && <span className={T_GOLD}>{reportRating}/5</span>}
+                </div>
+                <div className="flex gap-2">
+                  <button className={BTN_ACCENT} disabled={busy || reportNotes.trim() === ''}
+                    onClick={handleSubmitReport}>
+                    {busy ? 'Sending…' : 'Submit report'}
+                  </button>
+                  <button className={BTN} onClick={() => setReportOpen(false)}>Cancel</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function ResultsOverlay({ state, collapsed, ordered, storyMode }) {
+function ResultsOverlay({ state, collapsed, ordered, storyMode, busy, onExport, onReport }) {
   const winner = state.players.find((p) => p.seat === state.game.winner_seat);
   const ranked = [...state.players]
     .filter((p) => p.final_score !== null)
@@ -1164,7 +1265,13 @@ function ResultsOverlay({ state, collapsed, ordered, storyMode }) {
             )}
           </div>
         ))}
-        <div className="text-center">
+        <div className="flex justify-center gap-2 flex-wrap">
+          <button className={BTN} disabled={busy} onClick={onExport}>
+            ⬇ Save playthrough
+          </button>
+          <button className={BTN} onClick={onReport}>
+            📝 Playtest report
+          </button>
           <Link to="/space" className={BTN_ACCENT + ' inline-block'}>Back to the lobby</Link>
         </div>
       </div>
