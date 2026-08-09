@@ -1,0 +1,1138 @@
+{
+  "format": "utopian-space-game-playthrough/1",
+  "exported_at": "2026-08-09T12:16:25+00:00",
+  "game": {
+    "game_id": 21,
+    "variant": "plain",
+    "status": "ended",
+    "turn_number": 26,
+    "endgame_trigger": "market_exhausted",
+    "winner_seat": 0,
+    "chaos": -2,
+    "max_players": 1,
+    "missions_remaining": 1
+  },
+  "players": [
+    {
+      "seat": 0,
+      "name": "Dr_David_S_Bennett",
+      "credits": 419,
+      "tracks": {
+        "geology": 0,
+        "anthropology": 0,
+        "biology": 11
+      },
+      "hand": [
+        "mission_coordinator",
+        "dean",
+        "provost",
+        "faculty_recruiter",
+        "grant_writer",
+        "lifewright",
+        "biome_designer",
+        "symbiogenesist",
+        "exobiologist",
+        "laureate"
+      ],
+      "discard": [],
+      "field": [
+        {
+          "card": "geneticist",
+          "str": 9
+        },
+        {
+          "card": "ecologist",
+          "str": 10
+        }
+      ],
+      "boons": [
+        {
+          "type": "income",
+          "power": 2,
+          "name": "Boon: +2c per solve",
+          "text": "+2 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "m_tide_locked"
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_drifting_dead"
+        },
+        {
+          "type": "income",
+          "power": 1,
+          "name": "Boon: +1c per solve",
+          "text": "+1 credits every time you solve a mission.",
+          "tainted": false,
+          "source": "m_lightless_choir"
+        },
+        {
+          "type": "greenhouse",
+          "name": "Boon: plants +1",
+          "text": "Your planted cards enter the field 1 stronger.",
+          "tainted": true,
+          "source": "m_glass_rain"
+        },
+        {
+          "type": "severance",
+          "name": "Boon: fire a card",
+          "text": "One-shot, on claim: fire one card from your hand or discard for +4c (more in chaos).",
+          "tainted": true,
+          "source": "m_silent_reef",
+          "spent": true
+        },
+        {
+          "type": "income",
+          "power": 1,
+          "name": "Boon: +1c per solve",
+          "text": "+1 credits every time you solve a mission.",
+          "tainted": false,
+          "source": "f_cultivar_spread"
+        },
+        {
+          "type": "severance",
+          "name": "Boon: fire a card",
+          "text": "One-shot, on claim: fire one card from your hand or discard for +4c (more in chaos).",
+          "tainted": true,
+          "source": "f_reef_bloom",
+          "spent": true
+        },
+        {
+          "type": "severance",
+          "name": "Boon: fire a card",
+          "text": "One-shot, on claim: fire one card from your hand or discard for +4c (more in chaos).",
+          "tainted": true,
+          "source": "m_salt_bloom",
+          "spent": true
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "bio",
+          "name": "Boon: biology +1",
+          "text": "+1 on every biology attempt.",
+          "tainted": false,
+          "source": "m_iron_pilgrims"
+        },
+        {
+          "type": "income",
+          "power": 3,
+          "name": "Boon: +3c per solve",
+          "text": "+3 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "m_binding_suns"
+        },
+        {
+          "type": "income",
+          "power": 2,
+          "name": "Boon: +2c per solve",
+          "text": "+2 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "f_grey_garden"
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_marrow_moths"
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_starving_signal"
+        },
+        {
+          "type": "income",
+          "power": 3,
+          "name": "Boon: +3c per solve",
+          "text": "+3 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "m_hollow_herd"
+        },
+        {
+          "type": "income",
+          "power": 1,
+          "name": "Boon: +1c per solve",
+          "text": "+1 credits every time you solve a mission.",
+          "tainted": false,
+          "source": "f_moth_collapse"
+        },
+        {
+          "type": "income",
+          "power": 2,
+          "name": "Boon: +2c per solve",
+          "text": "+2 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "m_two_rivers"
+        },
+        {
+          "type": "income",
+          "power": 3,
+          "name": "Boon: +3c per solve",
+          "text": "+3 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "m_glasswing"
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_court_echoes"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "bio",
+          "name": "Boon: biology +1",
+          "text": "+1 on every biology attempt.",
+          "tainted": false,
+          "source": "m_borrowed_sky"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "bio",
+          "name": "Boon: biology +1",
+          "text": "+1 on every biology attempt.",
+          "tainted": false,
+          "source": "m_debt_of_names"
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_seed_of_ruin"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "bio",
+          "name": "Boon: biology +1",
+          "text": "+1 on every biology attempt.",
+          "tainted": true,
+          "source": "m_ascension_engine"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "bio",
+          "name": "Boon: biology +1",
+          "text": "+1 on every biology attempt.",
+          "tainted": false,
+          "source": "m_worldheart"
+        },
+        {
+          "type": "income",
+          "power": 2,
+          "name": "Boon: +2c per solve",
+          "text": "+2 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "f_hollow_song"
+        }
+      ],
+      "pending_boons": [],
+      "trophy": 0,
+      "conceded": 0,
+      "final_score": 143,
+      "score_breakdown": {
+        "wealth": 41,
+        "war_college": 0,
+        "diplomatic_corps": 0,
+        "trade_guild": 66,
+        "recruiters": 36,
+        "trophy": 0
+      }
+    }
+  ],
+  "story": [
+    {
+      "mission": "m_tide_locked",
+      "title": "Mission 7",
+      "culture": "Culture 7",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 1
+    },
+    {
+      "mission": "m_drifting_dead",
+      "title": "Mission 4",
+      "culture": "Culture 4",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -1
+    },
+    {
+      "mission": "m_lightless_choir",
+      "title": "Mission 5",
+      "culture": "Culture 5",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "m_glass_rain",
+      "title": "Mission 3",
+      "culture": "Culture 3",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    },
+    {
+      "mission": "m_silent_reef",
+      "title": "Mission 1",
+      "culture": "Culture 1",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 1
+    },
+    {
+      "mission": "f_cultivar_spread",
+      "title": "Mission 23",
+      "culture": "Culture 7",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "f_reef_bloom",
+      "title": "Mission 21",
+      "culture": "Culture 1",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    },
+    {
+      "mission": "m_salt_bloom",
+      "title": "Mission 6",
+      "culture": "Culture 6",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    },
+    {
+      "mission": "m_iron_pilgrims",
+      "title": "Mission 8",
+      "culture": "Culture 8",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "m_binding_suns",
+      "title": "Mission 9",
+      "culture": "Culture 9",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 3
+    },
+    {
+      "mission": "f_grey_garden",
+      "title": "Mission 27",
+      "culture": "Culture 9",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    },
+    {
+      "mission": "m_marrow_moths",
+      "title": "Mission 2",
+      "culture": "Culture 2",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "m_starving_signal",
+      "title": "Mission 14",
+      "culture": "Culture 8",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -3
+    },
+    {
+      "mission": "m_hollow_herd",
+      "title": "Mission 12",
+      "culture": "Culture 6",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 3
+    },
+    {
+      "mission": "f_moth_collapse",
+      "title": "Mission 22",
+      "culture": "Culture 2",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -1
+    },
+    {
+      "mission": "m_two_rivers",
+      "title": "Mission 13",
+      "culture": "Culture 7",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    },
+    {
+      "mission": "m_glasswing",
+      "title": "Mission 15",
+      "culture": "Culture 3",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 3
+    },
+    {
+      "mission": "m_court_echoes",
+      "title": "Mission 16",
+      "culture": "Culture 10",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "m_borrowed_sky",
+      "title": "Mission 10",
+      "culture": "Culture 10",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "m_debt_of_names",
+      "title": "Mission 11",
+      "culture": "Culture 5",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -3
+    },
+    {
+      "mission": "m_seed_of_ruin",
+      "title": "Mission 20",
+      "culture": "Culture 7",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -4
+    },
+    {
+      "mission": "m_ascension_engine",
+      "title": "Mission 19",
+      "culture": "Culture 5",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 3
+    },
+    {
+      "mission": "m_worldheart",
+      "title": "Mission 17",
+      "culture": "Culture 6",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": -4
+    },
+    {
+      "mission": "f_hollow_song",
+      "title": "Mission 24",
+      "culture": "Culture 6",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    }
+  ],
+  "events": [
+    {
+      "n": 250,
+      "seat": 0,
+      "type": "game_created",
+      "message": "Dr_David_S_Bennett created the game (solo)",
+      "data": null,
+      "at": "2026-08-09 12:05:57"
+    },
+    {
+      "n": 251,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Biologist 3, Recruiter",
+      "data": {
+        "card": "talent_scout",
+        "action": "recruit"
+      },
+      "at": "2026-08-09 12:06:10"
+    },
+    {
+      "n": 252,
+      "seat": null,
+      "type": "market",
+      "message": "Anthropologist 3 rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:06:10"
+    },
+    {
+      "n": 253,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett planted 2 researchers: Biologist 2 (3), Biologist 3 (4) — +1 per turn",
+      "data": {
+        "card": "exobiologist",
+        "action": "biology"
+      },
+      "at": "2026-08-09 12:06:14"
+    },
+    {
+      "n": 254,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 2 → \"Mission 7\" (4 vs 2) +4c, chaos +1 — BOON claimed: Boon: +2c per solve (Exobiology +1) — consequences will follow",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:06:36"
+    },
+    {
+      "n": 255,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 3 → \"Mission 4\" (5 vs 3) +6c, order 1 — BOON claimed: Boon: hires -1c (Exobiology +1)",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:06:40"
+    },
+    {
+      "n": 256,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett finished the harvest",
+      "data": {
+        "action": "harvest_finish"
+      },
+      "at": "2026-08-09 12:06:47"
+    },
+    {
+      "n": 257,
+      "seat": null,
+      "type": "market",
+      "message": "Geologist 3 rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:06:47"
+    },
+    {
+      "n": 258,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Biologist 5",
+      "data": {
+        "card": "faculty_recruiter",
+        "action": "recruit"
+      },
+      "at": "2026-08-09 12:06:59"
+    },
+    {
+      "n": 259,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards (intermediate score: 20 VP)",
+      "data": {
+        "card": "mission_coordinator",
+        "action": "reset"
+      },
+      "at": "2026-08-09 12:07:05"
+    },
+    {
+      "n": 260,
+      "seat": null,
+      "type": "market",
+      "message": "Reset (+2c) rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:07:05"
+    },
+    {
+      "n": 261,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett planted 3 researchers: Biologist 5 (6), Biologist 2 (3), Biologist 3 (4) — +1 per turn",
+      "data": {
+        "card": "biome_designer",
+        "action": "biology"
+      },
+      "at": "2026-08-09 12:07:10"
+    },
+    {
+      "n": 262,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 2 → \"Mission 5\" (4 vs 4) +7c, order 2 — BOON claimed: Boon: +1c per solve (Exobiology +1)",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:07:46"
+    },
+    {
+      "n": 263,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 5 → \"Mission 3\" (7 vs 4) +3c, chaos +2 — BOON claimed: Boon: plants +1 (Exobiology +1)",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:07:58"
+    },
+    {
+      "n": 264,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 3 → \"Mission 1\" (5 vs 3) +4c, chaos +1 — BOON triggered: Boon: fire a card (choose a crew member to fire) — consequences will follow",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:08:08"
+    },
+    {
+      "n": 265,
+      "seat": 0,
+      "type": "boon",
+      "message": "Dr_David_S_Bennett exercised Boon: fire a card: fired Geologist 2 (+4c)",
+      "data": {
+        "boon": "severance"
+      },
+      "at": "2026-08-09 12:08:12"
+    },
+    {
+      "n": 266,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett finished the harvest",
+      "data": {
+        "action": "harvest_finish"
+      },
+      "at": "2026-08-09 12:08:16"
+    },
+    {
+      "n": 267,
+      "seat": null,
+      "type": "market",
+      "message": "Geologist 4 rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:08:16"
+    },
+    {
+      "n": 268,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Biologist 4",
+      "data": {
+        "card": "faculty_recruiter",
+        "action": "recruit"
+      },
+      "at": "2026-08-09 12:08:23"
+    },
+    {
+      "n": 269,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards",
+      "data": {
+        "card": "mission_coordinator",
+        "action": "reset"
+      },
+      "at": "2026-08-09 12:08:38"
+    },
+    {
+      "n": 270,
+      "seat": null,
+      "type": "market",
+      "message": "Anthropologist 4 rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:08:38"
+    },
+    {
+      "n": 271,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett planted 4 researchers: Biologist 3 (5), Biologist 4 (6), Biologist 2 (4), Biologist 5 (7) — +1 per turn",
+      "data": {
+        "card": "geneticist",
+        "action": "biology"
+      },
+      "at": "2026-08-09 12:08:40"
+    },
+    {
+      "n": 272,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 2 → \"Mission 23\" (5 vs 2) +7c, order 2 — BOON claimed: Boon: +1c per solve",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:08:54"
+    },
+    {
+      "n": 273,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 3 → \"Mission 21\" (6 vs 3) +3c, chaos +2 — BOON triggered: Boon: fire a card (choose a crew member to fire)",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:09:01"
+    },
+    {
+      "n": 274,
+      "seat": 0,
+      "type": "boon",
+      "message": "Dr_David_S_Bennett exercised Boon: fire a card: fired Anthropologist 2 (+4c)",
+      "data": {
+        "boon": "severance"
+      },
+      "at": "2026-08-09 12:09:08"
+    },
+    {
+      "n": 275,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 4 → \"Mission 6\" (7 vs 3) +3c, chaos +2 — BOON triggered: Boon: fire a card (choose a crew member to fire)",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:09:20"
+    },
+    {
+      "n": 276,
+      "seat": 0,
+      "type": "boon",
+      "message": "Dr_David_S_Bennett exercised Boon: fire a card: fired Recruiter (+5c)",
+      "data": {
+        "boon": "severance"
+      },
+      "at": "2026-08-09 12:09:37"
+    },
+    {
+      "n": 277,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 5 → \"Mission 8\" (8 vs 4) +7c, order 2 — BOON claimed: Boon: biology +1",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:09:44"
+    },
+    {
+      "n": 278,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett finished the harvest",
+      "data": {
+        "action": "harvest_finish"
+      },
+      "at": "2026-08-09 12:09:48"
+    },
+    {
+      "n": 279,
+      "seat": null,
+      "type": "market",
+      "message": "Recruiter (free) rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:09:48"
+    },
+    {
+      "n": 280,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Biologist 5, Reset (+5c)",
+      "data": {
+        "card": "faculty_recruiter",
+        "action": "recruit"
+      },
+      "at": "2026-08-09 12:10:02"
+    },
+    {
+      "n": 281,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards (+5c)",
+      "data": {
+        "card": "grant_writer",
+        "action": "reset"
+      },
+      "at": "2026-08-09 12:10:08"
+    },
+    {
+      "n": 282,
+      "seat": null,
+      "type": "market",
+      "message": "Reset (+3c) rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:10:08"
+    },
+    {
+      "n": 283,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett planted 5 researchers: Biologist 5 (7), Biologist 5 (7), Biologist 2 (4), Biologist 3 (5), Biologist 4 (6) — +1 per turn",
+      "data": {
+        "card": "biome_designer",
+        "action": "biology"
+      },
+      "at": "2026-08-09 12:10:11"
+    },
+    {
+      "n": 284,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 2 → \"Mission 9\" (6 vs 5 +1 applied skill) +6c, chaos +3 — BOON claimed: Boon: +3c per solve (Exobiology +1) — gate broken: +10c research grant — consequences will follow",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:10:50"
+    },
+    {
+      "n": 285,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 3 → \"Mission 27\" (7 vs 5 +1 applied skill) +3c, chaos +2 — BOON claimed: Boon: +2c per solve",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:11:01"
+    },
+    {
+      "n": 286,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 4 → \"Mission 2\" (8 vs 5 +1 applied skill) +7c, order 2 — BOON claimed: Boon: hires -1c — consequences will follow",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:11:09"
+    },
+    {
+      "n": 287,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 5 → \"Mission 14\" (9 vs 6 +1 applied skill) +12c, order 3 — BOON claimed: Boon: hires -1c (Exobiology +1)",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:11:18"
+    },
+    {
+      "n": 288,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 5 → \"Mission 12\" (9 vs 5 +1 applied skill) +6c, chaos +3 — BOON claimed: Boon: +3c per solve (Exobiology +1) — consequences will follow",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:11:25"
+    },
+    {
+      "n": 289,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett finished the harvest",
+      "data": {
+        "action": "harvest_finish"
+      },
+      "at": "2026-08-09 12:11:27"
+    },
+    {
+      "n": 290,
+      "seat": null,
+      "type": "market",
+      "message": "Geologist 5 rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:11:27"
+    },
+    {
+      "n": 291,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Biologist 6, Reset (+6c)",
+      "data": {
+        "card": "faculty_recruiter",
+        "action": "recruit"
+      },
+      "at": "2026-08-09 12:12:51"
+    },
+    {
+      "n": 292,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards (+6c)",
+      "data": {
+        "card": "laureate",
+        "action": "reset"
+      },
+      "at": "2026-08-09 12:12:55"
+    },
+    {
+      "n": 293,
+      "seat": null,
+      "type": "market",
+      "message": "Anthropologist 5 rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:12:55"
+    },
+    {
+      "n": 294,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett planted 6 researchers: Biologist 5 (7), Biologist 6 (8), Biologist 2 (4), Biologist 3 (5), Biologist 4 (6), Biologist 5 (7) — +1 per turn",
+      "data": {
+        "card": "symbiogenesist",
+        "action": "biology"
+      },
+      "at": "2026-08-09 12:12:58"
+    },
+    {
+      "n": 295,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Recruiter, Recruiter",
+      "data": {
+        "card": "faculty_recruiter",
+        "action": "recruit"
+      },
+      "at": "2026-08-09 12:13:27"
+    },
+    {
+      "n": 296,
+      "seat": null,
+      "type": "market",
+      "message": "Geologist 5 rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:13:27"
+    },
+    {
+      "n": 297,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 2 → \"Mission 22\" (7 vs 5 +1 applied skill) +6c, order 1 — BOON claimed: Boon: +1c per solve",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:13:46"
+    },
+    {
+      "n": 298,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 3 → \"Mission 13\" (8 vs 7 +1 applied skill) +7c, chaos +2 — BOON claimed: Boon: +2c per solve (Exobiology +1)",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:13:55"
+    },
+    {
+      "n": 299,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 4 → \"Mission 15\" (9 vs 7 +1 applied skill) +6c, chaos +3 — BOON claimed: Boon: +3c per solve",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:14:00"
+    },
+    {
+      "n": 300,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 5 → \"Mission 16\" (10 vs 9 +1 applied skill) +11c, order 2 — BOON claimed: Boon: hires -1c",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:14:05"
+    },
+    {
+      "n": 301,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 5 → \"Mission 10\" (10 vs 8 +1 applied skill) +11c, order 2 — BOON claimed: Boon: biology +1",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:14:18"
+    },
+    {
+      "n": 302,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 6 → \"Mission 11\" (12 vs 7 +1 applied skill) +12c, order 3 — BOON claimed: Boon: biology +1",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:14:24"
+    },
+    {
+      "n": 303,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett finished the harvest",
+      "data": {
+        "action": "harvest_finish"
+      },
+      "at": "2026-08-09 12:14:27"
+    },
+    {
+      "n": 304,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards (+5c)",
+      "data": {
+        "card": "grant_writer",
+        "action": "reset"
+      },
+      "at": "2026-08-09 12:14:38"
+    },
+    {
+      "n": 305,
+      "seat": null,
+      "type": "market",
+      "message": "Anthropologist 5 rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:14:38"
+    },
+    {
+      "n": 306,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett planted 6 researchers: Biologist 2 (4), Biologist 3 (5), Biologist 4 (6), Biologist 5 (7), Biologist 5 (7), Biologist 6 (8) — +1 per turn",
+      "data": {
+        "card": "exobiologist",
+        "action": "biology"
+      },
+      "at": "2026-08-09 12:14:42"
+    },
+    {
+      "n": 307,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 6 → \"Mission 20\" (12 vs 9 +1 applied skill) +17c, order 4 — BOON claimed: Boon: hires -1c (Exobiology +1) — gate broken: +15c research grant",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:15:25"
+    },
+    {
+      "n": 308,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett finished the harvest",
+      "data": {
+        "action": "harvest_finish"
+      },
+      "at": "2026-08-09 12:15:31"
+    },
+    {
+      "n": 309,
+      "seat": null,
+      "type": "market",
+      "message": "Anthropologist 6 rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:15:31"
+    },
+    {
+      "n": 310,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 5 → \"Mission 19\" (12 vs 9 +1 applied skill) +10c, chaos +3 — BOON claimed: Boon: biology +1 (Exobiology +1)",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:15:40"
+    },
+    {
+      "n": 311,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 5 → \"Mission 17\" (13 vs 9 +1 applied skill) +17c, order 4 — BOON claimed: Boon: biology +1 (Exobiology +1)",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:15:53"
+    },
+    {
+      "n": 312,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 2 → \"Mission 24\" (11 vs 3 +1 applied skill) +3c, chaos +2 — BOON claimed: Boon: +2c per solve",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-09 12:16:07"
+    },
+    {
+      "n": 313,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett finished the harvest",
+      "data": {
+        "action": "harvest_finish"
+      },
+      "at": "2026-08-09 12:16:10"
+    },
+    {
+      "n": 314,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards (+6c)",
+      "data": {
+        "card": "laureate",
+        "action": "reset"
+      },
+      "at": "2026-08-09 12:16:23"
+    },
+    {
+      "n": 315,
+      "seat": null,
+      "type": "market",
+      "message": "Geologist 6 rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 12:16:23"
+    },
+    {
+      "n": 316,
+      "seat": 0,
+      "type": "game_ended",
+      "message": "Game over — winner: Dr_David_S_Bennett",
+      "data": null,
+      "at": "2026-08-09 12:16:23"
+    }
+  ]
+}

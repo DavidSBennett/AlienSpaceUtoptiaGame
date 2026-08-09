@@ -1,0 +1,699 @@
+{
+  "format": "utopian-space-game-playthrough/1",
+  "exported_at": "2026-08-09T11:29:33+00:00",
+  "game": {
+    "game_id": 17,
+    "variant": "plain",
+    "status": "ended",
+    "turn_number": 27,
+    "endgame_trigger": "missions_complete",
+    "winner_seat": 0,
+    "chaos": 3,
+    "max_players": 1,
+    "missions_remaining": 4
+  },
+  "players": [
+    {
+      "seat": 0,
+      "name": "Dr_David_S_Bennett",
+      "credits": 209,
+      "tracks": {
+        "geology": 11,
+        "anthropology": 0,
+        "biology": 0
+      },
+      "hand": [
+        "mission_coordinator",
+        "faculty_recruiter",
+        "logistics_officer",
+        "talent_scout",
+        "dean",
+        "deputy_director",
+        "grant_writer"
+      ],
+      "discard": [
+        "planetary_engineer",
+        "seismologist",
+        "headhunter",
+        "surveyor",
+        "field_geologist"
+      ],
+      "field": [],
+      "boons": [
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "geo",
+          "name": "Boon: geology +1",
+          "text": "+1 on every geology attempt.",
+          "tainted": false,
+          "source": "m_marrow_moths"
+        },
+        {
+          "type": "severance",
+          "name": "Boon: fire a card",
+          "text": "One-shot, on claim: fire one card from your hand or discard for +4c (more in chaos).",
+          "tainted": true,
+          "source": "m_lightless_choir",
+          "spent": true
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "geo",
+          "name": "Boon: geology +1",
+          "text": "+1 on every geology attempt.",
+          "tainted": true,
+          "source": "m_silent_reef"
+        },
+        {
+          "type": "fleet",
+          "name": "Boon: charters 1c",
+          "text": "Equipment charters cost 1 credit per +1 (instead of 2).",
+          "tainted": true,
+          "source": "m_tide_locked"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "geo",
+          "name": "Boon: geology +1",
+          "text": "+1 on every geology attempt.",
+          "tainted": false,
+          "source": "m_glass_rain"
+        },
+        {
+          "type": "severance",
+          "name": "Boon: fire a card",
+          "text": "One-shot, on claim: fire one card from your hand or discard for +4c (more in chaos).",
+          "tainted": true,
+          "source": "m_drifting_dead",
+          "spent": true
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_binding_suns"
+        },
+        {
+          "type": "income",
+          "power": 3,
+          "name": "Boon: +3c per solve",
+          "text": "+3 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "f_sundered_kin"
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_salt_bloom"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "geo",
+          "name": "Boon: geology +1",
+          "text": "+1 on every geology attempt.",
+          "tainted": false,
+          "source": "m_hollow_herd"
+        },
+        {
+          "type": "income",
+          "power": 3,
+          "name": "Boon: +3c per solve",
+          "text": "+3 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "m_court_echoes"
+        },
+        {
+          "type": "income",
+          "power": 3,
+          "name": "Boon: +3c per solve",
+          "text": "+3 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "m_borrowed_sky"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "geo",
+          "name": "Boon: geology +1",
+          "text": "+1 on every geology attempt.",
+          "tainted": false,
+          "source": "m_starving_signal"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "geo",
+          "name": "Boon: geology +1",
+          "text": "+1 on every geology attempt.",
+          "tainted": false,
+          "source": "m_glasswing"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "geo",
+          "name": "Boon: geology +1",
+          "text": "+1 on every geology attempt.",
+          "tainted": true,
+          "source": "m_worldheart"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "geo",
+          "name": "Boon: geology +1",
+          "text": "+1 on every geology attempt.",
+          "tainted": false,
+          "source": "m_last_migration"
+        },
+        {
+          "type": "income",
+          "power": 3,
+          "name": "Boon: +3c per solve",
+          "text": "+3 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "m_ascension_engine"
+        }
+      ],
+      "pending_boons": [],
+      "trophy": 0,
+      "conceded": 0,
+      "final_score": 112,
+      "score_breakdown": {
+        "wealth": 20,
+        "war_college": 44,
+        "diplomatic_corps": 0,
+        "trade_guild": 0,
+        "recruiters": 48,
+        "trophy": 0
+      }
+    }
+  ],
+  "story": [
+    {
+      "mission": "m_marrow_moths",
+      "title": "Mission 2",
+      "culture": "Culture 2",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": -1
+    },
+    {
+      "mission": "m_lightless_choir",
+      "title": "Mission 5",
+      "culture": "Culture 5",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": 1
+    },
+    {
+      "mission": "m_silent_reef",
+      "title": "Mission 1",
+      "culture": "Culture 1",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    },
+    {
+      "mission": "m_tide_locked",
+      "title": "Mission 7",
+      "culture": "Culture 7",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    },
+    {
+      "mission": "m_glass_rain",
+      "title": "Mission 3",
+      "culture": "Culture 3",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "m_drifting_dead",
+      "title": "Mission 4",
+      "culture": "Culture 4",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    },
+    {
+      "mission": "m_binding_suns",
+      "title": "Mission 9",
+      "culture": "Culture 9",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": -3
+    },
+    {
+      "mission": "f_sundered_kin",
+      "title": "Mission 25",
+      "culture": "Culture 9",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": 3
+    },
+    {
+      "mission": "m_salt_bloom",
+      "title": "Mission 6",
+      "culture": "Culture 6",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "m_hollow_herd",
+      "title": "Mission 12",
+      "culture": "Culture 6",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": -3
+    },
+    {
+      "mission": "m_court_echoes",
+      "title": "Mission 16",
+      "culture": "Culture 10",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": 3
+    },
+    {
+      "mission": "m_borrowed_sky",
+      "title": "Mission 10",
+      "culture": "Culture 10",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": 3
+    },
+    {
+      "mission": "m_starving_signal",
+      "title": "Mission 14",
+      "culture": "Culture 8",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "m_glasswing",
+      "title": "Mission 15",
+      "culture": "Culture 3",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": -3
+    },
+    {
+      "mission": "m_worldheart",
+      "title": "Mission 17",
+      "culture": "Culture 6",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": 3
+    },
+    {
+      "mission": "m_last_migration",
+      "title": "Mission 18",
+      "culture": "Culture 2",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": -4
+    },
+    {
+      "mission": "m_ascension_engine",
+      "title": "Mission 19",
+      "culture": "Culture 5",
+      "discipline": "geo",
+      "seat": 0,
+      "text": "",
+      "chaos": 4
+    }
+  ],
+  "events": [
+    {
+      "n": 121,
+      "seat": 0,
+      "type": "game_created",
+      "message": "Dr_David_S_Bennett created the game (solo)",
+      "data": null,
+      "at": "2026-08-09 11:23:18"
+    },
+    {
+      "n": 122,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 2\" the Xenogeology way (2 vs 2) — +6c, order 1 — BOON claimed: Boon: geology +1 (Xenogeology +1)",
+      "data": {
+        "card": "field_geologist",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:23:36"
+    },
+    {
+      "n": 123,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Geologist 3, Reset (+3c)",
+      "data": {
+        "card": "talent_scout",
+        "action": "recruit"
+      },
+      "at": "2026-08-09 11:23:56"
+    },
+    {
+      "n": 124,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 5\" the Xenogeology way (4 vs 3, +1 applied skill) — +4c, chaos +1 — BOON triggered: Boon: fire a card (choose a crew member to fire) (Xenogeology +1)",
+      "data": {
+        "card": "surveyor",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:24:07"
+    },
+    {
+      "n": 125,
+      "seat": 0,
+      "type": "boon",
+      "message": "Dr_David_S_Bennett exercised Boon: fire a card: fired Biologist 2 (+4c)",
+      "data": {
+        "boon": "severance"
+      },
+      "at": "2026-08-09 11:24:12"
+    },
+    {
+      "n": 126,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards (+3c) (intermediate score: 11 VP)",
+      "data": {
+        "card": "deputy_director",
+        "action": "reset"
+      },
+      "at": "2026-08-09 11:24:16"
+    },
+    {
+      "n": 127,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 1\" the Xenogeology way (4 vs 3, +1 applied skill) — +3c, chaos +2 — BOON claimed: Boon: geology +1 (Xenogeology +1)",
+      "data": {
+        "card": "surveyor",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:24:27"
+    },
+    {
+      "n": 128,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 7\" the Xenogeology way (4 vs 3, +1 applied skill, +1 applied skill) — +3c, chaos +2 — BOON claimed: Boon: charters 1c (Xenogeology +1)",
+      "data": {
+        "card": "field_geologist",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:24:41"
+    },
+    {
+      "n": 129,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Geologist 4, Recruiter",
+      "data": {
+        "card": "talent_scout",
+        "action": "recruit"
+      },
+      "at": "2026-08-09 11:24:57"
+    },
+    {
+      "n": 130,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 3\" the Xenogeology way (6 vs 4, +1 applied skill, +1 applied skill) — +7c, order 2 — BOON claimed: Boon: geology +1",
+      "data": {
+        "card": "seismologist",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:25:06"
+    },
+    {
+      "n": 131,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards (+3c)",
+      "data": {
+        "card": "deputy_director",
+        "action": "reset"
+      },
+      "at": "2026-08-09 11:25:14"
+    },
+    {
+      "n": 132,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 4\" the Xenogeology way (7 vs 2, +1 applied skill, +1 applied skill, +1 applied skill) — +3c, chaos +2 — BOON triggered: Boon: fire a card (choose a crew member to fire)",
+      "data": {
+        "card": "seismologist",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:25:23"
+    },
+    {
+      "n": 133,
+      "seat": 0,
+      "type": "boon",
+      "message": "Dr_David_S_Bennett exercised Boon: fire a card: fired Anthropologist 2 (+5c)",
+      "data": {
+        "boon": "severance"
+      },
+      "at": "2026-08-09 11:25:32"
+    },
+    {
+      "n": 134,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 9\" the Xenogeology way (7 vs 7, 1c chartered, +1 applied skill, +1 applied skill, +1 applied skill) — +12c, order 3 — BOON claimed: Boon: hires -1c (Xenogeology +1) — gate broken: +10c research grant — consequences will follow",
+      "data": {
+        "card": "surveyor",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:25:43"
+    },
+    {
+      "n": 135,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Recruiter (free), Reset (+2c)",
+      "data": {
+        "card": "talent_scout",
+        "action": "recruit"
+      },
+      "at": "2026-08-09 11:25:53"
+    },
+    {
+      "n": 136,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 25\" the Xenogeology way (6 vs 6, 1c chartered, +1 applied skill, +1 applied skill, +1 applied skill) — +6c, chaos +3 — BOON claimed: Boon: +3c per solve (Xenogeology +1)",
+      "data": {
+        "card": "field_geologist",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:26:20"
+    },
+    {
+      "n": 137,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Geologist 5",
+      "data": {
+        "card": "headhunter",
+        "action": "recruit_free"
+      },
+      "at": "2026-08-09 11:26:27"
+    },
+    {
+      "n": 138,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 6\" the Xenogeology way (8 vs 3, +1 applied skill, +1 applied skill, +1 applied skill) — +7c, order 2 — BOON claimed: Boon: hires -1c",
+      "data": {
+        "card": "planetary_engineer",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:26:42"
+    },
+    {
+      "n": 139,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards (+3c)",
+      "data": {
+        "card": "deputy_director",
+        "action": "reset"
+      },
+      "at": "2026-08-09 11:27:34"
+    },
+    {
+      "n": 140,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 12\" the Xenogeology way (6 vs 6, 1c chartered, +1 applied skill, +1 applied skill, +1 applied skill) — +12c, order 3 — BOON claimed: Boon: geology +1 (Xenogeology +1)",
+      "data": {
+        "card": "field_geologist",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:27:42"
+    },
+    {
+      "n": 141,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 16\" the Xenogeology way (9 vs 6, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill) — +6c, chaos +3 — BOON claimed: Boon: +3c per solve (Xenogeology +1)",
+      "data": {
+        "card": "planetary_engineer",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:27:53"
+    },
+    {
+      "n": 142,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 10\" the Xenogeology way (7 vs 5, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill) — +6c, chaos +3 — BOON claimed: Boon: +3c per solve",
+      "data": {
+        "card": "surveyor",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:28:03"
+    },
+    {
+      "n": 143,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 14\" the Xenogeology way (8 vs 8, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill) — +11c, order 2 — BOON claimed: Boon: geology +1",
+      "data": {
+        "card": "seismologist",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:28:09"
+    },
+    {
+      "n": 144,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Recruiter",
+      "data": {
+        "card": "headhunter",
+        "action": "recruit_free"
+      },
+      "at": "2026-08-09 11:28:30"
+    },
+    {
+      "n": 145,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards (+3c)",
+      "data": {
+        "card": "deputy_director",
+        "action": "reset"
+      },
+      "at": "2026-08-09 11:28:34"
+    },
+    {
+      "n": 146,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 15\" the Xenogeology way (10 vs 7, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill) — +12c, order 3 — BOON claimed: Boon: geology +1",
+      "data": {
+        "card": "planetary_engineer",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:28:42"
+    },
+    {
+      "n": 147,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 17\" the Xenogeology way (10 vs 10, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill) — +10c, chaos +3 — BOON claimed: Boon: geology +1 (Xenogeology +1) — gate broken: +15c research grant",
+      "data": {
+        "card": "seismologist",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:28:54"
+    },
+    {
+      "n": 148,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Reset (+5c)",
+      "data": {
+        "card": "headhunter",
+        "action": "recruit_free"
+      },
+      "at": "2026-08-09 11:29:02"
+    },
+    {
+      "n": 149,
+      "seat": null,
+      "type": "market",
+      "message": "Anthropologist 3 rotated out of the market",
+      "data": null,
+      "at": "2026-08-09 11:29:02"
+    },
+    {
+      "n": 150,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 18\" the Xenogeology way (10 vs 10, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill) — +17c, order 4 — BOON claimed: Boon: geology +1 (Xenogeology +1)",
+      "data": {
+        "card": "surveyor",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:29:08"
+    },
+    {
+      "n": 151,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 19\" the Xenogeology way (11 vs 11, 1c chartered, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill, +1 applied skill) — +9c, chaos +4 — BOON claimed: Boon: +3c per solve (Xenogeology +1)",
+      "data": {
+        "card": "field_geologist",
+        "action": "survey"
+      },
+      "at": "2026-08-09 11:29:14"
+    },
+    {
+      "n": 152,
+      "seat": 0,
+      "type": "game_ended",
+      "message": "Game over — winner: Dr_David_S_Bennett",
+      "data": null,
+      "at": "2026-08-09 11:29:14"
+    }
+  ]
+}
