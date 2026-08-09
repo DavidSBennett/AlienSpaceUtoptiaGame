@@ -132,8 +132,8 @@ function sp_plain_missions($base) {
             $b['text'] = 'Hiring researchers costs 1 credit less.';
             break;
           case 'severance':
-            $b['name'] = 'Boon: firing +2c';
-            $b['text'] = '+2 credits per crew member you fire during a Reset.';
+            $b['name'] = 'Boon: fire crew';
+            $b['text'] = 'During a Reset you may fire crew permanently: +4c each, more in chaos.';
             break;
         }
         $sol['boon'] = $b;
@@ -859,14 +859,16 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
     $msg .= " (+{$rider}c)";
   }
 
-  // Fire crew while regrouping: each dismissal refunds credits at once —
-  // 4 base, +1 per 3 chaos when the track runs hot (instability pays),
-  // +2 per firing with the Severance Authority boon.
+  // Severance Authority boon: fire crew while regrouping — permanent
+  // removal, each refunding credits at once: 4 base, +1 per 3 chaos when
+  // the track runs hot (instability pays).
   $dismiss = is_array($params['dismiss'] ?? null) ? $params['dismiss'] : [];
   if (count($dismiss) > 0) {
+    if (sp_boon_count($p, 'severance') === 0) {
+      throw new Exception('Firing crew requires the Severance Authority boon');
+    }
     $refundEach = SP_FIRE_REFUND
-      + max(0, sp_chaos_mod($game['board_state']['chaos']))
-      + 2 * sp_boon_count($p, 'severance');
+      + max(0, sp_chaos_mod($game['board_state']['chaos']));
     foreach ($dismiss as $k) {
       if (!is_string($k)) throw new Exception('Bad dismissal');
       if (($cards[$k]['action'] ?? '') === 'reset') {

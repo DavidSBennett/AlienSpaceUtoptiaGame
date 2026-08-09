@@ -846,7 +846,7 @@ export default function SpaceGame() {
                   activeDisc === 'anthro' && key !== selectedCard
                     && cards[key].action !== 'reset' && myTurn && !ended
                     ? () => toggleCommit(key)
-                  : activeCardDef?.action === 'reset'
+                  : activeCardDef?.action === 'reset' && boonCount('severance') > 0
                     && key !== selectedCard && cards[key].action !== 'reset' && myTurn && !ended
                     ? () => toggleDismiss(key)
                   : undefined
@@ -955,16 +955,15 @@ export default function SpaceGame() {
             </div>
           )}
 
-          {activeCardDef.action === 'reset' && (
+          {activeCardDef.action === 'reset' && boonCount('severance') > 0 && (
             <div className={'text-[11px] ' + T_GOLD}>
-              Fire crew: mark them with + to remove them PERMANENTLY for
-              {' '}+{(state.fire_refund || 4) + 2 * boonCount('severance')}c each
+              ★ Severance Authority: mark crew with + to FIRE them permanently for
+              {' '}+{state.fire_refund || 4}c each
               ({draft.dismiss.length} selected
               {draft.dismiss.length > 0
-                ? ` = +${draft.dismiss.length * ((state.fire_refund || 4) + 2 * boonCount('severance'))}c`
+                ? ` = +${draft.dismiss.length * (state.fire_refund || 4)}c`
                 : ''}).
               {state.chaos_mod > 0 && <span className={T_BAD}> Chaos premium active.</span>}
-              {boonCount('severance') > 0 && <span> ★ Severance Authority +2c.</span>}
             </div>
           )}
 

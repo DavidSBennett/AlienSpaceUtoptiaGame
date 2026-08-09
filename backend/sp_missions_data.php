@@ -449,7 +449,7 @@ function sp_missions_base() {
       } elseif ($chaos >= 1) {
         if ($minorSlot === 3) {
           $sol['boon'] = ['type' => 'severance', 'name' => 'Severance Authority',
-            'text' => '+2 credits per crew member you fire during a Regroup.'];
+            'text' => 'During a Regroup you may fire crew permanently: +4 credits each, +1 per 3 chaos.'];
         } elseif ($minorSlot === 0) {
           $sol['boon'] = ['type' => 'affinity', 'power' => 2, 'keyword' => $kw,
             'name' => 'Renowned Expertise: ' . ucfirst($kw),
