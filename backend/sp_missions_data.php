@@ -366,41 +366,6 @@ function sp_missions_base() {
     ],
   ];
 
-  // ── Keywords: thematic tags that boons key off. ──
-  $keywords = [
-    'm_silent_reef' => ['ritual', 'extinction'],
-    'm_marrow_moths' => ['migration', 'industry'],
-    'm_glass_rain' => ['ritual', 'memory'],
-    'm_drifting_dead' => ['ritual', 'memory'],
-    'm_lightless_choir' => ['faith', 'industry'],
-    'm_salt_bloom' => ['faith', 'industry'],
-    'm_tide_locked' => ['migration', 'symbiosis'],
-    'm_iron_pilgrims' => ['faith', 'ritual'],
-    'm_binding_suns' => ['faith', 'extinction', 'symbiosis'],
-    'm_borrowed_sky' => ['ritual', 'industry'],
-    'm_debt_of_names' => ['memory', 'extinction'],
-    'm_hollow_herd' => ['industry', 'symbiosis'],
-    'm_two_rivers' => ['war', 'ritual'],
-    'm_starving_signal' => ['faith', 'war'],
-    'm_glasswing' => ['migration', 'memory'],
-    'm_court_echoes' => ['memory', 'war'],
-    'm_worldheart' => ['faith', 'industry'],
-    'm_last_migration' => ['migration', 'extinction'],
-    'm_ascension_engine' => ['faith', 'memory'],
-    'm_seed_of_ruin' => ['war', 'symbiosis'],
-    'f_reef_bloom' => ['ritual', 'industry'],
-    'f_moth_collapse' => ['extinction', 'industry'],
-    'f_cultivar_spread' => ['symbiosis', 'migration'],
-    'f_hollow_song' => ['ritual', 'memory'],
-    'f_sundered_kin' => ['symbiosis', 'memory'],
-    'f_witness_light' => ['faith', 'migration'],
-    'f_grey_garden' => ['faith', 'symbiosis'],
-    'f_gate_seed' => ['migration', 'faith'],
-  ];
-  foreach ($keywords as $k => $kws) {
-    if (isset($m[$k])) $m[$k]['keywords'] = $kws;
-  }
-
   // ── Credits: VIRTUE PAYS. Funding is derived from the chaos delta —
   // the more order a solution restores, the bigger the Council's grant;
   // chaotic solutions pay little (their reward is the boon below). ──
@@ -423,14 +388,14 @@ function sp_missions_base() {
   foreach ($m as $mkey => &$mm) {
     foreach ($mm['solutions'] as $disc => &$sol) {
       $chaos = (int)$sol['chaos'];
-      $kw = $mm['keywords'][0] ?? 'ritual';
+      $discLabel = ['geo' => 'Xenogeology', 'anthro' => 'Xenoanthropology', 'bio' => 'Exobiology'][$disc];
       $slot = abs(crc32($mkey . $disc)) % 3;
       $minorSlot = abs(crc32($mkey . $disc)) % 4;
       if ($chaos >= 3) {
         if ($slot === 0) {
-          $sol['boon'] = ['type' => 'affinity', 'power' => 3, 'keyword' => $kw,
-            'name' => 'Legendary Expertise: ' . ucfirst($kw),
-            'text' => '+3 on every mission tagged "' . $kw . '".'];
+          $sol['boon'] = ['type' => 'skill', 'power' => 1, 'disc' => $disc,
+            'name' => 'Applied ' . $discLabel,
+            'text' => '+1 on every ' . $discLabel . ' attempt.'];
         } elseif ($slot === 1) {
           if ($disc === 'geo') {
             $sol['boon'] = ['type' => 'income', 'power' => 3, 'name' => 'Mining Concession',
@@ -451,9 +416,9 @@ function sp_missions_base() {
           $sol['boon'] = ['type' => 'severance', 'name' => 'Severance Authority',
             'text' => 'One-shot, on claim: fire one researcher from your hand or discard for +4 credits (+1 per 3 chaos).'];
         } elseif ($minorSlot === 0) {
-          $sol['boon'] = ['type' => 'affinity', 'power' => 2, 'keyword' => $kw,
-            'name' => 'Renowned Expertise: ' . ucfirst($kw),
-            'text' => '+2 on every mission tagged "' . $kw . '".'];
+          $sol['boon'] = ['type' => 'skill', 'power' => 1, 'disc' => $disc,
+            'name' => 'Applied ' . $discLabel,
+            'text' => '+1 on every ' . $discLabel . ' attempt.'];
         } elseif ($minorSlot === 1) {
           if ($disc === 'geo') {
             $sol['boon'] = ['type' => 'fleet', 'name' => 'Fleet Charter',
@@ -472,9 +437,9 @@ function sp_missions_base() {
       } else {
         // Baseline: virtue is rewarded too — modestly.
         if ($slot === 0) {
-          $sol['boon'] = ['type' => 'affinity', 'power' => 1, 'keyword' => $kw,
-            'name' => 'Field Dossier: ' . ucfirst($kw),
-            'text' => '+1 on every mission tagged "' . $kw . '".'];
+          $sol['boon'] = ['type' => 'skill', 'power' => 1, 'disc' => $disc,
+            'name' => 'Applied ' . $discLabel,
+            'text' => '+1 on every ' . $discLabel . ' attempt.'];
         } elseif ($slot === 1) {
           $sol['boon'] = ['type' => 'income', 'power' => 1, 'name' => 'Council Stipend',
             'text' => '+1 credit every time you solve a mission.'];

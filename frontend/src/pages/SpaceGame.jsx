@@ -73,7 +73,10 @@ const emptyDraft = { mission: null, commits: [], charter: 0, picks: [], copyTarg
 /** Compact label for a boon, shown on mission-card fronts and boon chips. */
 function boonShort(b) {
   switch (b.type) {
-    case 'affinity': return `+${b.power} ${b.keyword}`;
+    case 'skill': {
+      const lbl = { geo: 'geology', anthro: 'anthropology', bio: 'biology' }[b.disc] || '?';
+      return `+${b.power} ${lbl}`;
+    }
     case 'income': return `+${b.power}c/solve`;
     case 'hire_discount': return 'hires −1c';
     case 'fleet': return 'charter 1c';
@@ -231,12 +234,7 @@ function MissionCard({ m, activeDisc, targeted, onClick, tipHandlers }) {
           {m.chained ? '⛓ ' : ''}{tier.label}
         </span>
       </div>
-      <div className={'text-[10px] mb-1 ' + T_MUted}>
-        {m.culture}
-        {(m.keywords || []).map((kw) => (
-          <span key={kw} className="ml-1.5 px-1 rounded bg-[#12203a] text-[#8fb2d0]">{kw}</span>
-        ))}
-      </div>
+      <div className={'text-[10px] mb-1 ' + T_MUted}>{m.culture}</div>
       {m.problem && <div className="text-[11px] leading-snug mb-2">{m.problem}</div>}
       <div className="space-y-0.5">
         {['geo', 'anthro', 'bio'].map((dk) => {
@@ -474,9 +472,7 @@ export default function SpaceGame() {
       }
     }
     for (const b of myBoons) {
-      if (b.type === 'affinity' && (targetMission?.keywords || []).includes(b.keyword)) {
-        solveTotal += b.power;
-      }
+      if (b.type === 'skill' && b.disc === activeDisc) solveTotal += b.power;
     }
   }
 
@@ -484,12 +480,10 @@ export default function SpaceGame() {
   const myField = you.field || [];
 
   // Grown strength of a field entry against a given mission (boons included).
-  function fieldStrengthFor(entry, mission) {
+  function fieldStrengthFor(entry) {
     let s = entry.str + boonCount('panspermia');
     for (const b of myBoons) {
-      if (b.type === 'affinity' && (mission?.keywords || []).includes(b.keyword)) {
-        s += b.power;
-      }
+      if (b.type === 'skill' && b.disc === 'bio') s += b.power;
     }
     return s;
   }
@@ -1061,7 +1055,7 @@ export default function SpaceGame() {
                 const fe = myField[pr.field];
                 const m = state.docket.find((mm) => mm.key === pr.mission);
                 if (!fe || !m) return null;
-                const s = fieldStrengthFor(fe, m);
+                const s = fieldStrengthFor(fe);
                 const need = m.solutions.bio.difficulty;
                 const ok = s >= need;
                 return (
@@ -1082,7 +1076,7 @@ export default function SpaceGame() {
           {harvestPairs.some((pr) => {
             const fe = myField[pr.field];
             const m = state.docket.find((mm) => mm.key === pr.mission);
-            return fe && m && fieldStrengthFor(fe, m) < m.solutions.bio.difficulty;
+            return fe && m && fieldStrengthFor(fe) < m.solutions.bio.difficulty;
           }) && (
             <div className={'text-[11px] ' + T_BAD}>▸ A pairing is not grown enough yet.</div>
           )}
@@ -1092,7 +1086,7 @@ export default function SpaceGame() {
                 || harvestPairs.some((pr) => {
                   const fe = myField[pr.field];
                   const m = state.docket.find((mm) => mm.key === pr.mission);
-                  return !fe || !m || fieldStrengthFor(fe, m) < m.solutions.bio.difficulty;
+                  return !fe || !m || fieldStrengthFor(fe) < m.solutions.bio.difficulty;
                 })}
               onClick={handleHarvest}>
               {busy ? 'Harvesting…' : `Harvest ${harvestPairs.length} project${harvestPairs.length === 1 ? '' : 's'}`}

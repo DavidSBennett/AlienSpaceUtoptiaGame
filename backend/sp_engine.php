@@ -77,7 +77,6 @@ function sp_plain_cards($base) {
 }
 
 function sp_plain_missions($base) {
-  $kwMap = [];
   $cultMap = [];
   $i = 0;
   foreach ($base as $key => &$mm) {
@@ -87,21 +86,15 @@ function sp_plain_missions($base) {
     if (!isset($cultMap[$orig])) $cultMap[$orig] = 'Culture ' . (count($cultMap) + 1);
     $mm['culture'] = $cultMap[$orig];
     $mm['problem'] = '';
-    $kws = [];
-    foreach ($mm['keywords'] ?? [] as $kw) {
-      if (!isset($kwMap[$kw])) $kwMap[$kw] = 'keyword ' . (count($kwMap) + 1);
-      $kws[] = $kwMap[$kw];
-    }
-    $mm['keywords'] = $kws;
     foreach ($mm['solutions'] as $d => &$sol) {
       $sol['text'] = '';
       if (!empty($sol['boon'])) {
         $b = $sol['boon'];
         switch ($b['type']) {
-          case 'affinity':
-            $b['keyword'] = $kwMap[$b['keyword']] ?? $b['keyword'];
-            $b['name'] = 'Boon: ' . $b['keyword'] . ' +' . $b['power'];
-            $b['text'] = '+' . $b['power'] . ' on every mission tagged "' . $b['keyword'] . '".';
+          case 'skill':
+            $label = ['geo' => 'geology', 'anthro' => 'anthropology', 'bio' => 'biology'][$b['disc']] ?? '?';
+            $b['name'] = 'Boon: ' . $label . ' +' . $b['power'];
+            $b['text'] = '+' . $b['power'] . ' on every ' . $label . ' attempt.';
             break;
           case 'fleet':
             $b['name'] = 'Boon: charters 1c';
@@ -579,12 +572,11 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
     throw new Exception('Exobiology researchers are planted, not played at missions');
   }
 
-  // Boon bonuses: keyword affinity.
+  // Boon bonuses: blanket skill boosts for this discipline.
   foreach (sp_player_boons($p) as $bn) {
-    if (($bn['type'] ?? '') === 'affinity'
-        && in_array($bn['keyword'] ?? '', $mission['keywords'] ?? [], true)) {
+    if (($bn['type'] ?? '') === 'skill' && ($bn['disc'] ?? '') === $discipline) {
       $total += (int)$bn['power'];
-      $spentNote .= ', +' . (int)$bn['power'] . ' ' . $bn['keyword'] . ' expertise';
+      $spentNote .= ', +' . (int)$bn['power'] . ' applied skill';
     }
   }
 
@@ -764,10 +756,9 @@ function sp_exec_harvest(&$game, &$players, $seat, $params) {
     $total = (int)$entry['str'] + sp_boon_count($p, 'panspermia');
     $bonusNote = '';
     foreach (sp_player_boons($p) as $bn) {
-      if (($bn['type'] ?? '') === 'affinity'
-          && in_array($bn['keyword'] ?? '', $mission['keywords'] ?? [], true)) {
+      if (($bn['type'] ?? '') === 'skill' && ($bn['disc'] ?? '') === 'bio') {
         $total += (int)$bn['power'];
-        $bonusNote = ' +' . (int)$bn['power'] . ' ' . $bn['keyword'];
+        $bonusNote = ' +' . (int)$bn['power'] . ' applied skill';
       }
     }
     $need = max(1, (int)$mission['solutions']['bio']['difficulty'] + sp_chaos_mod($board['chaos']));
@@ -1167,7 +1158,6 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
     $docket[] = [
       'key' => $mk, 'title' => $mm['title'], 'culture' => $mm['culture'],
       'tier' => $mm['tier'], 'problem' => $mm['problem'],
-      'keywords' => $mm['keywords'] ?? [],
       'chained' => !empty($mm['chained']), 'solutions' => $sols,
     ];
   }
