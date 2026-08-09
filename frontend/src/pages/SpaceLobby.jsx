@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   spCreateGame, spJoinGame, spStartGame, spCancelGame,
   spListOpenGames, spListMyGames, spGetGameState,
-  spHighScores, spExportGame,
+  spHighScores, spExportGame, spDeleteGame,
 } from '../api/space.js';
 import { saveSpSession, loadSpSession, clearSpSession } from '../api/spSession.js';
 
@@ -99,6 +99,41 @@ export default function SpaceLobby() {
       URL.revokeObjectURL(url);
     } catch (e) {
       setError(e.message);
+    }
+  }
+
+  async function handleClear(g) {
+    // eslint-disable-next-line no-alert
+    if (!window.confirm(`Clear playthrough #${g.game_id} permanently? Its record, log and high-score entries are deleted (download it first if you want to keep it).`)) return;
+    setBusy(true);
+    try {
+      await spDeleteGame(g.player_token);
+      clearSpSession(g.game_id);
+      await reload();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleClearAll() {
+    const done = myGames.filter((g) => g.status === 'ended');
+    // eslint-disable-next-line no-alert
+    if (!window.confirm(`Clear ALL ${done.length} finished playthroughs permanently? Download any you want to keep first.`)) return;
+    setBusy(true);
+    try {
+      for (const g of done) {
+        // sequential — each delete is its own transaction
+        // eslint-disable-next-line no-await-in-loop
+        await spDeleteGame(g.player_token);
+        clearSpSession(g.game_id);
+      }
+      await reload();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -308,7 +343,15 @@ export default function SpaceLobby() {
           </ul>
         )}
 
-        <h2 className="font-display text-xl text-[#79c9d6] mb-3">Your games</h2>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="font-display text-xl text-[#79c9d6]">Your games</h2>
+          {myGames.some((g) => g.status === 'ended') && (
+            <button className="text-[11px] underline text-[#8593ad] hover:text-[#e58787]"
+              disabled={busy} onClick={handleClearAll}>
+              Clear all finished
+            </button>
+          )}
+        </div>
         {myGames.length === 0 ? (
           <p className="text-sm text-[#8593ad]">None yet — launch one above.</p>
         ) : (
@@ -328,10 +371,17 @@ export default function SpaceLobby() {
                       {g.status === 'active' ? 'Resume' : 'Review'}
                     </Link>
                     {g.status === 'ended' && (
-                      <button className={BTN} title="Download the full playthrough (every action, every turn)"
-                        onClick={() => handleDownload(g)}>
-                        ⬇
-                      </button>
+                      <>
+                        <button className={BTN} title="Download the full playthrough (every action, every turn)"
+                          onClick={() => handleDownload(g)}>
+                          ⬇
+                        </button>
+                        <button className={BTN + ' hover:border-[#e58787]'} disabled={busy}
+                          title="Clear this playthrough permanently"
+                          onClick={() => handleClear(g)}>
+                          ✕
+                        </button>
+                      </>
                     )}
                   </span>
                 )}
