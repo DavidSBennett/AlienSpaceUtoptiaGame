@@ -112,8 +112,8 @@ function sp_plain_missions($base) {
             $b['text'] = 'Consulted colleagues add +2 each (instead of +1).';
             break;
           case 'panspermia':
-            $b['name'] = 'Boon: biology +1';
-            $b['text'] = '+1 on every Exobiology attempt.';
+            $b['name'] = 'Boon: harvest +1';
+            $b['text'] = 'Your planted cards harvest +1 stronger.';
             break;
           case 'income':
             $b['name'] = 'Boon: +' . $b['power'] . 'c per solve';
@@ -123,9 +123,9 @@ function sp_plain_missions($base) {
             $b['name'] = 'Boon: purity +3';
             $b['text'] = '+3 when every consulted colleague is an anthropologist (at least one).';
             break;
-          case 'incubators':
-            $b['name'] = 'Boon: cultures +2';
-            $b['text'] = 'Your cultures mature +2 per failed trial.';
+          case 'greenhouse':
+            $b['name'] = 'Boon: plants +1';
+            $b['text'] = 'Your planted cards enter the field 1 stronger.';
             break;
           case 'hire_discount':
             $b['name'] = 'Boon: hires -1c';
@@ -204,8 +204,8 @@ function sp_load_game($mysqli, $gameId, $forUpdate = false) {
   $row['market_display'] = sp_j($row['market_display'], []);
   $row['market_stack']   = sp_j($row['market_stack'], []);
   $row['board_state']    = sp_j($row['board_state'],
-    ['docket' => [], 'mission_stack' => [], 'chaos' => 0, 'solved' => [], 'cultures' => [], 'meta' => []]);
-  foreach (['docket' => [], 'mission_stack' => [], 'solved' => [], 'cultures' => [], 'meta' => []] as $k => $d) {
+    ['docket' => [], 'mission_stack' => [], 'chaos' => 0, 'solved' => [], 'meta' => []]);
+  foreach (['docket' => [], 'mission_stack' => [], 'solved' => [], 'meta' => []] as $k => $d) {
     if (!isset($row['board_state'][$k])) $row['board_state'][$k] = $d;
   }
   if (!isset($row['board_state']['chaos'])) $row['board_state']['chaos'] = 0;
@@ -347,7 +347,17 @@ function sp_authenticate($mysqli, $tokenOverride = null) {
 // ─────────────────────────────────────────────────────────────────────────
 
 function sp_roster_size($p) {
-  return count($p['hand']) + count($p['discard']);
+  return count($p['hand']) + count($p['discard']) + count(sp_player_field($p));
+}
+
+/**
+ * The player's FIELD: exobiology researchers planted on long-running
+ * projects. Each entry is ['card' => key, 'str' => current strength].
+ * Stored in the tracks JSON blob (like boons) — no schema change.
+ */
+function sp_player_field($p) {
+  $f = $p['tracks']['field'] ?? [];
+  return is_array($f) ? $f : [];
 }
 
 /** Team capacity grows with your best track: 8 base, 12 at step 5, 15 at step 9. */
@@ -430,7 +440,7 @@ function sp_setup_game(&$game, &$players) {
   $board = [
     'docket' => array_splice($missionStack, 0, SP_DOCKET_SIZE),
     'mission_stack' => $missionStack,
-    'chaos' => 0, 'solved' => [], 'cultures' => [], 'meta' => [],
+    'chaos' => 0, 'solved' => [], 'meta' => [],
   ];
 
   foreach ($players as $seat => &$p) {
@@ -555,24 +565,18 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
       }
       if ($allAnthro) { $total += 3; $spentNote .= ' (pure methodology +3)'; }
     }
-  } else { // bio
-    // Cultures: every prior bio attempt on THIS mission matured your lab
-    // cultures — a permanent +1 each, for you, on this crisis.
-    $cult = (int)($board['cultures'][$missionKey][(string)$seat] ?? 0);
-    $total += $cult;
-    if ($cult > 0) $spentNote = ", +$cult cultures";
+  } else {
+    // Exobiology never solves by direct card play — bio cards are PLANTED
+    // and later HARVESTED (sp_exec_plant / sp_exec_harvest).
+    throw new Exception('Exobiology researchers are planted, not played at missions');
   }
 
-  // Boon bonuses: keyword affinity + Panspermia Library.
+  // Boon bonuses: keyword affinity.
   foreach (sp_player_boons($p) as $bn) {
     if (($bn['type'] ?? '') === 'affinity'
         && in_array($bn['keyword'] ?? '', $mission['keywords'] ?? [], true)) {
       $total += (int)$bn['power'];
       $spentNote .= ', +' . (int)$bn['power'] . ' ' . $bn['keyword'] . ' expertise';
-    }
-    if (($bn['type'] ?? '') === 'panspermia' && $discipline === 'bio') {
-      $total += 1;
-      $spentNote .= ', +1 panspermia';
     }
   }
 
@@ -580,21 +584,34 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
   $need = max(1, (int)$solution['difficulty'] + $chaosMod);
 
   if ($total < $need) {
-    if ($discipline === 'bio') {
-      $growth = 1 + sp_boon_count($p, 'incubators');
-      $grown = (int)($board['cultures'][$missionKey][(string)$seat] ?? 0) + $growth;
-      $board['cultures'][$missionKey][(string)$seat] = $grown;
-      return $p['player_name'] . '\'s Exobiology trial on "' . $mission['title']
-           . "\" fell short ($total vs $need$spentNote) — but the cultures matured: +$grown there from now on";
-    }
     return $p['player_name'] . '\'s ' . SP_DISCIPLINES[$discipline][3]
          . ' proposal for "' . $mission['title'] . "\" was rejected ($total vs $need"
          . $spentNote . ')';
   }
 
-  // ── Success: this culture's story is written, permanently. ──
+  $res = sp_apply_solution($game, $players, $seat, $missionKey, $discipline);
+
+  $head = $p['player_name'] . ' resolved "' . $mission['title'] . '" the '
+        . SP_DISCIPLINES[$discipline][3] . " way ($total vs $need$spentNote)";
+  if ($res['end_note'] !== null) return $head . $res['end_note'];
+  return $head . ' — +' . $res['credits'] . 'c' . $res['chaos_note']
+       . $res['boon_note'] . $res['track_note'] . $res['follow_note'];
+}
+
+/**
+ * Shared success bookkeeping for a solved mission — used by direct solves
+ * (geo/anthro card plays) and by exobiology harvests. The mission must be
+ * on the docket. Returns note fragments plus 'ended' when the game is over.
+ */
+function sp_apply_solution(&$game, &$players, $seat, $missionKey, $discipline) {
+  $board = &$game['board_state'];
+  $p = &$players[$seat];
+  $missions = sp_missions();
+  $mission = $missions[$missionKey];
+  $solution = $mission['solutions'][$discipline];
+
+  $pos = array_search($missionKey, $board['docket'], true);
   array_splice($board['docket'], $pos, 1);
-  unset($board['cultures'][$missionKey]);
   $p['credits'] += (int)$solution['credits'];
   foreach (sp_player_boons($p) as $bn) {
     if (($bn['type'] ?? '') === 'income') $p['credits'] += (int)$bn['power'];
@@ -621,39 +638,162 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
   }
   sp_docket_refill($game);
 
-  $suffix = sp_track_advance($game, $players, $seat, SP_DISCIPLINES[$discipline][2], $mission['tier']);
+  $trackNote = sp_track_advance($game, $players, $seat, SP_DISCIPLINES[$discipline][2], $mission['tier']);
 
   $chaosDelta = (int)$solution['chaos'];
   $chaosNote = $chaosDelta === 0 ? ''
     : ($chaosDelta > 0 ? ", chaos +$chaosDelta" : ', order ' . abs($chaosDelta));
 
+  $endNote = null;
   // Full chaos: the ICC collapses — blame lands on the boon-holders.
   if ((int)$board['chaos'] >= SP_CHAOS_MAX) {
     sp_end_game($game, $players, null, 'chaos_collapse');
-    return $p['player_name'] . ' resolved "' . $mission['title'] . '" the '
-         . SP_DISCIPLINES[$discipline][3] . " way ($total vs $need$spentNote)"
-         . (sp_variant() === 'story'
-           ? ' — AND THE ICC COLLAPSED IN THE AFTERMATH'
-           : ' — chaos reached maximum: game over');
-  }
-  // Full order: the Council stands perfected — game ends, best VP wins.
-  if ((int)$board['chaos'] <= SP_CHAOS_MIN) {
+    $endNote = sp_variant() === 'story'
+      ? ' — AND THE ICC COLLAPSED IN THE AFTERMATH'
+      : ' — chaos reached maximum: game over';
+  } elseif ((int)$board['chaos'] <= SP_CHAOS_MIN) {
+    // Full order: the Council stands perfected — game ends, best VP wins.
     sp_end_game($game, $players, null, 'order_triumph');
-    return $p['player_name'] . ' resolved "' . $mission['title'] . '" the '
-         . SP_DISCIPLINES[$discipline][3] . " way ($total vs $need$spentNote)"
-         . (sp_variant() === 'story'
-           ? ' — AND PERFECT ORDER SETTLED OVER THE COUNCIL'
-           : ' — order reached maximum: game over');
-  }
-
-  // The last mission card has been revealed → final turns begin.
-  if (count($board['mission_stack']) === 0 && $game['endgame_trigger'] === null) {
+    $endNote = sp_variant() === 'story'
+      ? ' — AND PERFECT ORDER SETTLED OVER THE COUNCIL'
+      : ' — order reached maximum: game over';
+  } elseif (count($board['mission_stack']) === 0 && $game['endgame_trigger'] === null) {
+    // The last mission card has been revealed → final turns begin.
     sp_trigger_endgame($game, $players, $seat, 'missions_complete');
   }
 
-  return $p['player_name'] . ' resolved "' . $mission['title'] . '" the '
-       . SP_DISCIPLINES[$discipline][3] . " way ($total vs $need$spentNote) — +"
-       . (int)$solution['credits'] . 'c' . $chaosNote . $boonNote . $suffix . $followNote;
+  return [
+    'credits' => (int)$solution['credits'],
+    'chaos_note' => $chaosNote, 'boon_note' => $boonNote,
+    'track_note' => $trackNote, 'follow_note' => $followNote,
+    'end_note' => $endNote, 'ended' => $game['status'] === 'ended',
+    'title' => $mission['title'],
+  ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Exobiology: PLANT & HARVEST
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Plant a bio researcher on a long-running project: the card leaves the
+ * hand for the FIELD, entering at Biology stat + 1, and grows +1 at the
+ * start of each of the owner's turns. It cannot act the turn it lands.
+ */
+function sp_exec_plant(&$game, &$players, $seat, $cardKey, $asCard) {
+  $p = &$players[$seat];
+  $cards = sp_cards();
+  $str = (int)$cards[$asCard]['stats'][2] + 1 + sp_boon_count($p, 'greenhouse');
+
+  $pos = array_search($cardKey, $p['hand'], true);
+  if ($pos === false) throw new Exception('Card not in hand');
+  array_splice($p['hand'], $pos, 1);
+  if (!isset($p['tracks']['field']) || !is_array($p['tracks']['field'])) {
+    $p['tracks']['field'] = [];
+  }
+  $p['tracks']['field'][] = ['card' => $cardKey, 'str' => $str];
+
+  return $p['player_name'] . ' planted ' . $cards[$cardKey]['name']
+       . (sp_variant() === 'story'
+         ? " on a field project (strength $str, growing +1 per turn)"
+         : " (strength $str, +1 per turn)");
+}
+
+/**
+ * Harvest: a free-standing turn action (no card is played). Any number of
+ * planted cards resolve distinct docket missions at their grown strength;
+ * each used card goes to the discard pile. Assignments are processed in
+ * order, and the docket refills between solves.
+ */
+function sp_exec_harvest(&$game, &$players, $seat, $params) {
+  $board = &$game['board_state'];
+  $p = &$players[$seat];
+  $cards = sp_cards();
+  $missions = sp_missions();
+
+  $assignments = is_array($params['assignments'] ?? null) ? $params['assignments'] : [];
+  if (count($assignments) === 0) throw new Exception('Nothing assigned to harvest');
+  $field = sp_player_field($p);
+  if (count($field) === 0) throw new Exception('Your field is empty — plant researchers first');
+
+  $usedIdx = [];
+  $usedMissions = [];
+  foreach ($assignments as $a) {
+    $idx = (int)($a['field'] ?? -1);
+    $mk = (string)($a['mission'] ?? '');
+    if (!isset($field[$idx])) throw new Exception('Bad field slot');
+    if (isset($usedIdx[$idx])) throw new Exception('A planted card can only harvest once');
+    if (isset($usedMissions[$mk])) throw new Exception('Each mission can only be solved once');
+    $usedIdx[$idx] = true;
+    $usedMissions[$mk] = true;
+  }
+
+  $notes = [];
+  $removed = [];   // field indexes consumed, removed at the end
+  foreach ($assignments as $a) {
+    $idx = (int)$a['field'];
+    $mk = (string)$a['mission'];
+    $entry = $field[$idx];
+
+    if (!in_array($mk, $board['docket'], true)) {
+      throw new Exception('Mission not on the docket: harvest interrupted');
+    }
+    $mission = $missions[$mk] ?? null;
+    if (!$mission || empty($mission['solutions']['bio'])) {
+      throw new Exception('No Exobiology solution for that mission');
+    }
+
+    $total = (int)$entry['str'] + sp_boon_count($p, 'panspermia');
+    $bonusNote = '';
+    foreach (sp_player_boons($p) as $bn) {
+      if (($bn['type'] ?? '') === 'affinity'
+          && in_array($bn['keyword'] ?? '', $mission['keywords'] ?? [], true)) {
+        $total += (int)$bn['power'];
+        $bonusNote = ' +' . (int)$bn['power'] . ' ' . $bn['keyword'];
+      }
+    }
+    $need = max(1, (int)$mission['solutions']['bio']['difficulty'] + sp_chaos_mod($board['chaos']));
+    if ($total < $need) {
+      throw new Exception($cards[$entry['card']]['name']
+        . " is not grown enough for \"{$mission['title']}\" ($total vs $need)");
+    }
+
+    $removed[] = $idx;
+    $p['discard'][] = $entry['card'];
+    $res = sp_apply_solution($game, $players, $seat, $mk, 'bio');
+    $notes[] = '"' . $res['title'] . '"' . " ($total vs $need$bonusNote)"
+      . ($res['end_note'] !== null
+        ? $res['end_note']
+        : ' +' . $res['credits'] . 'c' . $res['chaos_note'] . $res['boon_note']
+          . $res['track_note'] . $res['follow_note']);
+    if ($res['ended']) break;
+  }
+
+  // Remove consumed entries (highest index first so positions hold).
+  rsort($removed);
+  $newField = sp_player_field($p);
+  foreach ($removed as $idx) array_splice($newField, $idx, 1);
+  $p['tracks']['field'] = $newField;
+
+  return $p['player_name'] . ' harvested ' . count($removed)
+       . (count($removed) === 1 ? ' project' : ' projects') . ': '
+       . implode('; ', $notes);
+}
+
+/** The harvest turn: mirrors sp_play_card but plays no card. */
+function sp_do_harvest(&$game, &$players, $seat, $params, $mysqli) {
+  if ($game['status'] !== 'active') throw new Exception('Game is not active');
+  if ((int)$game['current_seat'] !== $seat) throw new Exception('Not your turn');
+  $p = &$players[$seat];
+  if ((int)$p['conceded']) throw new Exception('You have conceded');
+
+  $msg = sp_exec_harvest($game, $players, $seat, $params);
+
+  sp_log($mysqli, (int)$game['game_id'], $seat, 'action', $msg, ['action' => 'harvest']);
+  if ($game['status'] === 'active') {
+    sp_advance_turn($game, $players, $mysqli);
+  }
+  return $msg;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -789,6 +929,9 @@ function sp_exec_copy(&$game, &$players, $seat, $cardKey, $params) {
 }
 
 function sp_dispatch_action(&$game, &$players, $seat, $cardKey, $action, $params, $asCard) {
+  if ($action === 'biology') {
+    return sp_exec_plant($game, $players, $seat, $cardKey, $asCard);
+  }
   $discipline = sp_discipline_of_action($action);
   if ($discipline !== null) {
     return sp_exec_solve($game, $players, $seat, $cardKey, $params, $asCard, $discipline);
@@ -874,6 +1017,16 @@ function sp_advance_turn(&$game, &$players, $mysqli) {
   if ($next <= (int)$game['current_seat']) $game['turn_number'] = (int)$game['turn_number'] + 1;
   $game['current_seat'] = $next;
 
+  // A new turn begins: the incoming player's field projects grow +1.
+  if ($game['status'] === 'active' && isset($players[$next])) {
+    $field = sp_player_field($players[$next]);
+    if (count($field) > 0) {
+      foreach ($field as &$fe) $fe['str'] = (int)$fe['str'] + 1;
+      unset($fe);
+      $players[$next]['tracks']['field'] = $field;
+    }
+  }
+
   if ($game['endgame_trigger'] !== null && (int)$game['final_turns_remaining'] <= 0
       && count($seats) <= 1) {
     sp_end_game($game, $players, $mysqli, $game['endgame_trigger']);
@@ -884,7 +1037,8 @@ function sp_compute_score($game, $players, $seat, $final = true) {
   $cards = sp_cards();
   $p = $players[$seat];
 
-  $owned = array_merge($p['hand'], $p['discard']);
+  $owned = array_merge($p['hand'], $p['discard'],
+    array_map(function ($fe) { return $fe['card']; }, sp_player_field($p)));
   $counts = ['wealth'=>0,'diplomatic_corps'=>0,'trade_guild'=>0,'war_college'=>0];
   foreach ($owned as $k) {
     if (isset($cards[$k]) && isset($counts[$cards[$k]['affiliation']])) {
@@ -997,7 +1151,6 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'tier' => $mm['tier'], 'problem' => $mm['problem'],
       'keywords' => $mm['keywords'] ?? [],
       'chained' => !empty($mm['chained']), 'solutions' => $sols,
-      'your_cultures' => (int)($board['cultures'][$mk][(string)$yourSeat] ?? 0),
     ];
   }
 
@@ -1018,6 +1171,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       ],
       'hand_count' => count($p['hand']),
       'discard_count' => count($p['discard']),
+      'field' => sp_player_field($p),
       'discard_top' => count($p['discard']) ? $p['discard'][count($p['discard']) - 1] : null,
       'boon_count' => count(sp_player_boons($p)),
       'roster' => sp_roster_size($p),
@@ -1078,6 +1232,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
         'trade' => $you['tracks']['trade'],
       ],
       'bio_solves' => sp_solve_count($board, $yourSeat, 'bio'),
+      'field' => sp_player_field($you),
       'boons' => sp_player_boons($you),
       'roster' => sp_roster_size($you),
       'crew_cap' => sp_crew_capacity($you),

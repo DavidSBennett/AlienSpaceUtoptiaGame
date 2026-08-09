@@ -61,6 +61,13 @@ export const spGetGameState = (playerToken) =>
 export const spPlayCard = (playerToken, card, params = {}) =>
   post('/sp_playCard.php', { player_token: playerToken, card, params });
 
+/**
+ * Exobiology HARVEST — a free-standing turn action (no card played).
+ * assignments: [{ field: <index into your field>, mission: '<key>' }]
+ */
+export const spHarvest = (playerToken, assignments) =>
+  post('/sp_harvest.php', { player_token: playerToken, assignments });
+
 export const spConcede = (playerToken) =>
   post('/sp_concede.php', { player_token: playerToken });
 

@@ -534,3 +534,32 @@ with credit position surcharges).
 - **Scoring:** cards × matching track (three guilds), Wealth flat
   (credits/10), trophy, collapse penalty. Alliances/Engineering gone.
 - Roster cap 9 fixed. Solo strips copy cards. Pre-v4 games sunset.
+
+## 16. Exobiology rework: PLANT & HARVEST (cultures removed)
+
+Turn-efficiency simulation (mono-discipline solo playouts, 300–400 seeded
+decks) showed the cultures lever priced +1 at a FULL TURN — geo pays 2
+credits, anthro one recoverable hand-card — leaving bio at 2.67
+turns/solve vs 1.65/1.68, the weakest VP, and the only 20%+ collapse
+rate. Cultures are gone. The replacement:
+
+- **Plant** (play a bio card): it leaves the hand for your FIELD,
+  entering at Biology stat **+1**, and grows **+1 at the start of each
+  of your turns**. It cannot act the turn it lands. Planted cards still
+  count against the crew cap and still score their guild at game end.
+  Reset does not touch the field. (Boons: Verdant Greenhouse = plants
+  enter +1 stronger, replacing Rapid Incubators; Panspermia Library =
+  harvests +1 stronger.)
+- **Harvest** (a free-standing turn action — NO card is played,
+  sp_harvest.php): assign any number of grown field cards to distinct
+  docket missions; each resolves at its grown strength, in order, with
+  the docket refilling between solves. Used cards go to the discard.
+- Sim result: bio lands at 12.3 solves by turn 25 (geo 13.4, anthro
+  12.2), zero deadlocks, average game contains a 3–4 mission harvest;
+  full-game bio is the strongest closer (~75 VP, 85%+ track mastery).
+  Known trade-off: bio's VP at fast horizons lags because the
+  minors-first deck starves its track multiplier early — late-bloomer
+  archetype, revisit the deck mix if playtests confirm.
+- Field state lives in the player tracks JSON (like boons) — no schema
+  migration. Games mid-flight keep working; stale cultures data is
+  simply ignored.

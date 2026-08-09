@@ -438,7 +438,7 @@ function sp_missions_base() {
               'text' => 'Consulted colleagues add +2 each (instead of +1).'];
           } else {
             $sol['boon'] = ['type' => 'panspermia', 'name' => 'Panspermia Library',
-              'text' => '+1 on every Exobiology attempt.'];
+              'text' => 'Your planted researchers harvest +1 stronger.'];
           }
         } else {
           $sol['boon'] = ['type' => 'income', 'power' => 2, 'name' => 'Endowment',
@@ -460,8 +460,8 @@ function sp_missions_base() {
             $sol['boon'] = ['type' => 'purist', 'name' => 'Methodological Purity',
               'text' => '+3 when every consulted colleague is an anthropologist (at least one).'];
           } else {
-            $sol['boon'] = ['type' => 'incubators', 'name' => 'Rapid Incubators',
-              'text' => 'Your cultures mature +2 per failed trial.'];
+            $sol['boon'] = ['type' => 'greenhouse', 'name' => 'Verdant Greenhouse',
+              'text' => 'Your planted researchers enter the field 1 stronger.'];
           }
         } elseif ($minorSlot === 2) {
           $sol['boon'] = ['type' => 'hire_discount', 'power' => 1, 'name' => 'Recruiting Ties',
