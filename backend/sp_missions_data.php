@@ -378,34 +378,37 @@ function sp_missions_base() {
   }
   unset($mm);
 
-  // ── Boons: EVERY solution carries one — a baseline reward for any
-  // solve — but chaos buys strictly better tiers. Ladder by chaos delta:
-  //   chaos ≤ 0  BASELINE  (+1 powers: dossier / stipend / hiring ties)
-  //   chaos 1–2  BONUS     (+2 powers, discipline levers, severance)
-  //   chaos ≥ 3  MAJOR     (+3 powers, discipline signatures)
-  // Boons claimed from chaos solutions are TAINTED: on a chaos collapse
-  // only tainted boons draw the −5 VP blame. Baseline boons are clean.
+  // ── Boons: the TRAITOR ECONOMY. Flat +X stat boons are GONE — their
+  // slots now hold allegiance BONDS, and the majors' discipline slot
+  // holds a tempo ability instead of raw power:
+  //   chaos ≥ 3: Dissident Stake +6 (pays ONLY on collapse) | tempo
+  //              ability (Advance Survey / Standing Seminar / Deep
+  //              Roots) | Grand Endowment
+  //   chaos 1–2: Dissident Stake +4 | lever boon | Endowment | Severance
+  //   chaos ≤ 0: Council Commendation +4 (VOID on collapse) | Stipend |
+  //              Recruiting Ties
+  // Bond forfeiture replaces the old −5/boon collapse penalty: if the
+  // ICC falls, dissident stakes pay and commendations are void — and
+  // vice versa. A traitor track without a traitor card.
   foreach ($m as $mkey => &$mm) {
     foreach ($mm['solutions'] as $disc => &$sol) {
       $chaos = (int)$sol['chaos'];
-      $discLabel = ['geo' => 'Xenogeology', 'anthro' => 'Xenoanthropology', 'bio' => 'Exobiology'][$disc];
       $slot = abs(crc32($mkey . $disc)) % 3;
       $minorSlot = abs(crc32($mkey . $disc)) % 4;
       if ($chaos >= 3) {
         if ($slot === 0) {
-          $sol['boon'] = ['type' => 'skill', 'power' => 1, 'disc' => $disc,
-            'name' => 'Applied ' . $discLabel,
-            'text' => '+1 on every ' . $discLabel . ' attempt.'];
+          $sol['boon'] = ['type' => 'sabot', 'power' => 6, 'name' => 'Dissident Stake',
+            'text' => '+6 VP at game end — pays ONLY if the game ends in full chaos.'];
         } elseif ($slot === 1) {
           if ($disc === 'geo') {
-            $sol['boon'] = ['type' => 'income', 'power' => 3, 'name' => 'Mining Concession',
-              'text' => '+3 credits every time you solve a mission.'];
+            $sol['boon'] = ['type' => 'survey_chain', 'name' => 'Advance Survey',
+              'text' => 'After a successful chartered Geology solve, your next Geology attempt repeats that charter for free.'];
           } elseif ($disc === 'anthro') {
-            $sol['boon'] = ['type' => 'faculty', 'name' => 'Star Faculty',
-              'text' => 'Consulted colleagues add +2 each (instead of +1).'];
+            $sol['boon'] = ['type' => 'seminar', 'name' => 'Standing Seminar',
+              'text' => 'Consulted colleagues return to your hand immediately instead of at Regroup.'];
           } else {
-            $sol['boon'] = ['type' => 'panspermia', 'name' => 'Panspermia Library',
-              'text' => 'Your planted researchers harvest +1 stronger.'];
+            $sol['boon'] = ['type' => 'deep_roots', 'name' => 'Deep Roots',
+              'text' => 'Your planted cards grow +1 extra whenever you Regroup.'];
           }
         } else {
           $sol['boon'] = ['type' => 'income', 'power' => 3, 'name' => 'Grand Endowment',
@@ -416,9 +419,8 @@ function sp_missions_base() {
           $sol['boon'] = ['type' => 'severance', 'name' => 'Severance Authority',
             'text' => 'One-shot, on claim: fire one researcher from your hand or discard for +4 credits (+1 per 3 chaos).'];
         } elseif ($minorSlot === 0) {
-          $sol['boon'] = ['type' => 'skill', 'power' => 1, 'disc' => $disc,
-            'name' => 'Applied ' . $discLabel,
-            'text' => '+1 on every ' . $discLabel . ' attempt.'];
+          $sol['boon'] = ['type' => 'sabot', 'power' => 4, 'name' => 'Dissident Stake',
+            'text' => '+4 VP at game end — pays ONLY if the game ends in full chaos.'];
         } elseif ($minorSlot === 1) {
           if ($disc === 'geo') {
             $sol['boon'] = ['type' => 'fleet', 'name' => 'Fleet Charter',
@@ -435,11 +437,10 @@ function sp_missions_base() {
             'text' => '+2 credits every time you solve a mission.'];
         }
       } else {
-        // Baseline: virtue is rewarded too — modestly.
+        // Order: loyalty is a stake in the institution's survival.
         if ($slot === 0) {
-          $sol['boon'] = ['type' => 'skill', 'power' => 1, 'disc' => $disc,
-            'name' => 'Applied ' . $discLabel,
-            'text' => '+1 on every ' . $discLabel . ' attempt.'];
+          $sol['boon'] = ['type' => 'loyal', 'power' => 4, 'name' => 'Council Commendation',
+            'text' => '+4 VP at game end — VOID if the game ends in full chaos.'];
         } elseif ($slot === 1) {
           $sol['boon'] = ['type' => 'income', 'power' => 1, 'name' => 'Council Stipend',
             'text' => '+1 credit every time you solve a mission.'];

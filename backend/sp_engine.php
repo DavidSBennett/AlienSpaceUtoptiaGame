@@ -91,10 +91,25 @@ function sp_plain_missions($base) {
       if (!empty($sol['boon'])) {
         $b = $sol['boon'];
         switch ($b['type']) {
-          case 'skill':
-            $label = ['geo' => 'geology', 'anthro' => 'anthropology', 'bio' => 'biology'][$b['disc']] ?? '?';
-            $b['name'] = 'Boon: ' . $label . ' +' . $b['power'];
-            $b['text'] = '+' . $b['power'] . ' on every ' . $label . ' attempt.';
+          case 'loyal':
+            $b['name'] = 'Boon: +' . $b['power'] . ' VP if no collapse';
+            $b['text'] = '+' . $b['power'] . ' VP at game end — VOID if the game ends in full chaos.';
+            break;
+          case 'sabot':
+            $b['name'] = 'Boon: +' . $b['power'] . ' VP on collapse';
+            $b['text'] = '+' . $b['power'] . ' VP at game end — pays ONLY if the game ends in full chaos.';
+            break;
+          case 'survey_chain':
+            $b['name'] = 'Boon: repeat charter free';
+            $b['text'] = 'After a successful chartered geology solve, your next geology attempt repeats that charter for free.';
+            break;
+          case 'seminar':
+            $b['name'] = 'Boon: colleagues stay';
+            $b['text'] = 'Consulted colleagues return to your hand immediately instead of at Reset.';
+            break;
+          case 'deep_roots':
+            $b['name'] = 'Boon: reset growth +1';
+            $b['text'] = 'Your planted cards grow +1 extra whenever you Reset.';
             break;
           case 'fleet':
             $b['name'] = 'Boon: charters 1c';
@@ -525,7 +540,17 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
   // Discipline levers.
   $charterRate = max(1, SP_GEO_CREDITS_PER_POINT - sp_boon_count($p, 'fleet'));
   $commits = [];
+  $boost = 0;
   if ($discipline === 'geo') {
+    // Advance Survey: a prior chartered success repeats its charter free.
+    if (sp_boon_count($p, 'survey_chain') > 0) {
+      $freeBoost = (int)($p['tracks']['adv_charter'] ?? 0);
+      if ($freeBoost > 0) {
+        $total += $freeBoost;
+        $spentNote .= ", +$freeBoost advance survey";
+      }
+    }
+    $p['tracks']['adv_charter'] = 0;
     $spend = (int)($params['charter_credits'] ?? 0);
     if ($spend < 0) throw new Exception('Bad charter amount');
     if ($spend > 0) {
@@ -536,7 +561,7 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
       $p['credits'] -= $spend;   // spent win or lose — the rig was rented
       $boost = intdiv($spend, $charterRate);
       $total += $boost;
-      $spentNote = ", {$spend}c chartered";
+      $spentNote .= ", {$spend}c chartered";
     }
   } elseif ($discipline === 'anthro') {
     $commits = is_array($params['commits'] ?? null) ? $params['commits'] : [];
@@ -551,14 +576,20 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
         throw new Exception($cards[$k]['name'] . ' cannot be consulted away (reset crew never can be)');
       }
     }
-    foreach ($commits as $k) {
-      $cpos = array_search($k, $p['hand'], true);
-      array_splice($p['hand'], $cpos, 1);
-      $p['discard'][] = $k;
+    $seminar = sp_boon_count($p, 'seminar') > 0;
+    if (!$seminar) {
+      foreach ($commits as $k) {
+        $cpos = array_search($k, $p['hand'], true);
+        array_splice($p['hand'], $cpos, 1);
+        $p['discard'][] = $k;
+      }
     }
     $perColleague = 1 + sp_boon_count($p, 'faculty');
     $total += count($commits) * $perColleague;
-    if (count($commits) > 0) $spentNote = ', ' . count($commits) . ' colleagues consulted';
+    if (count($commits) > 0) {
+      $spentNote = ', ' . count($commits) . ' colleagues consulted'
+        . ($seminar ? ' (they stay in hand)' : '');
+    }
     if (sp_boon_count($p, 'purist') > 0 && count($commits) > 0) {
       $allAnthro = true;
       foreach ($commits as $k) {
@@ -587,6 +618,10 @@ function sp_exec_solve(&$game, &$players, $seat, $cardKey, $params, $asCard, $di
     return $p['player_name'] . '\'s ' . SP_DISCIPLINES[$discipline][3]
          . ' proposal for "' . $mission['title'] . "\" was rejected ($total vs $need"
          . $spentNote . ')';
+  }
+
+  if ($discipline === 'geo' && $boost > 0 && sp_boon_count($p, 'survey_chain') > 0) {
+    $p['tracks']['adv_charter'] = $boost;   // next geo attempt repeats it free
   }
 
   $res = sp_apply_solution($game, $players, $seat, $missionKey, $discipline);
@@ -881,6 +916,19 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
     $msg .= " (+{$rider}c)";
   }
 
+  // Deep Roots: the field surges while the team regroups.
+  $dr = sp_boon_count($p, 'deep_roots');
+  if ($dr > 0) {
+    $field = sp_player_field($p);
+    if (count($field) > 0) {
+      foreach ($field as &$fe) $fe['str'] = (int)$fe['str'] + $dr;
+      unset($fe);
+      $p['tracks']['field'] = $field;
+      $msg .= " — field grew +{$dr} (Deep Roots)";
+    }
+  }
+  $p['tracks']['adv_charter'] = 0;   // Advance Survey carry expires
+
   // (Firing crew is no longer a reset rider — it is the Severance
   // Authority boon's one-shot effect, resolved via sp_resolveBoon.php.)
 
@@ -1093,14 +1141,17 @@ function sp_compute_score($game, $players, $seat, $final = true) {
   $b['trade_guild']      = $counts['trade_guild'] * (int)$p['tracks']['trade']['step'];
   $b['recruiters']       = $recruiters * count($owned);
   $b['trophy']           = ($final && (int)$p['trophy']) ? SP_TROPHY_VP : 0;
-  if ($final && ($game['endgame_trigger'] ?? null) === 'chaos_collapse') {
-    // The blame: 5 VP per TAINTED boon (claimed from a chaos solution) —
-    // the profiteers pay for the ruin; baseline boons are clean. Spent
-    // one-shots and still-pending choices count: the deal was made.
-    $tainted = 0;
-    foreach (sp_player_boons($p) as $bn) if (!empty($bn['tainted'])) $tainted++;
-    foreach (sp_player_pending($p) as $bn) if (!empty($bn['tainted'])) $tainted++;
-    $b['collapse'] = -SP_COLLAPSE_PENALTY * $tainted;
+  if ($final) {
+    // Allegiance bonds: commendations pay unless the ICC collapsed;
+    // dissident stakes pay only if it did. Forfeiture is the stake.
+    $loyal = 0; $sabot = 0;
+    foreach (sp_player_boons($p) as $bn) {
+      if (($bn['type'] ?? '') === 'loyal') $loyal += (int)$bn['power'];
+      if (($bn['type'] ?? '') === 'sabot') $sabot += (int)$bn['power'];
+    }
+    $collapsed = ($game['endgame_trigger'] ?? null) === 'chaos_collapse';
+    if ($loyal > 0) $b['loyal'] = $collapsed ? 0 : $loyal;
+    if ($sabot > 0) $b['sabot'] = $collapsed ? $sabot : 0;
   }
 
   return ['total' => array_sum($b), 'breakdown' => $b, 'card_counts' => $counts];
@@ -1351,6 +1402,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
         'trade' => $you['tracks']['trade'],
       ],
       'bio_solves' => sp_solve_count($board, $yourSeat, 'bio'),
+      'adv_charter' => (int)($you['tracks']['adv_charter'] ?? 0),
       'field' => sp_player_field($you),
       'boons' => sp_player_boons($you),
       'pending' => sp_player_pending($you),

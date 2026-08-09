@@ -45,11 +45,13 @@ const AFFILIATION_LABELS_STORY = {
   wealth: 'Foundation', diplomatic_corps: 'Xenoanthropology Circle',
   trade_guild: 'Exobiology Institute', war_college: 'Xenogeology Guild',
   recruiters: 'Recruiter network', trophy: 'Trophy', collapse: 'ICC Collapse',
+  loyal: 'Council commendations', sabot: 'Dissident stakes',
 };
 const AFFILIATION_LABELS_PLAIN = {
   wealth: 'Wealth', diplomatic_corps: 'Anthropology',
   trade_guild: 'Biology', war_college: 'Geology',
   recruiters: 'Recruiters', trophy: 'Trophy', collapse: 'Collapse penalty',
+  loyal: 'Success bonus', sabot: 'Collapse bonus',
 };
 // Rebound per render via setAffiliationVariant(); default = story names.
 let AFFILIATION_LABELS = AFFILIATION_LABELS_STORY;
@@ -85,6 +87,11 @@ function boonShort(b) {
     case 'greenhouse': return 'plants +1';
     case 'panspermia': return 'harvest +1';
     case 'severance': return 'fire +4c';
+    case 'loyal': return `\u{1F54A}\uFE0F +${b.power} VP`;
+    case 'sabot': return `\u{1F525} +${b.power} VP`;
+    case 'survey_chain': return 'repeat charter';
+    case 'seminar': return 'colleagues stay';
+    case 'deep_roots': return 'reset growth +1';
     default: return b.name || '?';
   }
 }
@@ -166,10 +173,15 @@ function SolutionTooltip({ mission, discKey, sol }) {
       </div>
       {sol.boon && (
         <div className="border-t border-[#26365a] pt-1">
-          <b className={sol.boon.tainted ? T_GOLD : T_MUted}>★ Boon: {sol.boon.name}</b>
+          <b className={sol.boon.type === 'sabot' ? T_BAD
+            : sol.boon.type === 'loyal' ? T_GOOD
+            : sol.boon.tainted ? T_GOLD : T_MUted}>★ Boon: {sol.boon.name}</b>
           <div className={T_MUted}>{sol.boon.text}</div>
-          {sol.boon.tainted && (
-            <div className={T_BAD}>Tainted: −5 VP each if the game ends in full chaos.</div>
+          {sol.boon.type === 'sabot' && (
+            <div className={T_BAD}>A stake in the collapse — worthless if the ICC survives.</div>
+          )}
+          {sol.boon.type === 'loyal' && (
+            <div className={T_GOOD}>A stake in the institution — void if it collapses.</div>
           )}
         </div>
       )}
@@ -204,7 +216,7 @@ function ChaosBar({ chaos, mod, storyMode, tipHandlers }) {
             Current effect: all mission difficulties {mod > 0 ? `+${mod}` : mod < 0 ? mod : '±0'} (1 per 3 chaos).
           </div>
           <div className={T_GOOD}>At −10 (full ORDER) the game ends — highest VP wins clean.</div>
-          <div className={T_BAD}>At +10 (full CHAOS) the game ends at once and every player loses 5 VP PER CHAOS BOON claimed (baseline boons are clean).</div>
+          <div className={T_BAD}>At +10 (full CHAOS) the game ends at once — collapse-bonus boons PAY OUT and success-bonus boons are VOID.</div>
         </div>
       )}>
       <span className={T_GOOD}>ORDER</span>
@@ -256,7 +268,10 @@ function MissionCard({ m, activeDisc, targeted, onClick, tipHandlers }) {
                 {sol.chaos > 0 ? `chaos +${sol.chaos}` : sol.chaos < 0 ? `order ${-sol.chaos}` : '—'}
               </span>
               {sol.boon && (
-                <span className={'text-[10px] whitespace-nowrap ' + (sol.boon.tainted ? T_GOLD : T_MUted)}>
+                <span className={'text-[10px] whitespace-nowrap ' + (
+                  sol.boon.type === 'sabot' ? T_BAD
+                  : sol.boon.type === 'loyal' ? T_GOOD
+                  : sol.boon.tainted ? T_GOLD : T_MUted)}>
                   ★ {boonShort(sol.boon)}
                 </span>
               )}
@@ -461,7 +476,10 @@ export default function SpaceGame() {
   let solveTotal = null;
   if (effectiveCard && activeDisc && activeDisc !== 'bio') {
     solveTotal = effectiveCard.stats[statIdx];
-    if (activeDisc === 'geo') solveTotal += Math.floor(draft.charter / charterRate);
+    if (activeDisc === 'geo') {
+      solveTotal += Math.floor(draft.charter / charterRate);
+      if (boonCount('survey_chain') > 0) solveTotal += you.adv_charter || 0;
+    }
     if (activeDisc === 'anthro') {
       solveTotal += draft.commits.length * (1 + boonCount('faculty'));
       if (boonCount('purist') > 0 && draft.commits.length > 0
@@ -842,6 +860,10 @@ export default function SpaceGame() {
                   'px-1.5 py-0.5 rounded border text-[10px] whitespace-nowrap ' +
                   (g.spentCount === g.count
                     ? 'border-[#3a3a3a] text-[#6b7487] bg-[#0c1424]/70'
+                    : g.type === 'sabot'
+                      ? 'border-[#e58787]/70 text-[#e58787] bg-[#1c0d0d]'
+                    : g.type === 'loyal'
+                      ? 'border-[#7fd8a0]/70 text-[#7fd8a0] bg-[#0d2418]'
                     : (g.tainted
                       ? 'border-[#e0b45c]/70 text-[#e0b45c] bg-[#1c1608]'
                       : 'border-[#2f4b6e] text-[#8fb2d0] bg-[#0c1424]'))
@@ -850,7 +872,8 @@ export default function SpaceGame() {
                   <div className="space-y-1">
                     <b className={g.tainted ? T_GOLD : T_HEAD}>★ {g.name}{g.count > 1 ? ` ×${g.count}` : ''}</b>
                     <div className={T_MUted}>{g.text}</div>
-                    {g.tainted && <div className={T_BAD}>Tainted: −5 VP each if the game ends in full chaos.</div>}
+                    {g.type === 'sabot' && <div className={T_BAD}>Pays only if the game ends in full chaos.</div>}
+                    {g.type === 'loyal' && <div className={T_GOOD}>Void if the game ends in full chaos.</div>}
                     {g.spentCount > 0 && <div className={T_MUted}>{g.spentCount} spent (one-shot already used).</div>}
                   </div>
                 )}>
@@ -1047,11 +1070,17 @@ export default function SpaceGame() {
                       charter: dr.charter + charterRate <= you.credits ? dr.charter + charterRate : dr.charter,
                     }))}>+</button>
                   <span className={T_MUted}>(spent win or lose)</span>
+                  {boonCount('survey_chain') > 0 && (you.adv_charter || 0) > 0 && (
+                    <span className={T_GOOD}>+{you.adv_charter} advance survey (free)</span>
+                  )}
                 </div>
               )}
               {activeDisc === 'anthro' && (
                 <div className={'text-[10px] ' + T_MUted}>
-                  Consult colleagues with the + button on hand cards (+1 each; they return on your next Regroup).
+                  Consult colleagues with the + button on hand cards (+1 each;
+                  {boonCount('seminar') > 0
+                    ? ' Standing Seminar: they stay in your hand'
+                    : ' they return on your next Regroup'}).
                   Consulted: {draft.commits.length}.
                 </div>
               )}
@@ -1238,8 +1267,8 @@ function ResultsOverlay({ state, collapsed, ordered, storyMode, busy, onExport, 
         {collapsed && (
           <p className={'text-sm ' + T_MUted}>
             {storyMode
-              ? 'Chaos reached its breaking point. Every delegation loses 5 VP per CHAOS boon it claimed — the profiteers wear the blame. The stories you wrote survive; the institution did not.'
-              : 'Each player loses 5 VP per chaos boon claimed.'}
+              ? 'Chaos reached its breaking point. Dissident stakes pay out; Council commendations are void. The stories you wrote survive; the institution did not.'
+              : 'Collapse bonuses pay out; success bonuses are void.'}
           </p>
         )}
         {ordered && storyMode && (
