@@ -70,6 +70,22 @@ const ACTION_LABELS = {
 
 const emptyDraft = { mission: null, commits: [], charter: 0, picks: [], copyTarget: null };
 
+/** Compact label for a boon, shown on mission-card fronts and boon chips. */
+function boonShort(b) {
+  switch (b.type) {
+    case 'affinity': return `+${b.power} ${b.keyword}`;
+    case 'income': return `+${b.power}c/solve`;
+    case 'hire_discount': return 'hires −1c';
+    case 'fleet': return 'charter 1c';
+    case 'faculty': return 'consult +2';
+    case 'purist': return 'purity +3';
+    case 'greenhouse': return 'plants +1';
+    case 'panspermia': return 'harvest +1';
+    case 'severance': return 'fire +4c';
+    default: return b.name || '?';
+  }
+}
+
 // ── tooltips ─────────────────────────────────────────────────────────────
 
 function TooltipLayer({ tip }) {
@@ -239,7 +255,11 @@ function MissionCard({ m, activeDisc, targeted, onClick, tipHandlers }) {
               <span className={'font-mono w-14 ' + (sol.chaos > 0 ? T_BAD : sol.chaos < 0 ? T_GOOD : T_MUted)}>
                 {sol.chaos > 0 ? `chaos +${sol.chaos}` : sol.chaos < 0 ? `order ${-sol.chaos}` : '—'}
               </span>
-              {sol.boon && <span className={sol.boon.tainted ? T_GOLD : T_MUted} title={sol.boon.name}>★</span>}
+              {sol.boon && (
+                <span className={'text-[10px] whitespace-nowrap ' + (sol.boon.tainted ? T_GOLD : T_MUted)}>
+                  ★ {boonShort(sol.boon)}
+                </span>
+              )}
               {sol.has_follow && <span className={T_GOLD}>⛓</span>}
             </div>
           );
@@ -748,6 +768,41 @@ export default function SpaceGame() {
 
       {/* bottom-center: the hand */}
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 max-w-[62vw] flex flex-col items-center">
+        {myBoons.length > 0 && (
+          <div className="flex items-center justify-center flex-wrap gap-1.5 mb-1 px-2 py-1 rounded border border-[#4a3b1f] bg-[#130f07]/90">
+            <span className={'text-[10px] ' + T_GOLD}
+              {...tipHandlers(<div><b className={T_GOLD}>Your boons</b><div>Permanent powers claimed from solved missions. Gold = tainted (−5 VP each if the game ends in full chaos); dimmed = spent one-shots.</div></div>)}>
+              ★ Boons
+            </span>
+            {Object.values(myBoons.reduce((acc, b) => {
+              const k = (b.name || b.type) + '|' + (b.keyword || '');
+              if (!acc[k]) acc[k] = { ...b, count: 0, spentCount: 0 };
+              acc[k].count += 1;
+              if (b.spent) acc[k].spentCount += 1;
+              return acc;
+            }, {})).map((g, i) => (
+              <span key={i}
+                className={
+                  'px-1.5 py-0.5 rounded border text-[10px] whitespace-nowrap ' +
+                  (g.spentCount === g.count
+                    ? 'border-[#3a3a3a] text-[#6b7487] bg-[#0c1424]/70'
+                    : (g.tainted
+                      ? 'border-[#e0b45c]/70 text-[#e0b45c] bg-[#1c1608]'
+                      : 'border-[#2f4b6e] text-[#8fb2d0] bg-[#0c1424]'))
+                }
+                {...tipHandlers(
+                  <div className="space-y-1">
+                    <b className={g.tainted ? T_GOLD : T_HEAD}>★ {g.name}{g.count > 1 ? ` ×${g.count}` : ''}</b>
+                    <div className={T_MUted}>{g.text}</div>
+                    {g.tainted && <div className={T_BAD}>Tainted: −5 VP each if the game ends in full chaos.</div>}
+                    {g.spentCount > 0 && <div className={T_MUted}>{g.spentCount} spent (one-shot already used).</div>}
+                  </div>
+                )}>
+                ★ {boonShort(g)}{g.count > 1 ? ` ×${g.count}` : ''}
+              </span>
+            ))}
+          </div>
+        )}
         {myField.length > 0 && (
           <div className="flex items-center gap-1.5 mb-1 px-2 py-1 rounded border border-[#1f4a35] bg-[#07130d]/90">
             <span className={'text-[10px] ' + T_GOOD}
@@ -811,19 +866,6 @@ export default function SpaceGame() {
             {...tipHandlers(<div><b className={T_HEAD}>Research funding</b><div>Credits pay for hires and equipment charters, and score Wealth (1 VP per 10).</div></div>)}>
             {you.credits}c
           </span>
-          {myBoons.length > 0 && (
-            <span className={'px-2 py-0.5 rounded-t border border-[#26365a] bg-[#0a1120]/90 text-[11px] ' + T_GOLD}
-              {...tipHandlers(
-                <div className="space-y-1">
-                  <b className={T_GOLD + ' text-[12px]'}>Your boons</b>
-                  {myBoons.map((b, i) => (
-                    <div key={i}><b>{b.name}</b> — <span className={T_MUted}>{b.text}</span></div>
-                  ))}
-                </div>
-              )}>
-              ★{myBoons.length}
-            </span>
-          )}
         </div>
         {handOpen && (
         <div className="flex gap-1.5 overflow-x-auto pt-3 pb-1 px-2 max-w-full">

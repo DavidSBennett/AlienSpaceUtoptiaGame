@@ -59,6 +59,10 @@ try {
 
   array_splice($pending, $idx, 1);
   $p['tracks']['pending'] = $pending;
+  // The spent boon is still remembered: a tainted boon counts toward the
+  // collapse penalty even after its one-shot effect is used (or declined).
+  $boon['spent'] = true;
+  $p['tracks']['boons'][] = $boon;
 
   sp_log($mysqli, $gameId, $seat, 'boon', $msg, ['boon' => $boon['type']]);
   sp_save_game($mysqli, $game);

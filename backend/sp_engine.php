@@ -1057,9 +1057,11 @@ function sp_compute_score($game, $players, $seat, $final = true) {
   $b['trophy']           = ($final && (int)$p['trophy']) ? SP_TROPHY_VP : 0;
   if ($final && ($game['endgame_trigger'] ?? null) === 'chaos_collapse') {
     // The blame: 5 VP per TAINTED boon (claimed from a chaos solution) —
-    // the profiteers pay for the ruin; baseline boons are clean.
+    // the profiteers pay for the ruin; baseline boons are clean. Spent
+    // one-shots and still-pending choices count: the deal was made.
     $tainted = 0;
     foreach (sp_player_boons($p) as $bn) if (!empty($bn['tainted'])) $tainted++;
+    foreach (sp_player_pending($p) as $bn) if (!empty($bn['tainted'])) $tainted++;
     $b['collapse'] = -SP_COLLAPSE_PENALTY * $tainted;
   }
 
