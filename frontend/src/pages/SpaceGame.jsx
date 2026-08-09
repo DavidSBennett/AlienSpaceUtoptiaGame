@@ -44,12 +44,12 @@ const TIER_STYLE = {
 const AFFILIATION_LABELS_STORY = {
   wealth: 'Foundation', diplomatic_corps: 'Xenoanthropology Circle',
   trade_guild: 'Exobiology Institute', war_college: 'Xenogeology Guild',
-  trophy: 'Trophy', collapse: 'ICC Collapse',
+  recruiters: 'Recruiter network', trophy: 'Trophy', collapse: 'ICC Collapse',
 };
 const AFFILIATION_LABELS_PLAIN = {
   wealth: 'Wealth', diplomatic_corps: 'Anthropology',
   trade_guild: 'Biology', war_college: 'Geology',
-  trophy: 'Trophy', collapse: 'Collapse penalty',
+  recruiters: 'Recruiters', trophy: 'Trophy', collapse: 'Collapse penalty',
 };
 // Rebound per render via setAffiliationVariant(); default = story names.
 let AFFILIATION_LABELS = AFFILIATION_LABELS_STORY;
@@ -135,7 +135,9 @@ function CardTooltip({ cardKey, cards }) {
       )}
       <div className="border-t border-[#26365a] pt-1">
         <b className={T_GOLD}>{AFFILIATION_LABELS[c.affiliation]}.</b>{' '}
-        {AFFILIATION_SCORING[c.affiliation] || ''}
+        {['recruit', 'recruit_free'].includes(c.action)
+          ? 'At game end this card scores +1 VP per crew member in your deck (hand, published, and planted).'
+          : (AFFILIATION_SCORING[c.affiliation] || '')}
       </div>
     </div>
   );

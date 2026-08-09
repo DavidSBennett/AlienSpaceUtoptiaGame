@@ -1049,11 +1049,21 @@ function sp_compute_score($game, $players, $seat, $final = true) {
     }
   }
 
+  // Recruiter cards: each scores +1 VP per crew member in your deck
+  // (hand + published + planted — recruiters and reset crew included).
+  $recruiters = 0;
+  foreach ($owned as $k) {
+    if (isset($cards[$k]) && in_array($cards[$k]['action'], ['recruit', 'recruit_free'], true)) {
+      $recruiters++;
+    }
+  }
+
   $b = [];
   $b['wealth']           = intdiv((int)$p['credits'], 10);
   $b['war_college']      = $counts['war_college'] * (int)$p['tracks']['military']['step'];
   $b['diplomatic_corps'] = $counts['diplomatic_corps'] * (int)$p['tracks']['diplomacy']['step'];
   $b['trade_guild']      = $counts['trade_guild'] * (int)$p['tracks']['trade']['step'];
+  $b['recruiters']       = $recruiters * count($owned);
   $b['trophy']           = ($final && (int)$p['trophy']) ? SP_TROPHY_VP : 0;
   if ($final && ($game['endgame_trigger'] ?? null) === 'chaos_collapse') {
     // The blame: 5 VP per TAINTED boon (claimed from a chaos solution) —
