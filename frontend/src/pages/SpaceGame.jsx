@@ -757,6 +757,11 @@ export default function SpaceGame() {
         <Collapsible title="The University" badge={`${state.market.stack_count} in stock`}
           open={panels.market || picking}
           onToggle={() => setPanels((p) => ({ ...p, market: !p.market }))}>
+          {state.players.length === 1 && (
+            <div className={'text-[9px] mb-1.5 ' + T_MUted}>
+              Solo: the leftmost card rotates out every even turn — hire before it moves on.
+            </div>
+          )}
           <div className="flex flex-wrap gap-1.5">
             {state.market.display.map((key, pos) => {
               const surcharge = state.position_costs[pos] || 0;

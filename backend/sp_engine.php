@@ -1021,6 +1021,25 @@ function sp_advance_turn(&$game, &$players, $mysqli) {
     }
   }
 
+  // Solo: the University rotates on its own — every even turn the oldest
+  // card in the display (slot 0) leaves the game and the display refills,
+  // so the market never stalls waiting on purchases.
+  if (count($players) === 1 && $game['status'] === 'active'
+      && (int)$game['turn_number'] % 2 === 0
+      && count($game['market_display']) > 0) {
+    $gone = array_shift($game['market_display']);
+    sp_market_refill($game);
+    if ($mysqli !== null) {
+      sp_log($mysqli, (int)$game['game_id'], null, 'market',
+        sp_cards()[$gone]['name'] . (sp_variant() === 'story'
+          ? ' left the University for another posting'
+          : ' rotated out of the market'));
+    }
+    if (count($game['market_display']) === 0 && count($game['market_stack']) === 0) {
+      sp_trigger_endgame($game, $players, null, 'market_exhausted');
+    }
+  }
+
   if ($game['endgame_trigger'] !== null && (int)$game['final_turns_remaining'] <= 0
       && count($seats) <= 1) {
     sp_end_game($game, $players, $mysqli, $game['endgame_trigger']);
