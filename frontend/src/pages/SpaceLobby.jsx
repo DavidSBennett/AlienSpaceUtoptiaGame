@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   spCreateGame, spJoinGame, spStartGame, spCancelGame,
   spListOpenGames, spListMyGames, spGetGameState,
+  spHighScores, spExportGame,
 } from '../api/space.js';
 import { saveSpSession, loadSpSession, clearSpSession } from '../api/spSession.js';
 
@@ -20,6 +21,7 @@ export default function SpaceLobby() {
   const navigate = useNavigate();
   const [openGames, setOpenGames] = useState([]);
   const [myGames, setMyGames] = useState([]);
+  const [highScores, setHighScores] = useState([]);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState(2);
@@ -28,9 +30,12 @@ export default function SpaceLobby() {
 
   const reload = useCallback(async () => {
     try {
-      const [open, mine] = await Promise.all([spListOpenGames(), spListMyGames()]);
+      const [open, mine, hs] = await Promise.all([
+        spListOpenGames(), spListMyGames(), spHighScores().catch(() => ({ scores: [] })),
+      ]);
       setOpenGames(open.games || []);
       setMyGames(mine.games || []);
+      setHighScores(hs.scores || []);
       // Adopt server-known sessions locally so any device can resume.
       for (const g of mine.games || []) {
         if (g.player_token) {
@@ -81,6 +86,21 @@ export default function SpaceLobby() {
     }, 2000);
     return () => clearInterval(t);
   }, [waiting, navigate, reload]);
+
+  async function handleDownload(g) {
+    try {
+      const res = await spExportGame(g.player_token);
+      const blob = new Blob([JSON.stringify(res.export, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `utopian-playthrough-game${g.game_id}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
 
   async function handleCreate(solo, variant = 'plain') {
     setBusy(true);
@@ -249,6 +269,26 @@ export default function SpaceLobby() {
           </>
         )}
 
+        <h2 className="font-display text-xl text-[#79c9d6] mb-3">High scores</h2>
+        {highScores.length === 0 ? (
+          <p className="text-sm text-[#8593ad] mb-6">No finished games yet — the board is open.</p>
+        ) : (
+          <ol className="mb-6 space-y-1">
+            {highScores.map((h2, i) => (
+              <li key={h2.game_id + '-' + h2.name + '-' + i}
+                className="flex items-center gap-3 rounded border border-[#26365a] bg-[#0a1120]/70 px-4 py-1.5 text-sm">
+                <span className="font-mono text-[#e0b45c] w-6">{i + 1}.</span>
+                <span className="font-semibold">{h2.name}</span>
+                <span className="font-mono text-[#e0b45c]">{h2.score} VP</span>
+                <span className="text-[#8593ad] text-[11px]">
+                  {h2.variant === 'story' ? 'story' : 'base'} · {h2.solo ? 'solo' : 'multi'}
+                  {' · '}{h2.turns} turns{h2.won ? ' · won' : ''}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+
         <h2 className="font-display text-xl text-[#79c9d6] mb-3">Open lobbies</h2>
         {openGames.length === 0 ? (
           <p className="text-sm text-[#8593ad] mb-6">No open lobbies right now.</p>
@@ -283,9 +323,17 @@ export default function SpaceLobby() {
                   {g.status === 'ended' && g.final_score !== null && ` · ${g.final_score} VP`}
                 </span>
                 {g.status !== 'lobby' && (
-                  <Link className={BTN} to={`/space/game/${g.game_id}`}>
-                    {g.status === 'active' ? 'Resume' : 'Review'}
-                  </Link>
+                  <span className="flex gap-1.5">
+                    <Link className={BTN} to={`/space/game/${g.game_id}`}>
+                      {g.status === 'active' ? 'Resume' : 'Review'}
+                    </Link>
+                    {g.status === 'ended' && (
+                      <button className={BTN} title="Download the full playthrough (every action, every turn)"
+                        onClick={() => handleDownload(g)}>
+                        ⬇
+                      </button>
+                    )}
+                  </span>
                 )}
               </li>
             ))}

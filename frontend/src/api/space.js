@@ -89,6 +89,9 @@ export const spExportGame = (playerToken) =>
 export const spSubmitReport = (playerToken, notes, rating = null) =>
   post('/sp_submitReport.php', { player_token: playerToken, notes, rating });
 
+/** Top final scores across all ended games (lobby high-score track). */
+export const spHighScores = () => get('/sp_highScores.php');
+
 export const spListOpenGames = () => get('/sp_listOpenGames.php');
 
 export const spListMyGames = () => get('/sp_listMyGames.php');
