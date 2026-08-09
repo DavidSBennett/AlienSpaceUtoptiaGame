@@ -62,11 +62,13 @@ export const spPlayCard = (playerToken, card, params = {}) =>
   post('/sp_playCard.php', { player_token: playerToken, card, params });
 
 /**
- * Exobiology HARVEST — a free-standing turn action (no card played).
- * assignments: [{ field: <index into your field>, mission: '<key>' }]
+ * Exobiology HARVEST — an interactive turn action (no card played).
+ * Each solve resolves one grown card and holds the turn; finish ends it.
  */
-export const spHarvest = (playerToken, assignments) =>
-  post('/sp_harvest.php', { player_token: playerToken, assignments });
+export const spHarvestSolve = (playerToken, field, mission) =>
+  post('/sp_harvest.php', { player_token: playerToken, op: 'solve', field, mission });
+export const spHarvestFinish = (playerToken) =>
+  post('/sp_harvest.php', { player_token: playerToken, op: 'finish' });
 
 /**
  * Resolve a pending one-shot triggered boon (no turn cost).

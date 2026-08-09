@@ -687,14 +687,15 @@ function sp_apply_solution(&$game, &$players, $seat, $missionKey, $discipline) {
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Plant a bio researcher on a long-running project: the card leaves the
- * hand for the FIELD, entering at Biology stat + 1, and grows +1 at the
- * start of each of the owner's turns. It cannot act the turn it lands.
+ * Plant: the played bio card AND every other biologist in the hand enter
+ * the FIELD as one wave, each with +1 culture cube (Biology stat + 1,
+ * + greenhouse boons), growing +1 at the start of each of the owner's
+ * turns. None can act the turn they land.
  */
 function sp_exec_plant(&$game, &$players, $seat, $cardKey, $asCard) {
   $p = &$players[$seat];
   $cards = sp_cards();
-  $str = (int)$cards[$asCard]['stats'][2] + 1 + sp_boon_count($p, 'greenhouse');
+  $bonus = 1 + sp_boon_count($p, 'greenhouse');
 
   $pos = array_search($cardKey, $p['hand'], true);
   if ($pos === false) throw new Exception('Card not in hand');
@@ -702,106 +703,113 @@ function sp_exec_plant(&$game, &$players, $seat, $cardKey, $asCard) {
   if (!isset($p['tracks']['field']) || !is_array($p['tracks']['field'])) {
     $p['tracks']['field'] = [];
   }
+  // the played card uses the as-card's stat (peer-review copies included)
+  $names = [];
+  $str = (int)$cards[$asCard]['stats'][2] + $bonus;
   $p['tracks']['field'][] = ['card' => $cardKey, 'str' => $str];
+  $names[] = $cards[$cardKey]['name'] . " ($str)";
 
-  return $p['player_name'] . ' planted ' . $cards[$cardKey]['name']
-       . (sp_variant() === 'story'
-         ? " on a field project (strength $str, growing +1 per turn)"
-         : " (strength $str, +1 per turn)");
+  // ...and every other biologist in hand joins the wave at its own stat
+  foreach (array_values($p['hand']) as $k) {
+    if (($cards[$k]['action'] ?? '') !== 'biology') continue;
+    $kpos = array_search($k, $p['hand'], true);
+    array_splice($p['hand'], $kpos, 1);
+    $kstr = (int)$cards[$k]['stats'][2] + $bonus;
+    $p['tracks']['field'][] = ['card' => $k, 'str' => $kstr];
+    $names[] = $cards[$k]['name'] . " ($kstr)";
+  }
+
+  return $p['player_name'] . ' planted ' . count($names)
+       . (count($names) === 1 ? ' researcher: ' : ' researchers: ')
+       . implode(', ', $names)
+       . (sp_variant() === 'story' ? ' — the field projects grow +1 per turn' : ' — +1 per turn');
 }
 
 /**
- * Harvest: a free-standing turn action (no card is played). Any number of
- * planted cards resolve distinct docket missions at their grown strength;
- * each used card goes to the discard pile. Assignments are processed in
- * order, and the docket refills between solves.
+ * Harvest: an interactive turn action (no card is played). Each grown
+ * card resolves ONE mission per request — the docket refills after every
+ * solve, so the player sees what comes out before choosing the next
+ * target. The first solve marks the harvest in progress; the turn only
+ * advances when the player sends op 'finish'.
  */
-function sp_exec_harvest(&$game, &$players, $seat, $params) {
+function sp_exec_harvest_solve(&$game, &$players, $seat, $params) {
   $board = &$game['board_state'];
   $p = &$players[$seat];
   $cards = sp_cards();
   $missions = sp_missions();
 
-  $assignments = is_array($params['assignments'] ?? null) ? $params['assignments'] : [];
-  if (count($assignments) === 0) throw new Exception('Nothing assigned to harvest');
   $field = sp_player_field($p);
-  if (count($field) === 0) throw new Exception('Your field is empty — plant researchers first');
-
-  $usedIdx = [];
-  $usedMissions = [];
-  foreach ($assignments as $a) {
-    $idx = (int)($a['field'] ?? -1);
-    $mk = (string)($a['mission'] ?? '');
-    if (!isset($field[$idx])) throw new Exception('Bad field slot');
-    if (isset($usedIdx[$idx])) throw new Exception('A planted card can only harvest once');
-    if (isset($usedMissions[$mk])) throw new Exception('Each mission can only be solved once');
-    $usedIdx[$idx] = true;
-    $usedMissions[$mk] = true;
+  $idx = (int)($params['field'] ?? -1);
+  $mk = (string)($params['mission'] ?? '');
+  if (!isset($field[$idx])) throw new Exception('Bad field slot');
+  if (!in_array($mk, $board['docket'], true)) throw new Exception('That mission is not on the docket');
+  $mission = $missions[$mk] ?? null;
+  if (!$mission || empty($mission['solutions']['bio'])) {
+    throw new Exception('No Exobiology solution for that mission');
   }
 
-  $notes = [];
-  $removed = [];   // field indexes consumed, removed at the end
-  foreach ($assignments as $a) {
-    $idx = (int)$a['field'];
-    $mk = (string)$a['mission'];
-    $entry = $field[$idx];
-
-    if (!in_array($mk, $board['docket'], true)) {
-      throw new Exception('Mission not on the docket: harvest interrupted');
+  $entry = $field[$idx];
+  $total = (int)$entry['str'] + sp_boon_count($p, 'panspermia');
+  $bonusNote = '';
+  foreach (sp_player_boons($p) as $bn) {
+    if (($bn['type'] ?? '') === 'skill' && ($bn['disc'] ?? '') === 'bio') {
+      $total += (int)$bn['power'];
+      $bonusNote = ' +' . (int)$bn['power'] . ' applied skill';
     }
-    $mission = $missions[$mk] ?? null;
-    if (!$mission || empty($mission['solutions']['bio'])) {
-      throw new Exception('No Exobiology solution for that mission');
-    }
-
-    $total = (int)$entry['str'] + sp_boon_count($p, 'panspermia');
-    $bonusNote = '';
-    foreach (sp_player_boons($p) as $bn) {
-      if (($bn['type'] ?? '') === 'skill' && ($bn['disc'] ?? '') === 'bio') {
-        $total += (int)$bn['power'];
-        $bonusNote = ' +' . (int)$bn['power'] . ' applied skill';
-      }
-    }
-    $need = max(1, (int)$mission['solutions']['bio']['difficulty'] + sp_chaos_mod($board['chaos']));
-    if ($total < $need) {
-      throw new Exception($cards[$entry['card']]['name']
-        . " is not grown enough for \"{$mission['title']}\" ($total vs $need)");
-    }
-
-    $removed[] = $idx;
-    $p['discard'][] = $entry['card'];
-    $res = sp_apply_solution($game, $players, $seat, $mk, 'bio');
-    $notes[] = '"' . $res['title'] . '"' . " ($total vs $need$bonusNote)"
-      . ($res['end_note'] !== null
-        ? $res['end_note']
-        : ' +' . $res['credits'] . 'c' . $res['chaos_note'] . $res['boon_note']
-          . $res['track_note'] . $res['follow_note']);
-    if ($res['ended']) break;
+  }
+  $need = max(1, (int)$mission['solutions']['bio']['difficulty'] + sp_chaos_mod($board['chaos']));
+  if ($total < $need) {
+    throw new Exception($cards[$entry['card']]['name']
+      . " is not grown enough for \"{$mission['title']}\" ($total vs $need)");
   }
 
-  // Remove consumed entries (highest index first so positions hold).
-  rsort($removed);
-  $newField = sp_player_field($p);
-  foreach ($removed as $idx) array_splice($newField, $idx, 1);
-  $p['tracks']['field'] = $newField;
+  array_splice($field, $idx, 1);
+  $p['tracks']['field'] = $field;
+  $p['discard'][] = $entry['card'];
 
-  return $p['player_name'] . ' harvested ' . count($removed)
-       . (count($removed) === 1 ? ' project' : ' projects') . ': '
-       . implode('; ', $notes);
+  $res = sp_apply_solution($game, $players, $seat, $mk, 'bio');
+  if ($res['ended']) {
+    unset($board['meta']['harvesting']);
+  } else {
+    $board['meta']['harvesting'] = $seat;   // turn holds until 'finish'
+  }
+
+  return $p['player_name'] . ' harvested ' . $cards[$entry['card']]['name']
+       . ' → "' . $res['title'] . "\" ($total vs $need$bonusNote)"
+       . ($res['end_note'] !== null
+         ? $res['end_note']
+         : ' +' . $res['credits'] . 'c' . $res['chaos_note'] . $res['boon_note']
+           . $res['track_note'] . $res['follow_note']);
 }
 
-/** The harvest turn: mirrors sp_play_card but plays no card. */
+function sp_exec_harvest_finish(&$game, &$players, $seat) {
+  $board = &$game['board_state'];
+  if (($board['meta']['harvesting'] ?? null) !== $seat) {
+    throw new Exception('No harvest in progress');
+  }
+  unset($board['meta']['harvesting']);
+  return $players[$seat]['player_name'] . ' finished the harvest';
+}
+
+/** The harvest turn: op 'solve' resolves one card (turn holds), op
+ *  'finish' closes the harvest and advances the turn. */
 function sp_do_harvest(&$game, &$players, $seat, $params, $mysqli) {
   if ($game['status'] !== 'active') throw new Exception('Game is not active');
   if ((int)$game['current_seat'] !== $seat) throw new Exception('Not your turn');
   $p = &$players[$seat];
   if ((int)$p['conceded']) throw new Exception('You have conceded');
 
-  $msg = sp_exec_harvest($game, $players, $seat, $params);
-
-  sp_log($mysqli, (int)$game['game_id'], $seat, 'action', $msg, ['action' => 'harvest']);
-  if ($game['status'] === 'active') {
-    sp_advance_turn($game, $players, $mysqli);
+  $op = (string)($params['op'] ?? 'solve');
+  if ($op === 'finish') {
+    $msg = sp_exec_harvest_finish($game, $players, $seat);
+    sp_log($mysqli, (int)$game['game_id'], $seat, 'action', $msg, ['action' => 'harvest_finish']);
+    if ($game['status'] === 'active') {
+      sp_advance_turn($game, $players, $mysqli);
+    }
+  } else {
+    $msg = sp_exec_harvest_solve($game, $players, $seat, $params);
+    sp_log($mysqli, (int)$game['game_id'], $seat, 'action', $msg, ['action' => 'harvest_solve']);
+    // no turn advance — the harvest stays open for the next pick
   }
   return $msg;
 }
@@ -945,6 +953,9 @@ function sp_play_card(&$game, &$players, $seat, $cardKey, $params, $mysqli) {
   if ((int)$game['current_seat'] !== $seat) throw new Exception('Not your turn');
   $p = &$players[$seat];
   if ((int)$p['conceded']) throw new Exception('You have conceded');
+  if (($game['board_state']['meta']['harvesting'] ?? null) === $seat) {
+    throw new Exception('Finish your harvest first');
+  }
   if (!in_array($cardKey, $p['hand'], true)) throw new Exception('Card not in hand');
 
   $cards = sp_cards();
@@ -1249,6 +1260,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
     'position_costs' => SP_POSITION_COST,
     'geo_credits_per_point' => SP_GEO_CREDITS_PER_POINT,
     'fire_refund' => SP_FIRE_REFUND + max(0, $chaosMod),
+    'harvesting_seat' => $board['meta']['harvesting'] ?? null,
     'market' => [
       'display' => $game['market_display'],
       'stack_count' => count($game['market_stack']),

@@ -49,7 +49,7 @@ function sp_cards_base() {
     'name' => 'Exobiologist', 'action' => 'biology',
     'stats' => [0, 0, 2], 'affiliation' => 'trade_guild',
     'kind' => 'starter', 'stage' => null, 'cost_credits' => 0, 'rider_credits' => 0,
-    'text' => 'PLANT on a field project: enters at Biology 2 +1 and grows +1 at the start of each of your turns. Later, HARVEST (its own action) to resolve missions with your grown cards.',
+    'text' => 'PLANT: this card AND every other biologist in your hand enter the field (each at Biology stat +1), growing +1 at the start of your turns. HARVEST (its own action) resolves them one at a time, revealing each new docket card as you go.',
   ];
   $c['talent_scout'] = [
     'name' => 'Talent Scout', 'action' => 'recruit',
@@ -73,7 +73,7 @@ function sp_cards_base() {
   $mk('linguist', 'Linguist', 'ethnography', 0, 3, 0, 'diplomatic_corps', 1, 3, 0,
       'Xenoanthropology solution attempt: Anthropology 3 (+ consulted colleagues).');
   $mk('geneticist', 'Geneticist', 'biology', 0, 0, 3, 'trade_guild', 1, 3, 0,
-      'PLANT: enters the field at Biology 3 +1, grows +1 each of your turns; resolve missions later via Harvest.');
+      'PLANT: joins the field wave at Biology 3 +1 (all biologists in hand deploy together), +1 growth per turn; resolve via Harvest.');
   $mk('logistics_officer', 'Logistics Officer', 'reset', 1, 1, 1, 'wealth', 1, 3, 2,
       'Recover ALL cards (discard plus this card) and pocket 2 credits.');
   $mk('peer_reviewer', 'Peer Reviewer', 'copy', 1, 1, 1, 'diplomatic_corps', 1, 3, 0,
@@ -87,7 +87,7 @@ function sp_cards_base() {
   $mk('archivist', 'Archivist', 'ethnography', 0, 4, 0, 'diplomatic_corps', 2, 4, 0,
       'Xenoanthropology solution attempt: Anthropology 4 (+ consulted colleagues).');
   $mk('ecologist', 'Ecologist', 'biology', 0, 0, 4, 'trade_guild', 2, 4, 0,
-      'PLANT: enters the field at Biology 4 +1, grows +1 each of your turns; resolve missions later via Harvest.');
+      'PLANT: joins the field wave at Biology 4 +1 (all biologists in hand deploy together), +1 growth per turn; resolve via Harvest.');
   $mk('deputy_director', 'Deputy Director', 'reset', 1, 1, 1, 'wealth', 2, 4, 3,
       'Recover ALL cards (discard plus this card) and pocket 3 credits.');
   $mk('headhunter', 'Headhunter', 'recruit_free', 1, 1, 1, 'wealth', 2, 4, 0,
@@ -101,7 +101,7 @@ function sp_cards_base() {
   $mk('chief_ethnologist', 'Chief Ethnologist', 'ethnography', 0, 5, 0, 'diplomatic_corps', 3, 6, 0,
       'Xenoanthropology solution attempt: Anthropology 5 (+ consulted colleagues).');
   $mk('biome_designer', 'Biome Designer', 'biology', 0, 0, 5, 'trade_guild', 3, 6, 0,
-      'PLANT: enters the field at Biology 5 +1, grows +1 each of your turns; resolve missions later via Harvest.');
+      'PLANT: joins the field wave at Biology 5 +1 (all biologists in hand deploy together), +1 growth per turn; resolve via Harvest.');
   $mk('dean', 'Dean', 'recruit', 0, 2, 2, 'wealth', 3, 6, 0,
       'Hire up to 2 researchers from the market.');
   $mk('grant_writer', 'Grant Writer', 'reset', 1, 1, 1, 'wealth', 3, 6, 5,
@@ -113,7 +113,7 @@ function sp_cards_base() {
   $mk('mythographer', 'Mythographer', 'ethnography', 0, 5, 1, 'diplomatic_corps', 4, 8, 0,
       'Xenoanthropology solution attempt: Anthropology 5 (+ consulted colleagues).');
   $mk('symbiogenesist', 'Symbiogenesist', 'biology', 1, 0, 5, 'trade_guild', 4, 8, 0,
-      'PLANT: enters the field at Biology 5 +1, grows +1 each of your turns; resolve missions later via Harvest.');
+      'PLANT: joins the field wave at Biology 5 +1 (all biologists in hand deploy together), +1 growth per turn; resolve via Harvest.');
   $mk('spymaster', 'Spymaster', 'copy', 2, 2, 2, 'diplomatic_corps', 4, 8, 0,
       'Execute the top card of another player\'s discard pile.');
   $mk('provost', 'Provost', 'recruit', 1, 2, 2, 'wealth', 4, 8, 0,
@@ -125,7 +125,7 @@ function sp_cards_base() {
   $mk('loremaster', 'Loremaster', 'ethnography', 0, 6, 0, 'diplomatic_corps', 5, 10, 0,
       'Xenoanthropology solution attempt: Anthropology 6 (+ consulted colleagues).');
   $mk('lifewright', 'Lifewright', 'biology', 0, 0, 6, 'trade_guild', 5, 10, 0,
-      'PLANT: enters the field at Biology 6 +1, grows +1 each of your turns; resolve missions later via Harvest.');
+      'PLANT: joins the field wave at Biology 6 +1 (all biologists in hand deploy together), +1 growth per turn; resolve via Harvest.');
   $mk('laureate', 'Nobel Laureate', 'reset', 2, 2, 2, 'wealth', 5, 10, 6,
       'Recover ALL cards (discard plus this card) and pocket 6 credits.');
 

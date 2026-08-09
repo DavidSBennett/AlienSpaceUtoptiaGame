@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useSpaceGame } from '../hooks/useSpaceGame.js';
-import { spPlayCard, spHarvest, spResolveBoon, spConcede, spExportGame, spSubmitReport } from '../api/space.js';
+import { spPlayCard, spHarvestSolve, spHarvestFinish, spResolveBoon, spConcede, spExportGame, spSubmitReport } from '../api/space.js';
 import { loadSpSession } from '../api/spSession.js';
 
 /**
@@ -128,7 +128,7 @@ function CardTooltip({ cardKey, cards }) {
       {disc && (
         <div style={{ color: disc.color }}>
           {c.action === 'biology'
-            ? 'Plants on a project; solves missions when harvested.'
+            ? 'Plants itself AND every other biologist in your hand; solves missions when harvested.'
             : `Solves missions the ${disc.label} way.`}
         </div>
       )}
@@ -375,7 +375,6 @@ export default function SpaceGame() {
   // Harvest mode: a free-standing action — no card is played. Pick a grown
   // field card, then click a docket mission to pair them; execute all pairs.
   const [harvestMode, setHarvestMode] = useState(false);
-  const [harvestPairs, setHarvestPairs] = useState([]); // [{field, mission}]
   const [harvestSel, setHarvestSel] = useState(null);   // field index awaiting a mission
   const [firePick, setFirePick] = useState(null);       // card picked in the boon modal
   const [reportOpen, setReportOpen] = useState(false);
@@ -394,7 +393,6 @@ export default function SpaceGame() {
     setDraft(emptyDraft);
     setActionError(null);
     setHarvestMode(false);
-    setHarvestPairs([]);
     setHarvestSel(null);
   }, []);
 
@@ -478,6 +476,8 @@ export default function SpaceGame() {
 
   const picking = effectiveAction === 'recruit' || effectiveAction === 'recruit_free';
   const myField = you.field || [];
+  const harvestCommitted = state.harvesting_seat === mySeat;
+  const inHarvest = harvestMode || harvestCommitted;
 
   // Grown strength of a field entry against a given mission (boons included).
   function fieldStrengthFor(entry) {
@@ -488,20 +488,40 @@ export default function SpaceGame() {
     return s;
   }
 
-  function onMissionClick(key) {
-    if (harvestMode) {
-      const m = state.docket.find((mm) => mm.key === key);
-      if (!m?.solutions?.bio) return;
-      if (harvestSel === null) {
-        // clicking an assigned mission un-assigns it
-        setHarvestPairs((ps) => ps.filter((pr) => pr.mission !== key));
-        return;
-      }
-      setHarvestPairs((ps) => [
-        ...ps.filter((pr) => pr.field !== harvestSel && pr.mission !== key),
-        { field: harvestSel, mission: key },
-      ]);
+  async function harvestSolveNow(fieldIdx, missionKey) {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await spHarvestSolve(session.player_token, fieldIdx, missionKey);
       setHarvestSel(null);
+      setHarvestMode(true);   // stay in harvest until Finish
+      await refresh();
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function harvestFinishNow() {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await spHarvestFinish(session.player_token);
+      resetDraft();
+      await refresh();
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function onMissionClick(key) {
+    if (inHarvest) {
+      const m = state.docket.find((mm) => mm.key === key);
+      if (!m?.solutions?.bio || harvestSel === null || busy) return;
+      harvestSolveNow(harvestSel, key);
       return;
     }
     if (!activeDisc || activeDisc === 'bio') return;
@@ -548,20 +568,6 @@ export default function SpaceGame() {
     setActionError(null);
     try {
       await spPlayCard(session.player_token, selectedCard, buildParams());
-      resetDraft();
-      await refresh();
-    } catch (e) {
-      setActionError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleHarvest() {
-    setBusy(true);
-    setActionError(null);
-    try {
-      await spHarvest(session.player_token, harvestPairs);
       resetDraft();
       await refresh();
     } catch (e) {
@@ -619,6 +625,7 @@ export default function SpaceGame() {
   const blockReason = (() => {
     if (!activeCardDef) return null;
     if (!myTurn) return game.status === 'ended' ? 'The game has ended.' : 'Not your turn yet.';
+    if (harvestCommitted) return 'Finish your harvest first.';
     if (activeCardDef.action === 'copy' && draft.copyTarget === null) return 'Choose whose last action to peer-review.';
     if (activeDisc === 'bio') return null;   // plant needs no target
     if (activeDisc) {
@@ -697,20 +704,18 @@ export default function SpaceGame() {
         <div className={'text-[11px] mb-1 ' + T_MUted}>
           {storyMode ? <>Mission docket · {state.mission_stack_count} crises pending</>
             : <>Missions · {state.mission_stack_count} remaining in deck</>}
-          {harvestMode && (
-            <span className={T_GOOD}> — HARVEST: pick a planted card below, then click its mission
-              {harvestSel !== null ? ' (choose a mission…)' : ''}</span>
+          {inHarvest && (
+            <span className={T_GOOD}> — HARVEST: pick a planted card below, then click a mission; it resolves at once and the next card is revealed
+              {harvestSel !== null ? ' (now choose a mission…)' : ''}</span>
           )}
-          {!harvestMode && activeDisc && activeDisc !== 'bio'
+          {!inHarvest && activeDisc && activeDisc !== 'bio'
             && <span style={{ color: activeDiscMeta.color }}> — click a mission to target your {activeDiscMeta.label} solution</span>}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-4xl">
           {state.docket.map((m) => (
             <MissionCard key={m.key} m={m}
-              activeDisc={harvestMode ? 'bio' : activeDisc}
-              targeted={harvestMode
-                ? harvestPairs.some((pr) => pr.mission === m.key)
-                : draft.mission === m.key}
+              activeDisc={inHarvest ? 'bio' : activeDisc}
+              targeted={!inHarvest && draft.mission === m.key}
               onClick={() => onMissionClick(m.key)} tipHandlers={tipHandlers} />
           ))}
           {state.docket.length === 0 && (
@@ -852,34 +857,22 @@ export default function SpaceGame() {
               {...tipHandlers(<div><b className={T_GOOD}>Field projects</b><div>Planted researchers grow +1 at the start of each of your turns. Use HARVEST (a full action, no card) to resolve missions with any number of them at once; used cards go to your discard.</div></div>)}>
               🌱 Field
             </span>
-            {myField.map((fe, i) => {
-              const assigned = harvestPairs.find((pr) => pr.field === i);
-              const assignedTitle = assigned
-                ? state.docket.find((m) => m.key === assigned.mission)?.title : null;
-              return (
-                <button key={i} type="button"
-                  onClick={() => {
-                    if (!harvestMode) return;
-                    if (assigned) {
-                      setHarvestPairs((ps) => ps.filter((pr) => pr.field !== i));
-                      setHarvestSel(null);
-                    } else {
-                      setHarvestSel((sel) => (sel === i ? null : i));
-                    }
-                  }}
-                  className={
-                    'px-1.5 py-0.5 rounded border text-[10px] transition-colors ' +
-                    (assigned ? 'border-[#e0b45c] bg-[#2a2338] ' :
-                     harvestSel === i ? 'border-[#7fd8a0] ring-1 ring-[#7fd8a0] bg-[#0d2418] ' :
-                     'border-[#2f4b6e] bg-[#0c1424] ') +
-                    (harvestMode ? 'cursor-pointer hover:border-[#7fd8a0]' : 'cursor-default')
-                  }
-                  {...tipHandlers(<CardTooltip cardKey={fe.card} cards={cards} />)}>
-                  {cards[fe.card]?.name} <b className={T_GOOD}>{fe.str}</b>
-                  {assignedTitle && <span className={T_GOLD}> → {assignedTitle}</span>}
-                </button>
-              );
-            })}
+            {myField.map((fe, i) => (
+              <button key={i} type="button"
+                onClick={() => {
+                  if (!inHarvest || busy) return;
+                  setHarvestSel((sel) => (sel === i ? null : i));
+                }}
+                className={
+                  'px-1.5 py-0.5 rounded border text-[10px] transition-colors ' +
+                  (harvestSel === i ? 'border-[#7fd8a0] ring-1 ring-[#7fd8a0] bg-[#0d2418] ' :
+                   'border-[#2f4b6e] bg-[#0c1424] ') +
+                  (inHarvest ? 'cursor-pointer hover:border-[#7fd8a0]' : 'cursor-default')
+                }
+                {...tipHandlers(<CardTooltip cardKey={fe.card} cards={cards} />)}>
+                {cards[fe.card]?.name} <b className={T_GOOD}>{fe.str}</b>
+              </button>
+            ))}
           </div>
         )}
         <div className="flex items-stretch gap-1">
@@ -888,21 +881,22 @@ export default function SpaceGame() {
             {...tipHandlers(<div><b className={T_HEAD}>Team roster</b><div>Hand + published work + planted field cards, max {you.crew_cap} (ranks 5 and 9 on any track raise the limit to 12 and 15). Hiring needs open slots.</div></div>)}>
             Team {you.roster}/{you.crew_cap} · hand {you.hand.length} {handOpen ? '▾' : '▴'}
           </button>
-          {myField.length > 0 && !ended && (
-            <button type="button" disabled={!myTurn}
+          {(myField.length > 0 || harvestCommitted) && !ended && (
+            <button type="button" disabled={!myTurn || busy}
               onClick={() => {
+                if (harvestCommitted) { harvestFinishNow(); return; }
                 if (harvestMode) { resetDraft(); return; }
                 resetDraft();
                 setHarvestMode(true);
               }}
               className={
                 'px-3 py-0.5 rounded-t border text-[11px] font-semibold disabled:opacity-40 ' +
-                (harvestMode
+                (inHarvest
                   ? 'border-[#7fd8a0] bg-[#0d2418] text-[#7fd8a0]'
                   : 'border-[#26365a] bg-[#0a1120]/90 text-[#7fd8a0] hover:border-[#7fd8a0]')
               }
-              {...tipHandlers(<div><b className={T_GOOD}>Harvest</b><div>A full turn action that plays NO card: assign any number of grown field cards to docket missions and resolve them all at once.</div></div>)}>
-              {harvestMode ? '✕ cancel harvest' : '🌾 Harvest'}
+              {...tipHandlers(<div><b className={T_GOOD}>Harvest</b><div>A full turn action that plays NO card: resolve grown field cards one at a time — the docket refills after each, so you see what comes out before your next pick. Finish to end your turn.</div></div>)}>
+              {harvestCommitted ? '✔ Finish harvest' : harvestMode ? '✕ cancel harvest' : '🌾 Harvest'}
             </button>
           )}
           <span className={'px-2 py-0.5 rounded-t border border-[#26365a] bg-[#0a1120]/90 text-[11px] font-mono ' + T_GOLD}
@@ -975,13 +969,19 @@ export default function SpaceGame() {
           {activeDisc === 'bio' && (
             <div className="text-[12px] space-y-1">
               <div>
-                Plants at strength <b className={T_GOOD}>{plantStrength}</b>
-                <span className={T_MUted}> (Biology {effectiveCard?.stats[2]} + 1
-                  {boonCount('greenhouse') > 0 ? ` + ${boonCount('greenhouse')} greenhouse` : ''})</span>
+                Plants the whole wave:{' '}
+                {[selectedCard, ...you.hand.filter((k) => k !== selectedCard && cards[k].action === 'biology')]
+                  .filter(Boolean)
+                  .map((k, i) => (
+                    <span key={k + i} className={T_GOOD}>
+                      {i > 0 ? ', ' : ''}{cards[k]?.name} ({(k === selectedCard ? effectiveCard?.stats[2] : cards[k]?.stats[2]) + 1 + boonCount('greenhouse')})
+                    </span>
+                  ))}
               </div>
               <div className={'text-[10px] ' + T_MUted}>
-                Grows +1 at the start of each of your turns. Resolve missions later
-                with the 🌾 Harvest action — any number of grown cards at once.
+                Every biologist in your hand enters the field together (+1 culture cube each
+                {boonCount('greenhouse') > 0 ? `, +${boonCount('greenhouse')} greenhouse` : ''}),
+                growing +1 at the start of each of your turns. Resolve them later with 🌾 Harvest.
               </div>
             </div>
           )}
@@ -1043,60 +1043,28 @@ export default function SpaceGame() {
       )}
 
       {/* bottom-right: harvest panel */}
-      {harvestMode && (
+      {inHarvest && (
         <div className={'absolute bottom-2 right-2 z-40 w-96 p-3 text-sm space-y-2 border-[#7fd8a0]/60 ' + PANEL}>
           <div className="flex justify-between items-baseline">
-            <b className={T_GOOD}>🌾 Harvest</b>
+            <b className={T_GOOD}>🌾 Harvest{harvestCommitted ? ' — in progress' : ''}</b>
             <span className={'text-[11px] ' + T_MUted}>full action · no card played</span>
           </div>
-          {harvestPairs.length === 0 ? (
-            <p className={'text-[11px] ' + T_MUted}>
-              Click a planted card (bottom), then a docket mission, to pair them.
-              Assign as many as you like — they all resolve this turn.
-            </p>
-          ) : (
-            <ul className="text-[11px] space-y-1">
-              {harvestPairs.map((pr) => {
-                const fe = myField[pr.field];
-                const m = state.docket.find((mm) => mm.key === pr.mission);
-                if (!fe || !m) return null;
-                const s = fieldStrengthFor(fe);
-                const need = m.solutions.bio.difficulty;
-                const ok = s >= need;
-                return (
-                  <li key={pr.field} className="flex items-center gap-2">
-                    <span>{cards[fe.card]?.name} <b className={T_GOOD}>{s}</b></span>
-                    <span className={T_MUted}>vs</span>
-                    <span className={ok ? T_GOOD : T_BAD}>{need}</span>
-                    <span className={'truncate ' + T_MUted}>"{m.title}"</span>
-                    <button type="button" className={'ml-auto underline ' + T_MUted}
-                      onClick={() => setHarvestPairs((ps) => ps.filter((x) => x.field !== pr.field))}>
-                      ✕
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {harvestPairs.some((pr) => {
-            const fe = myField[pr.field];
-            const m = state.docket.find((mm) => mm.key === pr.mission);
-            return fe && m && fieldStrengthFor(fe) < m.solutions.bio.difficulty;
-          }) && (
-            <div className={'text-[11px] ' + T_BAD}>▸ A pairing is not grown enough yet.</div>
+          <p className={'text-[11px] ' + T_MUted}>
+            {harvestSel === null
+              ? 'Click a planted card below, then a docket mission. Each pick resolves IMMEDIATELY and the next mission card is revealed — keep going as long as you have grown cards.'
+              : <>Now click a mission for <b className={T_GOOD}>{cards[myField[harvestSel]?.card]?.name}</b> (strength {myField[harvestSel] ? fieldStrengthFor(myField[harvestSel]) : '?'}).</>}
+          </p>
+          {myField.length === 0 && (
+            <p className={'text-[11px] ' + T_GOOD}>Field cleared — finish the harvest to end your turn.</p>
           )}
           <div className="flex gap-2">
-            <button className={BTN_ACCENT}
-              disabled={busy || !myTurn || harvestPairs.length === 0
-                || harvestPairs.some((pr) => {
-                  const fe = myField[pr.field];
-                  const m = state.docket.find((mm) => mm.key === pr.mission);
-                  return !fe || !m || fieldStrengthFor(fe) < m.solutions.bio.difficulty;
-                })}
-              onClick={handleHarvest}>
-              {busy ? 'Harvesting…' : `Harvest ${harvestPairs.length} project${harvestPairs.length === 1 ? '' : 's'}`}
-            </button>
-            <button className={BTN} onClick={resetDraft}>Cancel</button>
+            {harvestCommitted ? (
+              <button className={BTN_ACCENT} disabled={busy} onClick={harvestFinishNow}>
+                {busy ? '…' : 'Finish harvest (end turn)'}
+              </button>
+            ) : (
+              <button className={BTN} onClick={resetDraft}>Cancel</button>
+            )}
           </div>
         </div>
       )}

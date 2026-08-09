@@ -1,10 +1,13 @@
 <?php
 /**
- * sp_harvest.php — POST. The Exobiology HARVEST: a free-standing turn
- * action that plays NO card. Any number of planted field cards resolve
- * distinct docket missions at their grown strength.
+ * sp_harvest.php — POST. The Exobiology HARVEST: an interactive turn
+ * action that plays NO card.
  *
- * Body: { player_token, assignments: [ { field: <index>, mission: '<key>' } ] }
+ * Body: { player_token, op: 'solve', field: <index>, mission: '<key>' }
+ *   — resolve ONE grown card against one docket mission; the docket
+ *     refills immediately and the turn HOLDS for the next pick.
+ * Body: { player_token, op: 'finish' }
+ *   — close the harvest and advance the turn.
  * Everything runs inside a FOR UPDATE lock on the game row.
  */
 require_once __DIR__ . '/sp_engine.php';
@@ -14,7 +17,11 @@ $me = sp_authenticate($mysqli);
 $gameId = (int)$me['game_id'];
 $body = mp_read_json_body();
 
-$params = ['assignments' => is_array($body['assignments'] ?? null) ? $body['assignments'] : []];
+$params = [
+  'op' => isset($body['op']) && is_string($body['op']) ? $body['op'] : 'solve',
+  'field' => $body['field'] ?? -1,
+  'mission' => $body['mission'] ?? '',
+];
 
 $mysqli->begin_transaction();
 try {
