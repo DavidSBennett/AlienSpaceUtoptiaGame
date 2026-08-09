@@ -687,12 +687,13 @@ function sp_apply_solution(&$game, &$players, $seat, $missionKey, $discipline) {
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Plant: the played bio card AND every other biologist in the hand enter
- * the FIELD as one wave, each with +1 culture cube (Biology stat + 1,
- * + greenhouse boons), growing +1 at the start of each of the owner's
- * turns. None can act the turn they land.
+ * Plant: the played bio card enters the FIELD with +1 culture cube
+ * (Biology stat + 1, + greenhouse boons), and ONE other biologist from
+ * the hand may join it as a free companion (params['extra']). Both grow
+ * +1 at the start of each of the owner's turns; neither can act the
+ * turn they land.
  */
-function sp_exec_plant(&$game, &$players, $seat, $cardKey, $asCard) {
+function sp_exec_plant(&$game, &$players, $seat, $cardKey, $params, $asCard) {
   $p = &$players[$seat];
   $cards = sp_cards();
   $bonus = 1 + sp_boon_count($p, 'greenhouse');
@@ -709,14 +710,19 @@ function sp_exec_plant(&$game, &$players, $seat, $cardKey, $asCard) {
   $p['tracks']['field'][] = ['card' => $cardKey, 'str' => $str];
   $names[] = $cards[$cardKey]['name'] . " ($str)";
 
-  // ...and every other biologist in hand joins the wave at its own stat
-  foreach (array_values($p['hand']) as $k) {
-    if (($cards[$k]['action'] ?? '') !== 'biology') continue;
-    $kpos = array_search($k, $p['hand'], true);
-    array_splice($p['hand'], $kpos, 1);
-    $kstr = (int)$cards[$k]['stats'][2] + $bonus;
-    $p['tracks']['field'][] = ['card' => $k, 'str' => $kstr];
-    $names[] = $cards[$k]['name'] . " ($kstr)";
+  // one chosen companion joins the planting for free
+  $extra = isset($params['extra']) && is_string($params['extra']) && $params['extra'] !== ''
+    ? $params['extra'] : null;
+  if ($extra !== null) {
+    $epos = array_search($extra, $p['hand'], true);
+    if ($epos === false) throw new Exception('Companion not in hand');
+    if (($cards[$extra]['action'] ?? '') !== 'biology') {
+      throw new Exception('Only a biologist can join the planting');
+    }
+    array_splice($p['hand'], $epos, 1);
+    $estr = (int)$cards[$extra]['stats'][2] + $bonus;
+    $p['tracks']['field'][] = ['card' => $extra, 'str' => $estr];
+    $names[] = $cards[$extra]['name'] . " ($estr)";
   }
 
   return $p['player_name'] . ' planted ' . count($names)
@@ -933,7 +939,7 @@ function sp_exec_copy(&$game, &$players, $seat, $cardKey, $params) {
 
 function sp_dispatch_action(&$game, &$players, $seat, $cardKey, $action, $params, $asCard) {
   if ($action === 'biology') {
-    return sp_exec_plant($game, $players, $seat, $cardKey, $asCard);
+    return sp_exec_plant($game, $players, $seat, $cardKey, $params, $asCard);
   }
   $discipline = sp_discipline_of_action($action);
   if ($discipline !== null) {

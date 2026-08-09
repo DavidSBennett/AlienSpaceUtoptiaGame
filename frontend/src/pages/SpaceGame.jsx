@@ -68,7 +68,7 @@ const ACTION_LABELS = {
   copy: 'Peer review',
 };
 
-const emptyDraft = { mission: null, commits: [], charter: 0, picks: [], copyTarget: null };
+const emptyDraft = { mission: null, commits: [], charter: 0, picks: [], copyTarget: null, plantExtra: 'auto' };
 
 /** Compact label for a boon, shown on mission-card fronts and boon chips. */
 function boonShort(b) {
@@ -128,7 +128,7 @@ function CardTooltip({ cardKey, cards }) {
       {disc && (
         <div style={{ color: disc.color }}>
           {c.action === 'biology'
-            ? 'Plants itself AND every other biologist in your hand; solves missions when harvested.'
+            ? 'Plants itself plus one free companion biologist; solves missions when harvested.'
             : `Solves missions the ${disc.label} way.`}
         </div>
       )}
@@ -476,6 +476,14 @@ export default function SpaceGame() {
 
   const picking = effectiveAction === 'recruit' || effectiveAction === 'recruit_free';
   const myField = you.field || [];
+  const otherBioInHand = you.hand.filter((k) => k !== selectedCard && cards[k].action === 'biology');
+  const plantExtra = activeDisc === 'bio'
+    ? (draft.plantExtra === 'auto'
+      ? (otherBioInHand.length
+        ? otherBioInHand.reduce((a, b) => (cards[b].stats[2] > cards[a].stats[2] ? b : a))
+        : null)
+      : draft.plantExtra)
+    : null;
   const harvestCommitted = state.harvesting_seat === mySeat;
   const inHarvest = harvestMode || harvestCommitted;
 
@@ -552,7 +560,7 @@ export default function SpaceGame() {
     const inner = () => {
       if (effectiveAction === 'survey') return { mission: draft.mission, charter_credits: draft.charter };
       if (effectiveAction === 'ethnography') return { mission: draft.mission, commits: draft.commits };
-      if (effectiveAction === 'biology') return {};   // plant: no target
+      if (effectiveAction === 'biology') return { extra: plantExtra };
       if (effectiveAction === 'recruit' || effectiveAction === 'recruit_free') {
         return { picks: draft.picks.map((key) => ({ card: key })) };
       }
@@ -969,19 +977,40 @@ export default function SpaceGame() {
           {activeDisc === 'bio' && (
             <div className="text-[12px] space-y-1">
               <div>
-                Plants the whole wave:{' '}
-                {[selectedCard, ...you.hand.filter((k) => k !== selectedCard && cards[k].action === 'biology')]
-                  .filter(Boolean)
-                  .map((k, i) => (
-                    <span key={k + i} className={T_GOOD}>
-                      {i > 0 ? ', ' : ''}{cards[k]?.name} ({(k === selectedCard ? effectiveCard?.stats[2] : cards[k]?.stats[2]) + 1 + boonCount('greenhouse')})
-                    </span>
-                  ))}
+                Plants <span className={T_GOOD}>{effectiveCard?.name} ({(effectiveCard?.stats[2] ?? 0) + 1 + boonCount('greenhouse')})</span>
+                {plantExtra && (
+                  <> + free companion <span className={T_GOOD}>{cards[plantExtra]?.name} ({cards[plantExtra].stats[2] + 1 + boonCount('greenhouse')})</span></>
+                )}
               </div>
+              {otherBioInHand.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                  <span className={T_MUted}>Companion:</span>
+                  {otherBioInHand.map((k) => (
+                    <button key={k} type="button"
+                      onClick={() => setDraft((dr) => ({
+                        ...dr, plantExtra: plantExtra === k ? null : k,
+                      }))}
+                      className={
+                        'px-1.5 py-0.5 rounded border ' +
+                        (plantExtra === k
+                          ? 'border-[#7fd8a0] text-[#7fd8a0] bg-[#0d2418]'
+                          : 'border-[#2f4b6e] text-[#8593ad] hover:border-[#7fd8a0]')
+                      }>
+                      {cards[k].name}
+                    </button>
+                  ))}
+                  {plantExtra && (
+                    <button type="button" className={'underline ' + T_MUted}
+                      onClick={() => setDraft((dr) => ({ ...dr, plantExtra: null }))}>
+                      none
+                    </button>
+                  )}
+                </div>
+              )}
               <div className={'text-[10px] ' + T_MUted}>
-                Every biologist in your hand enters the field together (+1 culture cube each
+                One extra biologist joins the planting free (+1 culture cube each
                 {boonCount('greenhouse') > 0 ? `, +${boonCount('greenhouse')} greenhouse` : ''}),
-                growing +1 at the start of each of your turns. Resolve them later with 🌾 Harvest.
+                growing +1 at the start of each of your turns. Resolve later with 🌾 Harvest.
               </div>
             </div>
           )}
