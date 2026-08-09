@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   spCreateGame, spJoinGame, spStartGame, spCancelGame,
   spListOpenGames, spListMyGames, spGetGameState,
-  spHighScores, spExportGame, spDeleteGame,
+  spHighScores, spExportGame, spExportAll, spDeleteGame,
 } from '../api/space.js';
 import { saveSpSession, loadSpSession, clearSpSession } from '../api/spSession.js';
 
@@ -99,6 +99,24 @@ export default function SpaceLobby() {
       URL.revokeObjectURL(url);
     } catch (e) {
       setError(e.message);
+    }
+  }
+
+  async function handleDownloadAll() {
+    setBusy(true);
+    try {
+      const res = await spExportAll();
+      const blob = new Blob([JSON.stringify(res.export, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `utopian-playthroughs-all-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -345,12 +363,19 @@ export default function SpaceLobby() {
 
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="font-display text-xl text-[#79c9d6]">Your games</h2>
-          {myGames.some((g) => g.status === 'ended') && (
-            <button className="text-[11px] underline text-[#8593ad] hover:text-[#e58787]"
-              disabled={busy} onClick={handleClearAll}>
-              Clear all finished
+          <span className="flex items-baseline gap-3">
+            <button className="text-[11px] underline text-[#8593ad] hover:text-[#79c9d6]"
+              disabled={busy} onClick={handleDownloadAll}
+              title="Every game on the server with its full event log, plus all playtest reports (admin only)">
+              ⬇ Download entire playthrough database
             </button>
-          )}
+            {myGames.some((g) => g.status === 'ended') && (
+              <button className="text-[11px] underline text-[#8593ad] hover:text-[#e58787]"
+                disabled={busy} onClick={handleClearAll}>
+                Clear all finished
+              </button>
+            )}
+          </span>
         </div>
         {myGames.length === 0 ? (
           <p className="text-sm text-[#8593ad]">None yet — launch one above.</p>

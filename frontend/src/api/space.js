@@ -95,6 +95,9 @@ export const spSubmitReport = (playerToken, notes, rating = null) =>
 export const spDeleteGame = (playerToken) =>
   post('/sp_deleteGame.php', { player_token: playerToken });
 
+/** The entire playthrough database (all games + reports). Admin only. */
+export const spExportAll = () => get('/sp_exportAll.php');
+
 /** Top final scores across all ended games (lobby high-score track). */
 export const spHighScores = () => get('/sp_highScores.php');
 
