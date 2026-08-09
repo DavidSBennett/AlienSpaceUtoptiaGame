@@ -1053,8 +1053,11 @@ function sp_compute_score($game, $players, $seat, $final = true) {
   $b['trade_guild']      = $counts['trade_guild'] * (int)$p['tracks']['trade']['step'];
   $b['trophy']           = ($final && (int)$p['trophy']) ? SP_TROPHY_VP : 0;
   if ($final && ($game['endgame_trigger'] ?? null) === 'chaos_collapse') {
-    // The blame: 5 VP per boon claimed — the profiteers pay for the ruin.
-    $b['collapse'] = -SP_COLLAPSE_PENALTY * count(sp_player_boons($p));
+    // The blame: 5 VP per TAINTED boon (claimed from a chaos solution) —
+    // the profiteers pay for the ruin; baseline boons are clean.
+    $tainted = 0;
+    foreach (sp_player_boons($p) as $bn) if (!empty($bn['tainted'])) $tainted++;
+    $b['collapse'] = -SP_COLLAPSE_PENALTY * $tainted;
   }
 
   return ['total' => array_sum($b), 'breakdown' => $b, 'card_counts' => $counts];

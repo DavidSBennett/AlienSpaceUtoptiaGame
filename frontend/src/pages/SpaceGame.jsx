@@ -145,8 +145,11 @@ function SolutionTooltip({ mission, discKey, sol }) {
       </div>
       {sol.boon && (
         <div className="border-t border-[#26365a] pt-1">
-          <b className={T_GOLD}>★ Boon: {sol.boon.name}</b>
+          <b className={sol.boon.tainted ? T_GOLD : T_MUted}>★ Boon: {sol.boon.name}</b>
           <div className={T_MUted}>{sol.boon.text}</div>
+          {sol.boon.tainted && (
+            <div className={T_BAD}>Tainted: −5 VP each if the game ends in full chaos.</div>
+          )}
         </div>
       )}
       {sol.has_follow && <div className={T_GOLD}>⛓ This choice will have consequences…</div>}
@@ -180,7 +183,7 @@ function ChaosBar({ chaos, mod, storyMode, tipHandlers }) {
             Current effect: all mission difficulties {mod > 0 ? `+${mod}` : mod < 0 ? mod : '±0'} (1 per 3 chaos).
           </div>
           <div className={T_GOOD}>At −10 (full ORDER) the game ends — highest VP wins clean.</div>
-          <div className={T_BAD}>At +10 (full CHAOS) the game ends at once and every player loses 5 VP PER BOON claimed.</div>
+          <div className={T_BAD}>At +10 (full CHAOS) the game ends at once and every player loses 5 VP PER CHAOS BOON claimed (baseline boons are clean).</div>
         </div>
       )}>
       <span className={T_GOOD}>ORDER</span>
@@ -236,7 +239,7 @@ function MissionCard({ m, activeDisc, targeted, onClick, tipHandlers }) {
               <span className={'font-mono w-14 ' + (sol.chaos > 0 ? T_BAD : sol.chaos < 0 ? T_GOOD : T_MUted)}>
                 {sol.chaos > 0 ? `chaos +${sol.chaos}` : sol.chaos < 0 ? `order ${-sol.chaos}` : '—'}
               </span>
-              {sol.boon && <span className={T_GOLD} title={sol.boon.name}>★</span>}
+              {sol.boon && <span className={sol.boon.tainted ? T_GOLD : T_MUted} title={sol.boon.name}>★</span>}
               {sol.has_follow && <span className={T_GOLD}>⛓</span>}
             </div>
           );
@@ -1054,8 +1057,8 @@ function ResultsOverlay({ state, collapsed, ordered, storyMode }) {
         {collapsed && (
           <p className={'text-sm ' + T_MUted}>
             {storyMode
-              ? 'Chaos reached its breaking point. Every delegation loses 5 VP per boon it claimed — the profiteers wear the blame. The stories you wrote survive; the institution did not.'
-              : 'Each player loses 5 VP per boon claimed.'}
+              ? 'Chaos reached its breaking point. Every delegation loses 5 VP per CHAOS boon it claimed — the profiteers wear the blame. The stories you wrote survive; the institution did not.'
+              : 'Each player loses 5 VP per chaos boon claimed.'}
           </p>
         )}
         {ordered && storyMode && (
