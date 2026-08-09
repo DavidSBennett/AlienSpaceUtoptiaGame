@@ -449,7 +449,7 @@ function sp_missions_base() {
       } elseif ($chaos >= 1) {
         if ($minorSlot === 3) {
           $sol['boon'] = ['type' => 'severance', 'name' => 'Severance Authority',
-            'text' => 'During a Regroup you may permanently dismiss crew from your team (reset crew never).'];
+            'text' => '+2 credits per crew member you fire during a Regroup.'];
         } elseif ($minorSlot === 0) {
           $sol['boon'] = ['type' => 'affinity', 'power' => 2, 'keyword' => $kw,
             'name' => 'Renowned Expertise: ' . ucfirst($kw),

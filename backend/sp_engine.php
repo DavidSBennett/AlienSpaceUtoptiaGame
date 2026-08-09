@@ -132,8 +132,8 @@ function sp_plain_missions($base) {
             $b['text'] = 'Hiring researchers costs 1 credit less.';
             break;
           case 'severance':
-            $b['name'] = 'Boon: dismiss crew';
-            $b['text'] = 'During a Regroup you may permanently dismiss crew (reset crew never).';
+            $b['name'] = 'Boon: firing +2c';
+            $b['text'] = '+2 credits per crew member you fire during a Reset.';
             break;
         }
         $sol['boon'] = $b;
@@ -169,6 +169,8 @@ const SP_GATE_TIER  = [1 => 'minor', 2 => 'major', 3 => 'critical'];
 const SP_GATE_GRANT = [5 => 10, 9 => 15];   // credits on gate break
 
 const SP_GEO_CREDITS_PER_POINT = 2;   // charter equipment: 2c per +1
+const SP_FIRE_REFUND = 4;             // credits per crew fired during a Regroup
+                                      // (+1 per 3 positive chaos, +2 with Severance)
 
 // Market position surcharge, in credits, by display position 0..6.
 const SP_POSITION_COST = [0, 0, 1, 1, 2, 2, 3];
@@ -857,22 +859,26 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
     $msg .= " (+{$rider}c)";
   }
 
-  // Severance Authority boon: permanently dismiss crew while regrouping.
+  // Fire crew while regrouping: each dismissal refunds credits at once —
+  // 4 base, +1 per 3 chaos when the track runs hot (instability pays),
+  // +2 per firing with the Severance Authority boon.
   $dismiss = is_array($params['dismiss'] ?? null) ? $params['dismiss'] : [];
   if (count($dismiss) > 0) {
-    if (sp_boon_count($p, 'severance') === 0) {
-      throw new Exception('Dismissing crew requires the Severance Authority boon');
-    }
+    $refundEach = SP_FIRE_REFUND
+      + max(0, sp_chaos_mod($game['board_state']['chaos']))
+      + 2 * sp_boon_count($p, 'severance');
     foreach ($dismiss as $k) {
       if (!is_string($k)) throw new Exception('Bad dismissal');
       if (($cards[$k]['action'] ?? '') === 'reset') {
-        throw new Exception('Reset crew cannot be dismissed');
+        throw new Exception('Reset crew cannot be fired');
       }
       $dpos = array_search($k, $p['hand'], true);
       if ($dpos === false) throw new Exception('Crew not on your team: ' . $k);
       array_splice($p['hand'], $dpos, 1);
     }
-    $msg .= ' — dismissed ' . count($dismiss) . ' crew permanently';
+    $refund = $refundEach * count($dismiss);
+    $p['credits'] += $refund;
+    $msg .= ' — fired ' . count($dismiss) . ' crew (+' . $refund . 'c severance)';
   }
 
   if (!(int)$p['first_reset_done']) {
@@ -1223,6 +1229,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
     'story' => $board['solved'],
     'position_costs' => SP_POSITION_COST,
     'geo_credits_per_point' => SP_GEO_CREDITS_PER_POINT,
+    'fire_refund' => SP_FIRE_REFUND + max(0, $chaosMod),
     'market' => [
       'display' => $game['market_display'],
       'stack_count' => count($game['market_stack']),
