@@ -132,8 +132,8 @@ function sp_plain_missions($base) {
             $b['text'] = 'Hiring researchers costs 1 credit less.';
             break;
           case 'severance':
-            $b['name'] = 'Boon: fire crew';
-            $b['text'] = 'During a Reset you may fire crew permanently: +4c each, more in chaos.';
+            $b['name'] = 'Boon: fire a card';
+            $b['text'] = 'One-shot, on claim: fire one card from your hand or discard for +4c (more in chaos).';
             break;
         }
         $sol['boon'] = $b;
@@ -389,6 +389,12 @@ function sp_player_boons($p) {
   return $p['tracks']['boons'] ?? [];
 }
 
+/** One-shot triggered boons awaiting the player's choice (modal). */
+function sp_player_pending($p) {
+  $q = $p['tracks']['pending'] ?? [];
+  return is_array($q) ? $q : [];
+}
+
 /** Count boons of a type (many stack). */
 function sp_boon_count($p, $type) {
   $nb = 0;
@@ -622,8 +628,18 @@ function sp_apply_solution(&$game, &$players, $seat, $missionKey, $discipline) {
   if (!empty($solution['boon'])) {
     $claimed = $solution['boon'];
     $claimed['source'] = $missionKey;
-    $p['tracks']['boons'][] = $claimed;
-    $boonNote = ' — BOON claimed: ' . $claimed['name'];
+    if (($claimed['type'] ?? '') === 'severance') {
+      // One-shot triggered boon: queues a pending choice the player
+      // resolves via sp_resolveBoon.php (modal on the client, no turn cost).
+      if (!isset($p['tracks']['pending']) || !is_array($p['tracks']['pending'])) {
+        $p['tracks']['pending'] = [];
+      }
+      $p['tracks']['pending'][] = $claimed;
+      $boonNote = ' — BOON triggered: ' . $claimed['name'] . ' (choose a crew member to fire)';
+    } else {
+      $p['tracks']['boons'][] = $claimed;
+      $boonNote = ' — BOON claimed: ' . $claimed['name'];
+    }
   }
   $board['chaos'] = max(SP_CHAOS_MIN, min(SP_CHAOS_MAX, (int)$board['chaos'] + (int)$solution['chaos']));
   $board['solved'][] = [
@@ -859,29 +875,8 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
     $msg .= " (+{$rider}c)";
   }
 
-  // Severance Authority boon: fire crew while regrouping — permanent
-  // removal, each refunding credits at once: 4 base, +1 per 3 chaos when
-  // the track runs hot (instability pays).
-  $dismiss = is_array($params['dismiss'] ?? null) ? $params['dismiss'] : [];
-  if (count($dismiss) > 0) {
-    if (sp_boon_count($p, 'severance') === 0) {
-      throw new Exception('Firing crew requires the Severance Authority boon');
-    }
-    $refundEach = SP_FIRE_REFUND
-      + max(0, sp_chaos_mod($game['board_state']['chaos']));
-    foreach ($dismiss as $k) {
-      if (!is_string($k)) throw new Exception('Bad dismissal');
-      if (($cards[$k]['action'] ?? '') === 'reset') {
-        throw new Exception('Reset crew cannot be fired');
-      }
-      $dpos = array_search($k, $p['hand'], true);
-      if ($dpos === false) throw new Exception('Crew not on your team: ' . $k);
-      array_splice($p['hand'], $dpos, 1);
-    }
-    $refund = $refundEach * count($dismiss);
-    $p['credits'] += $refund;
-    $msg .= ' — fired ' . count($dismiss) . ' crew (+' . $refund . 'c severance)';
-  }
+  // (Firing crew is no longer a reset rider — it is the Severance
+  // Authority boon's one-shot effect, resolved via sp_resolveBoon.php.)
 
   if (!(int)$p['first_reset_done']) {
     $p['first_reset_done'] = 1;
@@ -1246,6 +1241,7 @@ function sp_public_state($mysqli, $game, $players, $yourSeat) {
       'bio_solves' => sp_solve_count($board, $yourSeat, 'bio'),
       'field' => sp_player_field($you),
       'boons' => sp_player_boons($you),
+      'pending' => sp_player_pending($you),
       'roster' => sp_roster_size($you),
       'crew_cap' => sp_crew_capacity($you),
       'first_reset_done' => (int)$you['first_reset_done'],

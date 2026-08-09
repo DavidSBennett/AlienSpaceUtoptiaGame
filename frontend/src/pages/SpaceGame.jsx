@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useSpaceGame } from '../hooks/useSpaceGame.js';
-import { spPlayCard, spHarvest, spConcede } from '../api/space.js';
+import { spPlayCard, spHarvest, spResolveBoon, spConcede } from '../api/space.js';
 import { loadSpSession } from '../api/spSession.js';
 
 /**
@@ -68,7 +68,7 @@ const ACTION_LABELS = {
   copy: 'Peer review',
 };
 
-const emptyDraft = { mission: null, commits: [], charter: 0, picks: [], copyTarget: null, dismiss: [] };
+const emptyDraft = { mission: null, commits: [], charter: 0, picks: [], copyTarget: null };
 
 // ── tooltips ─────────────────────────────────────────────────────────────
 
@@ -357,6 +357,7 @@ export default function SpaceGame() {
   const [harvestMode, setHarvestMode] = useState(false);
   const [harvestPairs, setHarvestPairs] = useState([]); // [{field, mission}]
   const [harvestSel, setHarvestSel] = useState(null);   // field index awaiting a mission
+  const [firePick, setFirePick] = useState(null);       // card picked in the boon modal
 
   const tipHandlers = useCallback((node) => ({
     onMouseEnter: (e) => setTip({ x: e.clientX, y: e.clientY, node }),
@@ -497,15 +498,6 @@ export default function SpaceGame() {
     }));
   }
 
-  function toggleDismiss(key) {
-    setDraft((dr) => ({
-      ...dr,
-      dismiss: dr.dismiss.includes(key)
-        ? dr.dismiss.filter((k) => k !== key)
-        : [...dr.dismiss, key],
-    }));
-  }
-
   function togglePick(key) {
     const maxPicks = activeCardDef?.action === 'recruit' ? 2 : 1;
     setDraft((dr) => {
@@ -524,7 +516,7 @@ export default function SpaceGame() {
       if (effectiveAction === 'recruit' || effectiveAction === 'recruit_free') {
         return { picks: draft.picks.map((key) => ({ card: key })) };
       }
-      if (effectiveAction === 'reset') return { dismiss: draft.dismiss };
+      if (effectiveAction === 'reset') return {};
       return {};
     };
     if (a === 'copy') return { target_seat: draft.copyTarget, params: inner() };
@@ -840,15 +832,12 @@ export default function SpaceGame() {
               className="shrink-0 transition-transform hover:-translate-y-1">
               <CardChip cardKey={key} cards={cards} tipHandlers={tipHandlers}
                 selected={selectedCard === key}
-                committed={draft.commits.includes(key) || draft.dismiss.includes(key)}
+                committed={draft.commits.includes(key)}
                 disabled={!myTurn || ended}
                 onCommit={
                   activeDisc === 'anthro' && key !== selectedCard
                     && cards[key].action !== 'reset' && myTurn && !ended
                     ? () => toggleCommit(key)
-                  : activeCardDef?.action === 'reset' && boonCount('severance') > 0
-                    && key !== selectedCard && cards[key].action !== 'reset' && myTurn && !ended
-                    ? () => toggleDismiss(key)
                   : undefined
                 }
                 onClick={() => {
@@ -955,18 +944,6 @@ export default function SpaceGame() {
             </div>
           )}
 
-          {activeCardDef.action === 'reset' && boonCount('severance') > 0 && (
-            <div className={'text-[11px] ' + T_GOLD}>
-              ★ Severance Authority: mark crew with + to FIRE them permanently for
-              {' '}+{state.fire_refund || 4}c each
-              ({draft.dismiss.length} selected
-              {draft.dismiss.length > 0
-                ? ` = +${draft.dismiss.length * (state.fire_refund || 4)}c`
-                : ''}).
-              {state.chaos_mod > 0 && <span className={T_BAD}> Chaos premium active.</span>}
-            </div>
-          )}
-
           {blockReason && myTurn && (
             <div className={'text-[11px] ' + T_GOLD}>▸ {blockReason}</div>
           )}
@@ -1035,6 +1012,64 @@ export default function SpaceGame() {
               {busy ? 'Harvesting…' : `Harvest ${harvestPairs.length} project${harvestPairs.length === 1 ? '' : 's'}`}
             </button>
             <button className={BTN} onClick={resetDraft}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* pending one-shot boon modal */}
+      {!ended && (you.pending || []).length > 0 && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#03060d]/80">
+          <div className={'w-[34rem] max-w-[92vw] p-4 space-y-3 border-[#e0b45c]/70 ' + PANEL}>
+            <div className="flex justify-between items-baseline">
+              <b className={T_GOLD}>★ {you.pending[0].name}</b>
+              <span className={'text-[11px] ' + T_MUted}>one-shot boon · no turn cost</span>
+            </div>
+            <p className={'text-[12px] ' + T_MUted}>
+              Fire one researcher from your hand or discard — they leave your team
+              permanently and refund <b className={T_GOLD}>+{state.fire_refund || 4}c</b>
+              {state.chaos_mod > 0 && <span className={T_BAD}> (chaos premium included)</span>}.
+              Reset crew can never be fired.
+            </p>
+            {[['Hand', you.hand], ['Published (discard)', you.discard]].map(([zone, keys]) => (
+              <div key={zone}>
+                <div className={'text-[10px] mb-1 ' + T_MUted}>{zone}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {keys.length === 0 && <span className={'text-[10px] ' + T_MUted}>— empty —</span>}
+                  {keys.map((key, i) => (
+                    <div key={zone + key + i}>
+                      <CardChip cardKey={key} cards={cards} small tipHandlers={tipHandlers}
+                        selected={firePick === key}
+                        disabled={cards[key].action === 'reset'}
+                        onClick={() => setFirePick((fp) => (fp === key ? null : key))} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <button className={BTN_ACCENT} disabled={busy || !firePick}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await spResolveBoon(session.player_token, 0, firePick);
+                    setFirePick(null);
+                    await refresh();
+                  } catch (e) { setActionError(e.message); } finally { setBusy(false); }
+                }}>
+                {busy ? '…' : `Fire ${firePick ? cards[firePick]?.name : '—'} (+${state.fire_refund || 4}c)`}
+              </button>
+              <button className={BTN} disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await spResolveBoon(session.player_token, 0, null);
+                    setFirePick(null);
+                    await refresh();
+                  } catch (e) { setActionError(e.message); } finally { setBusy(false); }
+                }}>
+                Decline
+              </button>
+            </div>
           </div>
         </div>
       )}

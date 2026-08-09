@@ -68,6 +68,13 @@ export const spPlayCard = (playerToken, card, params = {}) =>
 export const spHarvest = (playerToken, assignments) =>
   post('/sp_harvest.php', { player_token: playerToken, assignments });
 
+/**
+ * Resolve a pending one-shot triggered boon (no turn cost).
+ * card: key to fire (Severance Authority), or null to decline.
+ */
+export const spResolveBoon = (playerToken, pending, card) =>
+  post('/sp_resolveBoon.php', { player_token: playerToken, pending, card });
+
 export const spConcede = (playerToken) =>
   post('/sp_concede.php', { player_token: playerToken });
 
