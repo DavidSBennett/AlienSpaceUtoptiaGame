@@ -113,8 +113,8 @@ function sp_plain_missions($base) {
             $b['text'] = 'Consulted colleagues return to your hand immediately instead of at Reset.';
             break;
           case 'deep_roots':
-            $b['name'] = 'Boon: reset growth +1';
-            $b['text'] = 'Your planted cards grow +1 extra whenever you Reset.';
+            $b['name'] = 'Boon: growth x2';
+            $b['text'] = 'Your planted cards grow +2 per round instead of +1.';
             break;
           case 'fleet':
             $b['name'] = 'Boon: charters 1c';
@@ -921,17 +921,6 @@ function sp_exec_reset(&$game, &$players, $seat, $cardKey, $params, $asCard) {
     $msg .= " (+{$rider}c)";
   }
 
-  // Deep Roots: the field surges while the team regroups.
-  $dr = sp_boon_count($p, 'deep_roots');
-  if ($dr > 0) {
-    $field = sp_player_field($p);
-    if (count($field) > 0) {
-      foreach ($field as &$fe) $fe['str'] = (int)$fe['str'] + $dr;
-      unset($fe);
-      $p['tracks']['field'] = $field;
-      $msg .= " — field grew +{$dr} (Deep Roots)";
-    }
-  }
   $p['tracks']['adv_charter'] = 0;   // Advance Survey carry expires
 
   // (Firing crew is no longer a reset rider — it is the Severance
@@ -1082,11 +1071,13 @@ function sp_advance_turn(&$game, &$players, $mysqli) {
   if ($next <= (int)$game['current_seat']) $game['turn_number'] = (int)$game['turn_number'] + 1;
   $game['current_seat'] = $next;
 
-  // A new turn begins: the incoming player's field projects grow +1.
+  // A new turn begins: the incoming player's field projects grow +1
+  // (+1 more per Deep Roots boon held).
   if ($game['status'] === 'active' && isset($players[$next])) {
     $field = sp_player_field($players[$next]);
     if (count($field) > 0) {
-      foreach ($field as &$fe) $fe['str'] = (int)$fe['str'] + 1;
+      $grow = 1 + sp_boon_count($players[$next], 'deep_roots');
+      foreach ($field as &$fe) $fe['str'] = (int)$fe['str'] + $grow;
       unset($fe);
       $players[$next]['tracks']['field'] = $field;
     }
