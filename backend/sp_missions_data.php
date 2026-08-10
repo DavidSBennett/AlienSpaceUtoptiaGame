@@ -453,6 +453,47 @@ function sp_missions_base() {
     }
     unset($sol);
   }
+
+  // ── Applied-skill overlay: flat +1 stat boons exist but are SCARCE —
+  // exactly 4 per tier (chaos ≥3 / 1–2 / ≤0), chosen deterministically
+  // with at least one per discipline so every build can reach some.
+  $buckets = ['t3' => [], 't12' => [], 't0' => []];
+  foreach ($m as $mkey => $mm) {
+    foreach ($mm['solutions'] as $disc => $sol) {
+      $chaos = (int)$sol['chaos'];
+      $bk = $chaos >= 3 ? 't3' : ($chaos >= 1 ? 't12' : 't0');
+      $buckets[$bk][] = [abs(crc32($mkey . $disc . 'skill')), $mkey, $disc, $chaos];
+    }
+  }
+  $discLabels = ['geo' => 'Xenogeology', 'anthro' => 'Xenoanthropology', 'bio' => 'Exobiology'];
+  // The 4th slot rotates by tier so overall access is even: 4 per
+  // discipline across the whole deck.
+  $fourth = ['t3' => 'geo', 't12' => 'anthro', 't0' => 'bio'];
+  foreach ($buckets as $bk => $entries) {
+    usort($entries, function ($a, $b) { return $a[0] <=> $b[0]; });
+    $chosen = [];
+    $seenDisc = [];
+    foreach ($entries as $e) {                      // one per discipline first
+      if (count($seenDisc) >= 3) break;
+      if (isset($seenDisc[$e[2]])) continue;
+      $seenDisc[$e[2]] = true;
+      $chosen[] = $e;
+    }
+    foreach ($entries as $e) {                      // 4th: the tier's rotating discipline
+      if (count($chosen) >= 4) break;
+      if ($e[2] === $fourth[$bk] && !in_array($e, $chosen, true)) $chosen[] = $e;
+    }
+    foreach ($chosen as $e) {
+      list(, $mkey, $disc, $chaos) = $e;
+      $label = $discLabels[$disc];
+      $m[$mkey]['solutions'][$disc]['boon'] = [
+        'type' => 'skill', 'power' => 1, 'disc' => $disc,
+        'name' => 'Applied ' . $label,
+        'text' => '+1 on every ' . $label . ' attempt.',
+        'tainted' => $chaos >= 1,
+      ];
+    }
+  }
   unset($mm);
 
   return $m;

@@ -91,6 +91,11 @@ function sp_plain_missions($base) {
       if (!empty($sol['boon'])) {
         $b = $sol['boon'];
         switch ($b['type']) {
+          case 'skill':
+            $label = ['geo' => 'geology', 'anthro' => 'anthropology', 'bio' => 'biology'][$b['disc']] ?? '?';
+            $b['name'] = 'Boon: ' . $label . ' +' . $b['power'];
+            $b['text'] = '+' . $b['power'] . ' on every ' . $label . ' attempt.';
+            break;
           case 'loyal':
             $b['name'] = 'Boon: +' . $b['power'] . ' VP if no collapse';
             $b['text'] = '+' . $b['power'] . ' VP at game end — VOID if the game ends in full chaos.';
