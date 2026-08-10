@@ -91,7 +91,7 @@ function boonShort(b) {
     case 'sabot': return `\u{1F525} +${b.power} VP`;
     case 'survey_chain': return 'repeat charter';
     case 'seminar': return 'colleagues stay';
-    case 'deep_roots': return 'growth ×2';
+    case 'deep_roots': return 'reset growth +1';
     default: return b.name || '?';
   }
 }

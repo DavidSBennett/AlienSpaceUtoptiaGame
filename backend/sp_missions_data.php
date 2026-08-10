@@ -408,7 +408,7 @@ function sp_missions_base() {
               'text' => 'Consulted colleagues return to your hand immediately instead of at Regroup.'];
           } else {
             $sol['boon'] = ['type' => 'deep_roots', 'name' => 'Deep Roots',
-              'text' => 'Your planted cards grow +2 per round instead of +1.'];
+              'text' => 'Your planted cards grow +1 extra whenever you Regroup.'];
           }
         } else {
           $sol['boon'] = ['type' => 'income', 'power' => 3, 'name' => 'Grand Endowment',
