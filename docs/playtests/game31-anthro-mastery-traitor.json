@@ -1,0 +1,854 @@
+{
+  "format": "utopian-space-game-playthrough/1",
+  "exported_at": "2026-08-10T03:14:35+00:00",
+  "game": {
+    "game_id": 31,
+    "variant": "plain",
+    "status": "ended",
+    "turn_number": 29,
+    "endgame_trigger": "track_mastery",
+    "winner_seat": 0,
+    "chaos": 0,
+    "max_players": 1,
+    "missions_remaining": 2
+  },
+  "players": [
+    {
+      "seat": 0,
+      "name": "Dr_David_S_Bennett",
+      "credits": 201,
+      "tracks": {
+        "geology": 0,
+        "anthropology": 12,
+        "biology": 1
+      },
+      "hand": [
+        "exobiologist",
+        "dean",
+        "talent_scout",
+        "archivist",
+        "chief_ethnologist",
+        "headhunter",
+        "linguist",
+        "ethnographer",
+        "mission_coordinator"
+      ],
+      "discard": [
+        "mythographer",
+        "loremaster"
+      ],
+      "field": [],
+      "boons": [
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "anthro",
+          "name": "Boon: anthropology +1",
+          "text": "+1 on every anthropology attempt.",
+          "tainted": true,
+          "source": "m_lightless_choir"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "bio",
+          "name": "Boon: biology +1",
+          "text": "+1 on every biology attempt.",
+          "tainted": true,
+          "source": "m_silent_reef"
+        },
+        {
+          "type": "severance",
+          "name": "Boon: fire a card",
+          "text": "One-shot, on claim: fire one card from your hand or discard for +4c (more in chaos).",
+          "tainted": true,
+          "source": "m_iron_pilgrims",
+          "spent": true
+        },
+        {
+          "type": "purist",
+          "name": "Boon: purity +3",
+          "text": "+3 when every consulted colleague is an anthropologist (at least one).",
+          "tainted": true,
+          "source": "f_reef_bloom"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "anthro",
+          "name": "Boon: anthropology +1",
+          "text": "+1 on every anthropology attempt.",
+          "tainted": true,
+          "source": "m_glass_rain"
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_tide_locked"
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_salt_bloom"
+        },
+        {
+          "type": "seminar",
+          "name": "Boon: colleagues stay",
+          "text": "Consulted colleagues return to your hand immediately instead of at Reset.",
+          "tainted": true,
+          "source": "m_starving_signal"
+        },
+        {
+          "type": "loyal",
+          "power": 4,
+          "name": "Boon: +4 VP if no collapse",
+          "text": "+4 VP at game end — VOID if the game ends in full chaos.",
+          "tainted": false,
+          "source": "m_drifting_dead"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "anthro",
+          "name": "Boon: anthropology +1",
+          "text": "+1 on every anthropology attempt.",
+          "tainted": false,
+          "source": "m_borrowed_sky"
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_two_rivers"
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_court_echoes"
+        },
+        {
+          "type": "loyal",
+          "power": 4,
+          "name": "Boon: +4 VP if no collapse",
+          "text": "+4 VP at game end — VOID if the game ends in full chaos.",
+          "tainted": false,
+          "source": "m_hollow_herd"
+        },
+        {
+          "type": "income",
+          "power": 3,
+          "name": "Boon: +3c per solve",
+          "text": "+3 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "m_debt_of_names"
+        },
+        {
+          "type": "income",
+          "power": 3,
+          "name": "Boon: +3c per solve",
+          "text": "+3 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "m_worldheart"
+        },
+        {
+          "type": "income",
+          "power": 1,
+          "name": "Boon: +1c per solve",
+          "text": "+1 credits every time you solve a mission.",
+          "tainted": false,
+          "source": "m_ascension_engine"
+        },
+        {
+          "type": "income",
+          "power": 2,
+          "name": "Boon: +2c per solve",
+          "text": "+2 credits every time you solve a mission.",
+          "tainted": true,
+          "source": "m_glasswing"
+        },
+        {
+          "type": "hire_discount",
+          "power": 1,
+          "name": "Boon: hires -1c",
+          "text": "Hiring researchers costs 1 credit less.",
+          "tainted": false,
+          "source": "m_last_migration"
+        },
+        {
+          "type": "skill",
+          "power": 1,
+          "disc": "anthro",
+          "name": "Boon: anthropology +1",
+          "text": "+1 on every anthropology attempt.",
+          "tainted": true,
+          "source": "m_seed_of_ruin"
+        }
+      ],
+      "pending_boons": [],
+      "trophy": 1,
+      "conceded": 0,
+      "final_score": 141,
+      "score_breakdown": {
+        "wealth": 20,
+        "war_college": 0,
+        "diplomatic_corps": 72,
+        "trade_guild": 1,
+        "recruiters": 33,
+        "trophy": 7,
+        "loyal": 8
+      }
+    }
+  ],
+  "story": [
+    {
+      "mission": "m_lightless_choir",
+      "title": "Mission 5",
+      "culture": "Culture 5",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    },
+    {
+      "mission": "m_silent_reef",
+      "title": "Mission 1",
+      "culture": "Culture 1",
+      "discipline": "bio",
+      "seat": 0,
+      "text": "",
+      "chaos": 1
+    },
+    {
+      "mission": "m_iron_pilgrims",
+      "title": "Mission 8",
+      "culture": "Culture 8",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    },
+    {
+      "mission": "f_reef_bloom",
+      "title": "Mission 21",
+      "culture": "Culture 1",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": 1
+    },
+    {
+      "mission": "m_glass_rain",
+      "title": "Mission 3",
+      "culture": "Culture 3",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": 1
+    },
+    {
+      "mission": "m_tide_locked",
+      "title": "Mission 7",
+      "culture": "Culture 7",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "m_salt_bloom",
+      "title": "Mission 6",
+      "culture": "Culture 6",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": -1
+    },
+    {
+      "mission": "m_starving_signal",
+      "title": "Mission 14",
+      "culture": "Culture 8",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": 3
+    },
+    {
+      "mission": "m_drifting_dead",
+      "title": "Mission 4",
+      "culture": "Culture 4",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "m_borrowed_sky",
+      "title": "Mission 10",
+      "culture": "Culture 10",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": -3
+    },
+    {
+      "mission": "m_two_rivers",
+      "title": "Mission 13",
+      "culture": "Culture 7",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": -3
+    },
+    {
+      "mission": "m_court_echoes",
+      "title": "Mission 16",
+      "culture": "Culture 10",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": -3
+    },
+    {
+      "mission": "m_hollow_herd",
+      "title": "Mission 12",
+      "culture": "Culture 6",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": -2
+    },
+    {
+      "mission": "m_debt_of_names",
+      "title": "Mission 11",
+      "culture": "Culture 5",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": 3
+    },
+    {
+      "mission": "m_worldheart",
+      "title": "Mission 17",
+      "culture": "Culture 6",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": 4
+    },
+    {
+      "mission": "m_ascension_engine",
+      "title": "Mission 19",
+      "culture": "Culture 5",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": -4
+    },
+    {
+      "mission": "m_glasswing",
+      "title": "Mission 15",
+      "culture": "Culture 3",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": 2
+    },
+    {
+      "mission": "m_last_migration",
+      "title": "Mission 18",
+      "culture": "Culture 2",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": -3
+    },
+    {
+      "mission": "m_seed_of_ruin",
+      "title": "Mission 20",
+      "culture": "Culture 7",
+      "discipline": "anthro",
+      "seat": 0,
+      "text": "",
+      "chaos": 4
+    }
+  ],
+  "events": [
+    {
+      "n": 604,
+      "seat": 0,
+      "type": "game_created",
+      "message": "Dr_David_S_Bennett created the game (solo)",
+      "data": null,
+      "at": "2026-08-10 03:07:47"
+    },
+    {
+      "n": 605,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 5\" the Xenoanthropology way (2 vs 2) — +3c, chaos +2 — BOON claimed: Boon: anthropology +1 (Xenoanthropology +1)",
+      "data": {
+        "card": "ethnographer",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:08:17"
+    },
+    {
+      "n": 606,
+      "seat": null,
+      "type": "market",
+      "message": "Biologist 3 rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:08:17"
+    },
+    {
+      "n": 607,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Anthropologist 3, Anthropologist 4",
+      "data": {
+        "card": "talent_scout",
+        "action": "recruit"
+      },
+      "at": "2026-08-10 03:08:29"
+    },
+    {
+      "n": 608,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett planted 1 researcher: Biologist 2 (3) — +1 per turn",
+      "data": {
+        "card": "exobiologist",
+        "action": "biology"
+      },
+      "at": "2026-08-10 03:08:57"
+    },
+    {
+      "n": 609,
+      "seat": null,
+      "type": "market",
+      "message": "Geologist 3 rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:08:57"
+    },
+    {
+      "n": 610,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett harvested Biologist 2 → \"Mission 1\" (4 vs 3) +4c, chaos +1 — BOON claimed: Boon: biology +1 (Exobiology +1) — consequences will follow",
+      "data": {
+        "action": "harvest_solve"
+      },
+      "at": "2026-08-10 03:09:04"
+    },
+    {
+      "n": 611,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett finished the harvest",
+      "data": {
+        "action": "harvest_finish"
+      },
+      "at": "2026-08-10 03:09:10"
+    },
+    {
+      "n": 612,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 8\" the Xenoanthropology way (4 vs 4, +1 applied skill) — +3c, chaos +2 — BOON triggered: Boon: fire a card (choose a crew member to fire) (Xenoanthropology +1)",
+      "data": {
+        "card": "linguist",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:09:26"
+    },
+    {
+      "n": 613,
+      "seat": null,
+      "type": "market",
+      "message": "Recruiter rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:09:26"
+    },
+    {
+      "n": 614,
+      "seat": 0,
+      "type": "boon",
+      "message": "Dr_David_S_Bennett exercised Boon: fire a card: fired Geologist 2 (+5c)",
+      "data": {
+        "boon": "severance"
+      },
+      "at": "2026-08-10 03:09:29"
+    },
+    {
+      "n": 615,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 21\" the Xenoanthropology way (5 vs 3, +1 applied skill) — +4c, chaos +1 — BOON claimed: Boon: purity +3 (Xenoanthropology +1)",
+      "data": {
+        "card": "archivist",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:09:50"
+    },
+    {
+      "n": 616,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards (intermediate score: 17 VP)",
+      "data": {
+        "card": "mission_coordinator",
+        "action": "reset"
+      },
+      "at": "2026-08-10 03:09:53"
+    },
+    {
+      "n": 617,
+      "seat": null,
+      "type": "market",
+      "message": "Reset (+2c) rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:09:53"
+    },
+    {
+      "n": 618,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 3\" the Xenoanthropology way (5 vs 5, +1 applied skill) — +4c, chaos +1 — BOON claimed: Boon: anthropology +1 (Xenoanthropology +1)",
+      "data": {
+        "card": "archivist",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:10:15"
+    },
+    {
+      "n": 619,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 7\" the Xenoanthropology way (5 vs 5, +1 applied skill, +1 applied skill) — +7c, order 2 — BOON claimed: Boon: hires -1c",
+      "data": {
+        "card": "linguist",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:10:29"
+    },
+    {
+      "n": 620,
+      "seat": null,
+      "type": "market",
+      "message": "Biologist 4 rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:10:29"
+    },
+    {
+      "n": 621,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 6\" the Xenoanthropology way (4 vs 4, +1 applied skill, +1 applied skill) — +6c, order 1 — BOON claimed: Boon: hires -1c",
+      "data": {
+        "card": "ethnographer",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:10:36"
+    },
+    {
+      "n": 622,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Recruiter (free), Recruiter",
+      "data": {
+        "card": "talent_scout",
+        "action": "recruit"
+      },
+      "at": "2026-08-10 03:10:49"
+    },
+    {
+      "n": 623,
+      "seat": null,
+      "type": "market",
+      "message": "Reset (+3c) rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:10:49"
+    },
+    {
+      "n": 624,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards",
+      "data": {
+        "card": "mission_coordinator",
+        "action": "reset"
+      },
+      "at": "2026-08-10 03:11:03"
+    },
+    {
+      "n": 625,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 14\" the Xenoanthropology way (9 vs 7, 1 colleagues consulted (pure methodology +3), +1 applied skill, +1 applied skill) — +6c, chaos +3 — BOON claimed: Boon: colleagues stay (Xenoanthropology +1) — gate broken: +10c research grant",
+      "data": {
+        "card": "linguist",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:11:18"
+    },
+    {
+      "n": 626,
+      "seat": null,
+      "type": "market",
+      "message": "Geologist 4 rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:11:18"
+    },
+    {
+      "n": 627,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 4\" the Xenoanthropology way (6 vs 5, +1 applied skill, +1 applied skill) — +7c, order 2 — BOON claimed: Boon: +4 VP if no collapse",
+      "data": {
+        "card": "archivist",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:12:03"
+    },
+    {
+      "n": 628,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Anthropologist 5",
+      "data": {
+        "card": "talent_scout",
+        "action": "recruit"
+      },
+      "at": "2026-08-10 03:12:13"
+    },
+    {
+      "n": 629,
+      "seat": null,
+      "type": "market",
+      "message": "Biologist 5 rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:12:13"
+    },
+    {
+      "n": 630,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 10\" the Xenoanthropology way (7 vs 7, +1 applied skill, +1 applied skill) — +12c, order 3 — BOON claimed: Boon: anthropology +1 (Xenoanthropology +1)",
+      "data": {
+        "card": "chief_ethnologist",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:12:19"
+    },
+    {
+      "n": 631,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Anthropologist 5",
+      "data": {
+        "card": "headhunter",
+        "action": "recruit_free"
+      },
+      "at": "2026-08-10 03:12:27"
+    },
+    {
+      "n": 632,
+      "seat": null,
+      "type": "market",
+      "message": "Geologist 5 rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:12:27"
+    },
+    {
+      "n": 633,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 13\" the Xenoanthropology way (8 vs 6, +1 applied skill, +1 applied skill, +1 applied skill) — +12c, order 3 — BOON claimed: Boon: hires -1c (Xenoanthropology +1)",
+      "data": {
+        "card": "mythographer",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:12:33"
+    },
+    {
+      "n": 634,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards",
+      "data": {
+        "card": "mission_coordinator",
+        "action": "reset"
+      },
+      "at": "2026-08-10 03:12:41"
+    },
+    {
+      "n": 635,
+      "seat": null,
+      "type": "market",
+      "message": "Reset (+5c) rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:12:41"
+    },
+    {
+      "n": 636,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 16\" the Xenoanthropology way (7 vs 5, +1 applied skill, +1 applied skill, +1 applied skill) — +12c, order 3 — BOON claimed: Boon: hires -1c (Xenoanthropology +1)",
+      "data": {
+        "card": "archivist",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:12:47"
+    },
+    {
+      "n": 637,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 12\" the Xenoanthropology way (8 vs 5, +1 applied skill, +1 applied skill, +1 applied skill) — +11c, order 2 — BOON claimed: Boon: +4 VP if no collapse",
+      "data": {
+        "card": "chief_ethnologist",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:12:52"
+    },
+    {
+      "n": 638,
+      "seat": null,
+      "type": "market",
+      "message": "Recruiter rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:12:52"
+    },
+    {
+      "n": 639,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett hired Anthropologist 6",
+      "data": {
+        "card": "headhunter",
+        "action": "recruit_free"
+      },
+      "at": "2026-08-10 03:12:58"
+    },
+    {
+      "n": 640,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 11\" the Xenoanthropology way (6 vs 3, +1 applied skill, +1 applied skill, +1 applied skill) — +6c, chaos +3 — BOON claimed: Boon: +3c per solve",
+      "data": {
+        "card": "linguist",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:13:10"
+    },
+    {
+      "n": 641,
+      "seat": null,
+      "type": "market",
+      "message": "Biologist 5 rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:13:10"
+    },
+    {
+      "n": 642,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 17\" the Xenoanthropology way (12 vs 10, 1 colleagues consulted (they stay in hand) (pure methodology +3), +1 applied skill, +1 applied skill, +1 applied skill) — +9c, chaos +4 — BOON claimed: Boon: +3c per solve (Xenoanthropology +1) — gate broken: +15c research grant",
+      "data": {
+        "card": "mythographer",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:13:23"
+    },
+    {
+      "n": 643,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 19\" the Xenoanthropology way (13 vs 10, 1 colleagues consulted (they stay in hand) (pure methodology +3), +1 applied skill, +1 applied skill, +1 applied skill) — +17c, order 4 — BOON claimed: Boon: +1c per solve (Xenoanthropology +1)",
+      "data": {
+        "card": "loremaster",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:13:34"
+    },
+    {
+      "n": 644,
+      "seat": null,
+      "type": "market",
+      "message": "Geologist 5 rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:13:34"
+    },
+    {
+      "n": 645,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 15\" the Xenoanthropology way (5 vs 4, +1 applied skill, +1 applied skill, +1 applied skill) — +7c, chaos +2 — BOON claimed: Boon: +2c per solve",
+      "data": {
+        "card": "ethnographer",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:13:52"
+    },
+    {
+      "n": 646,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett reset and recovered their cards",
+      "data": {
+        "card": "mission_coordinator",
+        "action": "reset"
+      },
+      "at": "2026-08-10 03:13:54"
+    },
+    {
+      "n": 647,
+      "seat": null,
+      "type": "market",
+      "message": "Reset (+6c) rotated out of the market",
+      "data": null,
+      "at": "2026-08-10 03:13:54"
+    },
+    {
+      "n": 648,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 18\" the Xenoanthropology way (12 vs 10, 1 colleagues consulted (they stay in hand) (pure methodology +3), +1 applied skill, +1 applied skill, +1 applied skill) — +16c, order 3 — BOON claimed: Boon: hires -1c (Xenoanthropology +1)",
+      "data": {
+        "card": "mythographer",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:14:16"
+    },
+    {
+      "n": 649,
+      "seat": 0,
+      "type": "action",
+      "message": "Dr_David_S_Bennett resolved \"Mission 20\" the Xenoanthropology way (13 vs 10, 1 colleagues consulted (they stay in hand) (pure methodology +3), +1 applied skill, +1 applied skill, +1 applied skill) — +9c, chaos +4 — BOON claimed: Boon: anthropology +1 (Xenoanthropology +1) — FIELD MASTERED",
+      "data": {
+        "card": "loremaster",
+        "action": "ethnography"
+      },
+      "at": "2026-08-10 03:14:32"
+    },
+    {
+      "n": 650,
+      "seat": 0,
+      "type": "game_ended",
+      "message": "Game over — winner: Dr_David_S_Bennett",
+      "data": null,
+      "at": "2026-08-10 03:14:32"
+    }
+  ]
+}
