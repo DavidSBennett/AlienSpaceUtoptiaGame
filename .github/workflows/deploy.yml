@@ -50,7 +50,7 @@ jobs:
           SOURCE: "publish/"
           # Playtest install: alienspace.thehistorians.org (temporary name).
           # Adjust if cPanel put the subdomain docroot somewhere else.
-          TARGET: "public_html/alienspace.thehistorians.org/"
+          TARGET: "${{ vars.DEPLOY_DIR || 'public_html/alienspace.thehistorians.org' }}/"
           # rsync flags: NO --delete, so server-only files are never removed.
           ARGS: "-rltgoDzvO --no-perms"
           EXCLUDE: "config.secret.php, dbConfig.php, vendor/, uploads/, Images/"
